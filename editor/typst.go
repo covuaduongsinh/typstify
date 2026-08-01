@@ -16,7 +16,15 @@ func init() {
 	RegisterLanguageExtension(LanguageExtension{
 		Lang: "Typst",
 		Exts: []string{".typ"},
-		Opts: []TextEditorOption{withMathDelimiters()},
+		Opts: []TextEditorOption{
+			withMathDelimiters(),
+			WithBracketPairs(map[rune]rune{
+				'(': ')',
+				'{': '}',
+				'[': ']', '<': '>',
+				mathDelim: mathDelim,
+			}),
+		},
 	})
 }
 
