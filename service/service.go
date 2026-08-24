@@ -15,6 +15,7 @@ import (
 	"github.com/oligo/gioview/explorer"
 	"github.com/oligo/gioview/image"
 	"github.com/oligo/gioview/view"
+	"github.com/typstify/tpix-cli"
 	"github.com/typstify/tpix-cli/api"
 	"looz.ws/typstify/agent"
 	"looz.ws/typstify/lsp"
@@ -47,8 +48,6 @@ type ServiceFacade struct {
 	acpMu              sync.Mutex
 	mcpServer          *agent.McpServer // the built-in mcp server
 
-	tpixSessionSrv *TpixSessionService
-
 	currentProjectDir string
 
 	// Window layout metrics for native webview positioning.
@@ -60,29 +59,28 @@ type ServiceFacade struct {
 func NewService(ctx context.Context) *ServiceFacade {
 	eventbus := bus.NewEventBus(ctx, false)
 	st := settings.NewSettings(eventbus)
-	tpixSessionSrv := &TpixSessionService{setting: st.Tpix()}
 
 	s := &ServiceFacade{
-		eventbus:       eventbus,
-		settings:       st,
-		pkgService:     pkg.NewTypstPkgService(st.Typst(), st.Tpix()),
-		workspaceSrv:   NewWorkspaceService(st.General().RootDir, eventbus),
-		windowSrv:      NewWindowService(ctx, st),
-		consoleState:   console.NewConsoleState(1000),
-		tpixSessionSrv: tpixSessionSrv,
+		eventbus:     eventbus,
+		settings:     st,
+		windowSrv:    NewWindowService(ctx, st),
+		consoleState: console.NewConsoleState(1000),
 	}
 
+	pkgSrv := pkg.NewTypstPkgService(st.Typst(), st.Tpix(), s.TpixClient())
+	s.pkgService = pkgSrv
+
 	eventbus.Subscribe(s, "service.onSettingUpdate", bus.TopicSettingsUpdated, func(topic string, data interface{}) {
-		s.pkgService = pkg.NewTypstPkgService(st.Typst(), st.Tpix())
+		s.pkgService = pkg.NewTypstPkgService(st.Typst(), st.Tpix(), s.TpixClient())
 	})
+
+	s.workspaceSrv = NewWorkspaceService(st.General().RootDir, eventbus, s.TpixClient())
 
 	// init executable lookup path.
 	lsp.SetupCmdBuilder(s.settings.General().ExternalTinymist)
 	typst.SetupCmdBuilder(s.settings.General().ExternalTypst)
 
 	s.RegisterDevice()
-
-	api.Init(&tpixCredentialProvider{setting: st.Tpix()})
 
 	return s
 }
@@ -96,7 +94,6 @@ func (s *ServiceFacade) Settings() *settings.Settings {
 }
 
 func (s *ServiceFacade) PkgService() *pkg.TypstPkgService {
-	s.pkgService.SetReporter(tpixCliReporter{w: s.consoleState}.Report)
 	return s.pkgService
 }
 
@@ -272,9 +269,6 @@ func (s *ServiceFacade) Console() *console.ConsoleState {
 }
 
 func (s *ServiceFacade) initMcpServer(ctx context.Context) {
-	if !s.tpixSessionSrv.Authenticated() {
-		return
-	}
 	if s.mcpServer != nil {
 		s.mcpServer.Shutdown(ctx)
 	}
@@ -307,7 +301,7 @@ func (s *ServiceFacade) initMcpServer(ctx context.Context) {
 	editorToolSrv := mcp.NewEditorMcpService(s.currentProjectDir, s.settings, client, s.previewSrv, s.eventbus, activeDocQuerier)
 	s.mcpServer.RegisterToolProvider(editorToolSrv)
 
-	pkgToolSrv := mcp.NewPackageMcpService(s.currentProjectDir, s.settings.Tpix(), s.PkgService())
+	pkgToolSrv := mcp.NewPackageMcpService(s.currentProjectDir, s.TpixClient(), s.PkgService())
 	s.mcpServer.RegisterToolProvider(pkgToolSrv)
 	s.mcpServer.RegisterResourceProvider(pkgToolSrv)
 
@@ -317,18 +311,16 @@ func (s *ServiceFacade) initMcpServer(ctx context.Context) {
 func (s *ServiceFacade) listMcpServer() []acp.McpServer {
 	mcpServers := make([]acp.McpServer, 0)
 
-	if s.tpixSessionSrv.Authenticated() {
-		// built-in mcp server
-		ip, port := s.mcpServer.Addr()
-		mcpServers = append(mcpServers, acp.McpServer{
-			Http: &acp.McpServerHttpInline{
-				Name:    agent.ServerName,
-				Type:    "http",
-				Url:     fmt.Sprintf("http://%s:%d", ip, port),
-				Headers: []acp.HttpHeader{},
-			},
-		})
-	}
+	// built-in mcp server
+	ip, port := s.mcpServer.Addr()
+	mcpServers = append(mcpServers, acp.McpServer{
+		Http: &acp.McpServerHttpInline{
+			Name:    agent.ServerName,
+			Type:    "http",
+			Url:     fmt.Sprintf("http://%s:%d", ip, port),
+			Headers: []acp.HttpHeader{},
+		},
+	})
 
 	return mcpServers
 }
@@ -455,6 +447,14 @@ func (s *ServiceFacade) AcpSessionManager() *agent.SessionManager {
 	return s.acpSessionManager
 }
 
-func (s *ServiceFacade) TpixSessionService() *TpixSessionService {
-	return s.tpixSessionSrv
+func (s *ServiceFacade) TpixClient() *tpix.TpixSdk {
+	httpClient := api.NewHttpClient(&tpixApiKeyProvider{setting: s.settings.Tpix()})
+	client := tpix.NewTpixSdk(httpClient)
+	client.WithReporter(tpixCliReporter{w: s.consoleState}.Report)
+
+	return client
+}
+
+func (s *ServiceFacade) Authenticated() bool {
+	return s.settings.Tpix().ApiKey != ""
 }

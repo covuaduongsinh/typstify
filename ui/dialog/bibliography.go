@@ -58,7 +58,7 @@ func (d *SyncBibDialog) OnInit(intent view.Intent) error {
 	go func() {
 		d.isLoading.Store(true)
 		defer d.isLoading.Store(false)
-		libraries, err := cli.ListZoteroLibraries()
+		libraries, err := d.srv.TpixClient().ListZoteroLibraries()
 		if err != nil {
 			d.loadErr = err
 			return
@@ -125,7 +125,7 @@ func (d *SyncBibDialog) OnConfirm() error {
 	}
 
 	// TODO: should call this asynchronously.
-	exportID, err := cli.CreateZoteroExport(filename, namespaceID, scope, int64(libraryID), selectedCollectionKey, format, nil)
+	exportID, err := d.srv.TpixClient().CreateZoteroExport(filename, namespaceID, scope, int64(libraryID), selectedCollectionKey, format)
 	if err != nil {
 		d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
 			Content: i18n.Translate("Creating managed bibliography error: %s", err.Error()),
@@ -236,7 +236,7 @@ func (d *BibInfoDialog) OnConfirm() error {
 }
 
 func (d *BibInfoDialog) unlinkRemote() error {
-	err := cli.DeleteZoteroExport(d.meta.ExportID, nil)
+	err := d.srv.TpixClient().DeleteZoteroExport(d.meta.ExportID)
 	if err != nil {
 		d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
 			Content: i18n.Translate("Unlink managed bibliography error: %s", err.Error()),

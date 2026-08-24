@@ -85,11 +85,9 @@ type LspSettings struct {
 type TpixSettings struct {
 	baseModel
 
-	Username     string `key:"username" json:"username"`
-	Email        string `key:"email" json:"email"`
-	AccessToken  string `key:"accessToken" json:"accessToken"`
-	RefreshToken string `key:"refreshToken" json:"refreshToken"`
-	LoginAt      int64  `key:"loginAt" json:"loginAt"`
+	Username string `key:"username" json:"username"`
+	Email    string `key:"email" json:"email"`
+	ApiKey   string `key:"apiKey" json:"apiKey"`
 }
 
 type AcpAgentSettings struct {
@@ -294,9 +292,7 @@ func (t *TpixSettings) Validate() error {
 func (t *TpixSettings) Clear() {
 	t.Username = ""
 	t.Email = ""
-	t.AccessToken = ""
-	t.RefreshToken = ""
-	t.LoginAt = 0
+	t.ApiKey = ""
 	t.Save()
 }
 

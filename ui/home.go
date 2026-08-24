@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"fmt"
-
 	"github.com/oligo/gioview/theme"
 	"github.com/oligo/gioview/view"
 	"looz.ws/typstify/i18n"
@@ -137,7 +135,7 @@ func (hv *HomeView) update(gtx C) {
 		hv.RequestSwitch(view.Intent{
 			Target: settings.SettingViewID,
 			Params: map[string]any{
-				"tabIdx": 3, // hardcoded tpix tab index in setting page.
+				"tabIdx": 4, // hardcoded tpix tab index in setting page.
 			},
 		})
 	}
@@ -361,8 +359,8 @@ func (hv *HomeView) layoutView(gtx C, th *theme.Theme) D {
 }
 
 func (hv *HomeView) layoutAccountInfo(gtx C, th *theme.Theme) D {
-	authInfo := hv.srv.TpixSessionService().Session()
-	userAuthed := hv.srv.TpixSessionService().Authenticated()
+	userAuthed := hv.srv.Authenticated()
+	username := hv.srv.Settings().Tpix().Username
 
 	return hv.accountClick.Layout(gtx, func(gtx C) D {
 		paintColor := th.Fg
@@ -386,12 +384,7 @@ func (hv *HomeView) layoutAccountInfo(gtx C, th *theme.Theme) D {
 				}),
 				layout.Rigid(func(gtx C) D {
 					if userAuthed {
-						name := authInfo.Username
-						// if user is not subscribed, show the state and prompt he/her to upgrade.
-						if !authInfo.Subscribed {
-							name = fmt.Sprintf("%s (unsubscribed)", name)
-						}
-						lb := material.Label(th.Theme, th.TextSize, name)
+						lb := material.Label(th.Theme, th.TextSize, username)
 						lb.Color = paintColor
 						return lb.Layout(gtx)
 					}

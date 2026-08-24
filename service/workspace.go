@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	cli "github.com/typstify/tpix-cli"
+	"github.com/typstify/tpix-cli"
 	bolt "go.etcd.io/bbolt"
 	"looz.ws/typstify/service/bus"
 	"looz.ws/typstify/utils"
@@ -74,6 +74,7 @@ type WorkspaceService struct {
 
 	fileWatcher *WorkspaceFileWatcher
 	eventBus    *bus.EventBus
+	tpixClient  *tpix.TpixSdk
 
 	gitRepoState *GitRepoState
 	gitMu        sync.Mutex
@@ -84,7 +85,7 @@ type WorkspaceService struct {
 
 const gitDebounceInterval = 500 * time.Millisecond
 
-func NewWorkspaceService(dataDir string, eventBus *bus.EventBus) *WorkspaceService {
+func NewWorkspaceService(dataDir string, eventBus *bus.EventBus, tpixClient *tpix.TpixSdk) *WorkspaceService {
 	db := openDB(filepath.Join(dataDir, "recent.db"))
 	stateIndex := utils.NewBucket[utils.SKey]("recent-projects", db, &utils.JsonEncoder[WorkspaceState]{})
 	appStateIndex := utils.NewBucket[utils.SKey]("app-state", db, &utils.JsonEncoder[AppState]{})
@@ -96,6 +97,7 @@ func NewWorkspaceService(dataDir string, eventBus *bus.EventBus) *WorkspaceServi
 		fileWatcher:   NewWorkspaceFileWatcher(eventBus),
 		eventBus:      eventBus,
 		gitRepoState:  &GitRepoState{},
+		tpixClient:    tpixClient,
 	}
 }
 
@@ -329,7 +331,7 @@ func (rp *WorkspaceService) restartWatcher() {
 			settings.BibFiles,
 			func(bib ManagedBibliography) bool {
 				if exists, _ := utils.CheckFileExists(filepath.Join(rootDir, bib.File)); !exists {
-					if err := cli.DeleteZoteroExport(bib.ExportID, nil); err != nil {
+					if err := rp.tpixClient.DeleteZoteroExport(bib.ExportID); err != nil {
 						log.Println("delete zotero export failed: ", err)
 					}
 
@@ -399,7 +401,7 @@ func (rp *WorkspaceService) syncManagedBibliography(rootDir string, mb ManagedBi
 	}
 
 	var content bytes.Buffer
-	if err := cli.FetchZoteroExport(mb.ExportID, &content); err != nil {
+	if err := rp.tpixClient.FetchZoteroExport(mb.ExportID, &content); err != nil {
 		return err
 	}
 

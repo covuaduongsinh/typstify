@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"strings"
 	"sync"
@@ -13,35 +12,30 @@ import (
 	tpix "github.com/typstify/tpix-cli"
 	"github.com/typstify/tpix-cli/api"
 	"looz.ws/typstify/agent"
-	"looz.ws/typstify/service/settings"
 	"looz.ws/typstify/typst/pkg"
 )
 
 var _ agent.McpToolProvider = (*PackageMcpService)(nil)
 
 type PackageMcpService struct {
-	projectDir   string
-	tpixSettings *settings.TpixSettings
-	pkgService   *pkg.TypstPkgService
+	projectDir string
+	tpixClient *tpix.TpixSdk
+	pkgService *pkg.TypstPkgService
 
 	metadataFile string
 	metadataMu   sync.Mutex
 }
 
-func NewPackageMcpService(projectDir string, tpixSettings *settings.TpixSettings, pkgService *pkg.TypstPkgService) *PackageMcpService {
+func NewPackageMcpService(projectDir string, tpixClient *tpix.TpixSdk, pkgService *pkg.TypstPkgService) *PackageMcpService {
 	return &PackageMcpService{
-		projectDir:   projectDir,
-		tpixSettings: tpixSettings,
-		pkgService:   pkgService,
+		projectDir: projectDir,
+		tpixClient: tpixClient,
+		pkgService: pkgService,
 	}
 }
 
 func (ps *PackageMcpService) UserInfo(ctx context.Context) (*api.UserProfile, error) {
-	if ps.tpixSettings.LoginAt <= 0 {
-		return nil, errors.New("user not logged in TPIX")
-	}
-
-	return tpix.GetUserProfile()
+	return ps.tpixClient.GetUserProfile()
 }
 
 // List local cached packages.
