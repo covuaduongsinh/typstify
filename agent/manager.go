@@ -87,7 +87,10 @@ func (sm *SessionManager) Start(ctx context.Context, agentConfig AgentConfig, en
 	// Use a clean context other than the incoming ctx, to prevent the command
 	// from being canceled accidentally.
 	cmd := utils.BuildCmd(context.Background(), agentConfig.Cmd, agentConfig.Args...)
-	cmd.Env = append(cmd.Env, agentConfig.Env...)
+	// Agents expect a full user environment (API tokens, locale, etc.), which
+	// GUI launchers do not provide. Overlay the login-shell env captured at
+	// startup, then the user-configured env, which takes precedence.
+	cmd.Env = utils.MergeEnv(os.Environ(), utils.LoginShellEnv(), utils.ParseEnv(agentConfig.Env))
 
 	if agentLogStreamer != nil {
 		cmd.Stderr = agentLogStreamer

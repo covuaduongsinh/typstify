@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"os"
 	"os/exec"
 	"syscall"
 
@@ -11,7 +10,6 @@ import (
 
 func BuildCmd(ctx context.Context, path string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, path, args...)
-	cmd.Env = append(cmd.Env, os.Environ()...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
 		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
