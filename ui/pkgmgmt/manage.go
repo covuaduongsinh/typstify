@@ -246,10 +246,10 @@ func (vw *PkgListView) downloadPkg(pkgInfo *pkg.TypstPkg) {
 		} else {
 			pkgSpec := pkgInfo.ImportPath()
 			var msg string
-			if count > 1 {
+			if count <= 1 {
 				msg = i18n.Translate("Downloaded package %s. ", pkgSpec)
 			} else {
-				msg = i18n.Translate("Downloaded package %s and %d transitive dependencies.", pkgSpec, count)
+				msg = i18n.Translate("Downloaded package %s and %d transitive dependencies.", pkgSpec, count-1)
 			}
 			vw.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: msg, Level: 0})
 		}

@@ -9,6 +9,7 @@ import (
 
 	tpix "github.com/typstify/tpix-cli"
 	"github.com/typstify/tpix-cli/api"
+	"github.com/typstify/tpix-cli/deps"
 	"looz.ws/typstify/service/settings"
 )
 
@@ -102,8 +103,8 @@ func (s *TypstPkgService) CachedPkgs() ([]TypstPkg, error) {
 }
 
 func (s *TypstPkgService) GetLocalPackagePath(pkgSpec string) string {
-	namespace, name, version := tpix.ParsePkgSpec(pkgSpec)
-	return filepath.Join(s.cacheDir, namespace, name, version)
+	dep := deps.ParseDependency(pkgSpec)
+	return filepath.Join(s.cacheDir, dep.RelPath())
 }
 
 func (s *TypstPkgService) CacheDir() string {
@@ -116,11 +117,23 @@ func (s *TypstPkgService) Download(namespace string, name string, version string
 		spec += ":" + version
 	}
 
-	return s.tpixClient.DownloadPackage(spec, s.cacheDir, false)
+	deps, err := s.tpixClient.DownloadPackage(spec, s.cacheDir, false)
+	if err != nil {
+		return "", 0, err
+	}
+
+	path := filepath.Join(s.cacheDir, deps[0].RelPath())
+	return path, len(deps), nil
 }
 
 func (s *TypstPkgService) DownloadWithSpec(spec string) (string, int, error) {
-	return s.tpixClient.DownloadPackage(spec, s.cacheDir, false)
+	deps, err := s.tpixClient.DownloadPackage(spec, s.cacheDir, false)
+	if err != nil {
+		return "", 0, err
+	}
+
+	path := filepath.Join(s.cacheDir, deps[0].RelPath())
+	return path, len(deps), nil
 }
 
 func (s *TypstPkgService) PullDependencies(projectDir string) error {
