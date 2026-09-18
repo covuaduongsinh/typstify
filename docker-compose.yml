@@ -1,0 +1,22 @@
+# Example self-hosted deployment. See docs/web-server.md.
+#
+#   cp .env.example .env   # then set TYPSTIFY_SERVER_PASSWORD
+#   docker compose up -d --build
+#
+# By default this only binds to localhost:8080; put it behind a TLS reverse
+# proxy (Caddy, nginx, Traefik...) before exposing it on a real network --
+# this server does not terminate TLS itself and the password/session cookie
+# would otherwise travel in plaintext.
+services:
+  typstify:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      TYPSTIFY_SERVER_PASSWORD: ${TYPSTIFY_SERVER_PASSWORD:?set a password in .env}
+    volumes:
+      - typstify-data:/data
+
+volumes:
+  typstify-data:

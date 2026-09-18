@@ -19,7 +19,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 	"looz.ws/typstify/service/bus"
 	"looz.ws/typstify/utils"
-	"looz.ws/typstify/widgets/filetree"
+	"looz.ws/typstify/widgets/filetree/treestate"
 )
 
 type BibliographyExportMeta struct {
@@ -52,7 +52,7 @@ type WorkspaceState struct {
 	Path         string
 	RelPath      string
 	LastAccessAt time.Time
-	TreeState    *filetree.TreeState
+	TreeState    *treestate.TreeState
 	OpenedFiles  []string
 }
 
@@ -134,7 +134,7 @@ func (rp *WorkspaceService) SwitchWorkspace(projectDir string) {
 
 }
 
-func (rp *WorkspaceService) SaveSnapshot(treeState *filetree.TreeState, openedFiles []string) {
+func (rp *WorkspaceService) SaveSnapshot(treeState *treestate.TreeState, openedFiles []string) {
 	if rp.currentWorkspace.Path == "" {
 		return
 	}

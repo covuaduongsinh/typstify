@@ -1,0 +1,12 @@
+.git
+.omc
+bin/
+scratch/
+chessbook/
+demo/
+docs/
+*.exe
+*.exe~
+*.log
+web/node_modules
+web/dist

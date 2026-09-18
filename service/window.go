@@ -2,21 +2,16 @@ package service
 
 import (
 	"context"
-	"log"
 	"sync"
 
-	"gioui.org/app"
-	"gioui.org/io/system"
-	"gioui.org/layout"
-	"gioui.org/op"
-	"gioui.org/unit"
-	"github.com/oligo/gioview/theme"
-	"looz.ws/typstify/fonts"
 	"looz.ws/typstify/service/settings"
-	"looz.ws/typstify/ui/palette"
 )
 
-// Application keeps track of all the windows and global state.
+// WindowService tracks application shutdown so that windows -- owned and
+// created by the Gio desktop UI layer (see ui/windowview.go) -- can
+// coordinate on it. It intentionally has no Gio dependency of its own, so
+// package service (and therefore cmd/typstify-server, the headless web-mode
+// entrypoint) can be built without pulling in gioui.org.
 type WindowService struct {
 	settings *settings.Settings
 	// Context is used to broadcast application shutdown.
@@ -42,79 +37,16 @@ func (w *WindowService) Wait() {
 	w.active.Wait()
 }
 
-// NewWindow creates a new tracked window.
-func (w *WindowService) NewWindow(ctx context.Context, title string, view WindowView, opts ...app.Option) {
-	opts = append(opts, app.Title(title))
+// TrackWindow runs run (a window's event loop) in a tracked goroutine, so
+// Wait blocks until every tracked window has returned.
+func (w *WindowService) TrackWindow(run func()) {
 	w.active.Add(1)
 	go func() {
 		defer w.active.Done()
-
-		w := &Window{
-			Service: w,
-			Window:  new(app.Window),
-		}
-		w.Window.Option(opts...)
-		view.Run(ctx, w)
+		run()
 	}()
 }
 
-func (w *WindowService) LoadTheme() *theme.Theme {
-	th := theme.NewTheme("", fonts.Embedded, false)
-
-	themeName := w.settings.General().Theme
-	if themeName == "" {
-		themeName = "Default Light"
-	}
-
-	cfg, err := palette.ThemeConfig(themeName)
-	if err != nil {
-		log.Println("Theme query failed: ", err)
-		return th
-	}
-
-	th.TextSize = unit.Sp(w.settings.General().TextSize)
-	th = th.WithPalette(cfg.Palette)
-	return th
-}
-
-// Window holds window state.
-type Window struct {
-	Service *WindowService
-	*app.Window
-}
-
-type WindowView interface {
-	// Run handles the window event loop.
-	Run(ctx context.Context, w *Window) error
-}
-
-// WidgetView allows to use gioview Widget as a view.
-type WidgetView func(gtx layout.Context, th *theme.Theme) layout.Dimensions
-
-// Run displays the widget with default handling.
-func (view WidgetView) Run(ctx context.Context, w *Window) error {
-	var ops op.Ops
-	th := w.Service.LoadTheme()
-
-	go func() {
-		select {
-		case <-w.Service.Context.Done():
-			w.Perform(system.ActionClose)
-			log.Println("window is closed")
-		case <-ctx.Done():
-			w.Perform(system.ActionClose)
-			log.Println("window is closed")
-		}
-	}()
-
-	for {
-		switch e := w.Event().(type) {
-		case app.DestroyEvent:
-			return e.Err
-		case app.FrameEvent:
-			gtx := app.NewContext(&ops, e)
-			view(gtx, th)
-			e.Frame(gtx.Ops)
-		}
-	}
+func (w *WindowService) Settings() *settings.Settings {
+	return w.settings
 }

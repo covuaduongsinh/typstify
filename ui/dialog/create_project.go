@@ -11,6 +11,7 @@ import (
 	"gioui.org/text"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/oligo/gioview/explorer"
 	"github.com/oligo/gioview/theme"
 	"github.com/oligo/gioview/view"
 	gw "github.com/oligo/gioview/widget"
@@ -190,7 +191,7 @@ func (d *CreateProjectDialog) OnConfirm() error {
 func (d *CreateProjectDialog) LayoutBody(gtx C, th *theme.Theme) D {
 	if d.openFolderBtn.Clicked(gtx) {
 		go func() {
-			d.projectDir, _ = d.srv.FileChooser().ChooseFolder()
+			d.projectDir, _ = d.srv.FileChooser().(*explorer.FileChooser).ChooseFolder()
 		}()
 	}
 

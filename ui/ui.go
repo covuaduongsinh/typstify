@@ -15,6 +15,7 @@ import (
 
 	"github.com/gioui-plugins/gio-plugins/plugin/gioplugins"
 	"github.com/oligo/gioview/explorer"
+	"github.com/oligo/gioview/image"
 	"github.com/oligo/gioview/theme"
 	"github.com/oligo/gioview/view"
 
@@ -58,7 +59,7 @@ func (ui *UI) Loop(ctx context.Context) error {
 
 	ui.registerViews()
 
-	ui.srv.InitFileChooser(func() *explorer.FileChooser {
+	ui.srv.InitFileChooser(func() any {
 		// init file explorer
 		exp, err := explorer.NewFileChooser(ui.vm.ViewManager)
 		if err != nil {
@@ -139,7 +140,12 @@ func (ui *UI) registerViews() {
 	vm.Register(assistant.AgentChatViewID, func() view.View { return assistant.NewAgentChatView(ui.srv) })
 
 	ui.vm = vm
-	ui.srv.SetViewManager(vm.ViewManager)
+	ui.srv.SetViewManager(
+		func(intent any) { vm.ViewManager.RequestSwitch(intent.(view.Intent)) },
+		func() { vm.ViewManager.Invalidate() },
+		func() { image.ClearCache() },
+		func() any { return vm.ViewManager.CurrentView() },
+	)
 }
 
 func (ui *UI) getWindowSize() (width unit.Dp, height unit.Dp) {

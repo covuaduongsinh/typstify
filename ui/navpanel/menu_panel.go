@@ -7,6 +7,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
+	"github.com/oligo/gioview/explorer"
 	"github.com/oligo/gioview/theme"
 	"github.com/oligo/gioview/view"
 
@@ -136,7 +137,7 @@ func (cp *MenuPanel) update(gtx C) {
 
 	if cp.openDirBtn.Clicked(gtx) {
 		go func() {
-			projectDir, err := cp.srv.FileChooser().ChooseFolder()
+			projectDir, err := cp.srv.FileChooser().(*explorer.FileChooser).ChooseFolder()
 			if err != nil {
 				log.Println("failed to choose folder: ", projectDir, err)
 				return

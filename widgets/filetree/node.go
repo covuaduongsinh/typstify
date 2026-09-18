@@ -7,6 +7,7 @@ import (
 	"gioui.org/widget"
 	"github.com/oligo/gioview/explorer"
 	"looz.ws/typstify/widgets"
+	"looz.ws/typstify/widgets/filetree/treestate"
 	"looz.ws/typstify/widgets/icons"
 )
 
@@ -41,10 +42,9 @@ type FlatNode struct {
 	IndentUnit      unit.Dp
 }
 
-type TreeState struct {
-	Path          string
-	ExpandedNodes []string
-}
+// TreeState is an alias so existing code/serialized data are unaffected;
+// see widgets/filetree/treestate for why the type itself lives there.
+type TreeState = treestate.TreeState
 
 // NodeMarker decorate the file node and also can change
 // its behavior based on its kind and meta data.

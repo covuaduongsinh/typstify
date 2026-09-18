@@ -12,9 +12,6 @@ import (
 	"time"
 
 	"github.com/coder/acp-go-sdk"
-	"github.com/oligo/gioview/explorer"
-	"github.com/oligo/gioview/image"
-	"github.com/oligo/gioview/view"
 	"github.com/typstify/tpix-cli"
 	"github.com/typstify/tpix-cli/api"
 	"looz.ws/typstify/agent"
@@ -35,14 +32,25 @@ const (
 )
 
 type ServiceFacade struct {
-	vm                 view.ViewManager
+	// requestSwitch, invalidateWindow and onUIClose are wired by the Gio
+	// desktop UI layer (see ui.NewUI/ui.registerViews) through
+	// SetViewManager. They are opaque func hooks -- rather than the
+	// concrete github.com/oligo/gioview/view types -- specifically so that
+	// package service has no Gio dependency and cmd/typstify-server (the
+	// headless web-mode entrypoint, docs/plans/plan_web_version.md) can be
+	// built without pulling in gioui.org. fileChooserBuilder is opaque for
+	// the same reason (it normally returns *gioview/explorer.FileChooser).
+	requestSwitch      func(intent any)
+	invalidateWindow   func()
+	onUIClose          func()
+	currentView        func() any
 	settings           *settings.Settings
 	eventbus           *bus.EventBus
 	workspaceSrv       *WorkspaceService
 	pkgService         *pkg.TypstPkgService
 	windowSrv          *WindowService
 	previewSrv         *lsp.PreviewService
-	fileChooserBuilder func() *explorer.FileChooser
+	fileChooserBuilder func() any
 	consoleState       *console.ConsoleState
 	acpSessionManager  *agent.SessionManager
 	acpMu              sync.Mutex
@@ -105,28 +113,48 @@ func (s *ServiceFacade) WindowService() *WindowService {
 	return s.windowSrv
 }
 
-func (s *ServiceFacade) InitFileChooser(builder func() *explorer.FileChooser) {
+func (s *ServiceFacade) InitFileChooser(builder func() any) {
 	s.fileChooserBuilder = builder
 }
 
-func (s *ServiceFacade) FileChooser() *explorer.FileChooser {
+// FileChooser returns the desktop UI's *gioview/explorer.FileChooser as an
+// opaque any; callers in package ui type-assert it back. nil (headless web
+// mode, or before InitFileChooser was called) if unset.
+func (s *ServiceFacade) FileChooser() any {
+	if s.fileChooserBuilder == nil {
+		return nil
+	}
 	return s.fileChooserBuilder()
 }
 
-func (s *ServiceFacade) SetViewManager(vm view.ViewManager) {
-	s.vm = vm
+// SetViewManager wires the desktop UI's view-switching/window-refresh/
+// shutdown/current-view hooks into the service layer.
+func (s *ServiceFacade) SetViewManager(requestSwitch func(intent any), invalidateWindow func(), onUIClose func(), currentView func() any) {
+	s.requestSwitch = requestSwitch
+	s.invalidateWindow = invalidateWindow
+	s.onUIClose = onUIClose
+	s.currentView = currentView
 }
 
-func (s *ServiceFacade) RequestSwitch(intent view.Intent) {
-	s.vm.RequestSwitch(intent)
+// RequestSwitch asks the desktop UI to switch views. intent is normally a
+// gioview/view.Intent; it is a no-op (e.g. headless web mode, where there is
+// no view manager) if SetViewManager was never called.
+func (s *ServiceFacade) RequestSwitch(intent any) {
+	if s.requestSwitch != nil {
+		s.requestSwitch(intent)
+	}
 }
 
 func (s *ServiceFacade) RefreshWindow() {
-	s.vm.Invalidate()
+	if s.invalidateWindow != nil {
+		s.invalidateWindow()
+	}
 }
 
 func (s *ServiceFacade) Close(ctx context.Context) {
-	image.ClearCache()
+	if s.onUIClose != nil {
+		s.onUIClose()
+	}
 	s.workspaceSrv.Close()
 	s.windowSrv.Shutdown()
 	s.windowSrv.Wait()
@@ -236,6 +264,10 @@ func (s *ServiceFacade) SetProjectDir(dir string) {
 }
 
 func (s *ServiceFacade) RestartPreview(ctx context.Context, onFinish func()) {
+	s.RestartPreviewWithEntry(ctx, "", onFinish)
+}
+
+func (s *ServiceFacade) RestartPreviewWithEntry(ctx context.Context, entryFile string, onFinish func()) {
 	if s.previewSrv == nil {
 		return
 	}
@@ -250,6 +282,7 @@ func (s *ServiceFacade) RestartPreview(ctx context.Context, onFinish func()) {
 			lsp.PreviewOptions{
 				Mode:          previewMode,
 				ProjectRoot:   s.currentProjectDir,
+				EntryFile:     entryFile,
 				InvertColor:   "never",
 				PartialRender: s.settings.Lsp().EnablePartialRenderPreview,
 			}, onFinish)
@@ -285,10 +318,10 @@ func (s *ServiceFacade) initMcpServer(ctx context.Context) {
 	// compilerTool := mcp.TypstCompilerHandler(s.CurrentProjectDir(), s.Settings().Typst())
 	// agent.AddMcpTool(s.mcpServer, mcp.TypstCompilerTool, compilerTool)
 	activeDocQuerier := func() *mcp.ActiveDocument {
-		if s.vm == nil {
+		if s.currentView == nil {
 			return nil
 		}
-		cv := s.vm.CurrentView()
+		cv := s.currentView()
 		if cv == nil {
 			return nil
 		}
@@ -396,7 +429,7 @@ func (s *ServiceFacade) startAcpSessionManager(ctx context.Context) error {
 		return errors.New("No project dir is open")
 	}
 
-	childCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	childCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
 
 	// start the mcp server
@@ -435,7 +468,7 @@ func (s *ServiceFacade) AcpSessionManager() *agent.SessionManager {
 		return s.acpSessionManager
 	}
 
-	childCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	childCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	err := s.startAcpSessionManager(childCtx)
@@ -448,7 +481,11 @@ func (s *ServiceFacade) AcpSessionManager() *agent.SessionManager {
 }
 
 func (s *ServiceFacade) TpixClient() *tpix.TpixSdk {
-	httpClient := api.NewHttpClient(&tpixApiKeyProvider{setting: s.settings.Tpix()})
+	var provider api.ApiKeyProvider
+	if s.settings.Tpix().ApiKey != "" {
+		provider = &tpixApiKeyProvider{setting: s.settings.Tpix()}
+	}
+	httpClient := api.NewHttpClient(provider)
 	client := tpix.NewTpixSdk(httpClient)
 	client.WithReporter(tpixCliReporter{w: s.consoleState}.Report)
 
