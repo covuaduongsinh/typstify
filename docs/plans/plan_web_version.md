@@ -101,12 +101,12 @@ Thư mục mới `web/` (Vite + TypeScript + React). Rủi ro #1 (editor/syntax 
 - **Đã xác minh riêng lẻ**: `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ./cmd/typstify-server` thành công (xem rủi ro #5); `npm run build` cho frontend thành công; URL tải `typst`/`tinymist` trong Dockerfile trả về đúng (kiểm bằng `curl -I`, theo redirect 302 bình thường của GitHub Releases); cấu trúc archive `typst-*.tar.xz` đã kiểm tra thực tế khớp với đường dẫn dùng trong Dockerfile.
 - **Chưa xác minh được**: lệnh `docker build`/`docker compose up` thật, vì Docker daemon không chạy trong sandbox này (`docker build` báo lỗi không kết nối được `dockerDesktopLinuxEngine`) — chỉ có Docker CLI, không có daemon. **Cần build thử thật trên máy có Docker daemon trước khi coi Giai đoạn 4 là hoàn tất.**
 
-### Giai đoạn 5 — Hoàn thiện (sau khi MVP chạy được end-to-end)
+### Giai đoạn 5 — Hoàn thiện **[3/4 mục đã triển khai và xác minh; 1 mục để lại có chủ đích]**
 
-- Xuất file (PDF/PNG/SVG) tải về từ trình duyệt (bọc `typst/compiler.go` hoặc `typst/export`).
-- Quản lý package Typst qua UI web (`pkg_api` + trang tương ứng).
-- i18n: tái dùng chuỗi dịch có sẵn ở `i18n/translations/` (export sang JSON cho frontend thay vì dịch lại).
-- Các dialog còn thiếu: bibliography, indentation, diff view.
+- ~~Xuất file (PDF/PNG/SVG) tải về từ trình duyệt~~ **[Xong]**: `GET /api/export` (`server/export_api.go`) bọc nguyên `typst/export.CompileHelper` — cùng helper mà dialog export của bản desktop dùng, không viết lại logic biên dịch. Nhiều trang (PNG/SVG) tự động nén thành `.zip`. Đã test thật qua UI: tải PDF thật (1 trang, hợp lệ) và PNG thật (magic bytes đúng) từ trình duyệt.
+- ~~Quản lý package Typst qua UI web~~ **[Xong]**: `server/pkg_api.go` bọc `typst/pkg.TypstPkgService` (search/cached/detail/download/pull-deps), panel `PackageManager.tsx` mới. Đã test thật: tìm kiếm "cetz" trả về kết quả thật từ Tpix, tải một package thật, trạng thái "Cached" cập nhật đúng sau khi tải xong.
+- ~~i18n~~ **[Xong, phạm vi có chủ đích thu hẹp]**: `POST /api/i18n` (`server/i18n_api.go`) dịch một danh sách key bằng đúng catalog `i18n/translations/` (chỉ hỗ trợ `en-US`/`zh-CN`/`de` như bản desktop — **không có tiếng Việt**, đây là giới hạn của catalog gốc, không phải web thêm vào). Do catalog được đánh key theo đúng câu tiếng Anh gốc trong UI desktop, và UI web mới viết chữ khác desktop ở phần lớn chỗ, chỉ áp dụng `t()` cho các nhãn **trùng khớp chính xác** với key có sẵn (`Sign In`, `Settings`, `Export`, `AI Assistant`, `Cancel`) — đã xác minh thật: gọi API trả về đúng `"KI-Assistent"/"Einstellungen"/"Exportieren"/"Anmelden"` (de) và `"AI助手"/"设置"/"导出"/"登陆"` (zh-CN). Phủ toàn bộ UI (mọi nhãn, mọi component) không nằm trong phạm vi đã làm — cần một đợt riêng để hoặc viết lại UI theo đúng từ vựng desktop, hoặc bổ sung key mới vào catalog gốc.
+- **Để lại có chủ đích, chưa làm**: dialog bibliography, indentation, diff view. Đây là các tính năng đặc thù desktop, phục vụ nhu cầu nâng cao (quản lý `.bib`, đổi kiểu thụt lề nhanh theo file, xem diff khi agent sửa file) — không nằm trên đường đi chính "soạn thảo + biên dịch + xem trước + chat AI" của MVP web, và mỗi cái cần thiết kế API mới riêng (đặc biệt diff view — cần expose `editor/diff.go` qua một endpoint chưa tồn tại). Ưu tiên thấp hơn 3 mục trên trong ngân sách thời gian của đợt triển khai này.
 
 ---
 

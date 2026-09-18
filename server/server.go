@@ -54,6 +54,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/auth/login", s.auth.handleLogin)
 	s.mux.HandleFunc("POST /api/auth/logout", s.auth.handleLogout)
 	s.mux.HandleFunc("GET /api/auth/status", s.auth.handleStatus)
+	s.mux.HandleFunc("POST /api/i18n", s.handleI18n)
 
 	// Workspace / project / file management.
 	s.handle("GET /api/workspace/current", s.handleCurrentProject)
@@ -66,6 +67,16 @@ func (s *Server) routes() {
 	s.handle("POST /api/workspace/file", s.handleFileCreate)
 	s.handle("DELETE /api/workspace/file", s.handleFileDelete)
 	s.handle("POST /api/workspace/rename", s.handleFileRename)
+
+	// Export (PDF/PNG/SVG download).
+	s.handle("GET /api/export", s.handleExport)
+
+	// Typst package manager (Tpix).
+	s.handle("GET /api/packages/search", s.handlePkgSearch)
+	s.handle("GET /api/packages/cached", s.handlePkgCached)
+	s.handle("GET /api/packages/detail", s.handlePkgDetail)
+	s.handle("POST /api/packages/download", s.handlePkgDownload)
+	s.handle("POST /api/packages/pull-deps", s.handlePkgPullDeps)
 
 	// Settings.
 	s.handle("GET /api/settings/general", settingsGetHandler(s.appSrv.Settings().General))

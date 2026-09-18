@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { ApiError, api } from '../api/client'
+import { useTranslations } from '../lib/i18n'
 
 export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const t = useTranslations(['Sign In'])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,7 +34,7 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
           onChange={(e) => setPassword(e.target.value)}
         />
         <button type="submit" disabled={busy}>
-          Sign in
+          {t('Sign In')}
         </button>
         {error && <div className="login-error">{error}</div>}
       </form>

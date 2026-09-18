@@ -1,12 +1,21 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useTranslations } from '../lib/i18n'
 import { AgentChat } from './AgentChat'
 import { Editor } from './Editor'
+import { ExportButton } from './ExportButton'
 import { FileTree } from './FileTree'
+import { PackageManager } from './PackageManager'
 import { PreviewPane } from './PreviewPane'
 import { SettingsPanel } from './SettingsPanel'
 
-type SidePanel = 'agent' | 'settings' | null
+// Keys matching i18n/translations catalog entries verbatim, so they reuse
+// the desktop app's existing zh-CN/de translations (see server/i18n_api.go
+// and docs/plans/plan_web_version.md Giai doan 5). "Packages" has no
+// desktop equivalent and stays English-only for now.
+const I18N_KEYS = ['AI Assistant', 'Settings', 'Export']
+
+type SidePanel = 'agent' | 'packages' | 'settings' | null
 
 export function Workspace({ projectPath, onCloseProject }: { projectPath: string; onCloseProject: () => void }) {
   const [activePath, setActivePath] = useState<string | null>(null)
@@ -14,6 +23,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const [dirty, setDirty] = useState(false)
   const [sidePanel, setSidePanel] = useState<SidePanel>('agent')
   const [previewVersion, setPreviewVersion] = useState(0)
+  const t = useTranslations(I18N_KEYS)
 
   useEffect(() => {
     if (!activePath) {
@@ -56,17 +66,24 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         <span className="project-path">{projectPath}</span>
         {dirty && <span className="dirty-indicator">unsaved</span>}
         <div className="header-spacer" />
+        {activePath?.endsWith('.typ') && <ExportButton path={activePath} />}
         <button
           className={sidePanel === 'agent' ? 'active' : ''}
           onClick={() => setSidePanel(sidePanel === 'agent' ? null : 'agent')}
         >
-          AI Agent
+          {t('AI Assistant')}
+        </button>
+        <button
+          className={sidePanel === 'packages' ? 'active' : ''}
+          onClick={() => setSidePanel(sidePanel === 'packages' ? null : 'packages')}
+        >
+          Packages
         </button>
         <button
           className={sidePanel === 'settings' ? 'active' : ''}
           onClick={() => setSidePanel(sidePanel === 'settings' ? null : 'settings')}
         >
-          Settings
+          {t('Settings')}
         </button>
       </header>
 
@@ -96,6 +113,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         {sidePanel && (
           <aside className="workspace-side-panel">
             {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
+            {sidePanel === 'packages' && <PackageManager />}
             {sidePanel === 'settings' && <SettingsPanel />}
           </aside>
         )}

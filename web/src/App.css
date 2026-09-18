@@ -75,6 +75,13 @@
 .header-spacer {
   flex: 1;
 }
+.export-control {
+  display: flex;
+  gap: 4px;
+}
+.export-control select {
+  padding: 4px 6px;
+}
 .workspace-body {
   flex: 1;
   display: flex;
@@ -226,6 +233,56 @@
   flex: 1;
   resize: none;
   height: 44px;
+}
+
+/* Package manager */
+.package-manager {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+}
+.package-search {
+  display: flex;
+  gap: 6px;
+}
+.package-search input {
+  flex: 1;
+}
+.package-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.package-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 12px;
+}
+.package-card-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+.package-version {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.package-description {
+  color: var(--text-dim);
+  margin: 4px 0;
+}
+.package-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.package-cached {
+  color: #4caf50;
+  font-size: 11px;
 }
 
 /* Settings */
