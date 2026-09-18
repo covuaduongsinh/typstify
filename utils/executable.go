@@ -7,51 +7,74 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 )
 
-// lookupExecutable looks up the executable path from the executable dir
-// and the process root dir, and existing PATH, and update PATH env after
-// it finds the executable.
-func lookupExecutable(exeName string) string {
-	binDir := ""
+// LookupExecutable looks up the executable path from the executable dir,
+// bin subdirectories, the current process root dir, and existing PATH,
+// returning an absolute path to avoid Go 1.19+ exec.ErrDot issues.
+func LookupExecutable(exeName string) string {
+	if filepath.IsAbs(exeName) {
+		return exeName
+	}
 
+	binDir := ""
 	currentExePath, err := os.Executable()
 	if err == nil {
 		binDir = filepath.Dir(currentExePath)
 	}
 
-	exePath := filepath.Join(binDir, exeName)
-	exists, isDir := CheckFileExists(exePath)
-
-	// Fallback to the process root dir.
-	if binDir == "" || !exists || isDir {
-		binDir, _ = filepath.Abs(".") // all 3 main OSes are supported.
-	}
-
-	exePath = filepath.Join(binDir, exeName)
-	exists, isDir = CheckFileExists(exePath)
-
-	if exists && !isDir {
-		// update permission to ensure it can be picked up by os.LookPath.
-		os.Chmod(exePath, 0755)
-
-		pathEnv := os.Getenv("PATH")
-		if runtime.GOOS == "windows" {
-			os.Setenv("PATH", binDir+";"+pathEnv)
-		} else {
-			// linux or macos or any other OS have the same format.
-			os.Setenv("PATH", binDir+":"+pathEnv)
+	// 1. Check in same directory as current executable
+	if binDir != "" {
+		exePath := filepath.Join(binDir, exeName)
+		if exists, isDir := CheckFileExists(exePath); exists && !isDir {
+			if abs, err := filepath.Abs(exePath); err == nil {
+				return abs
+			}
+			return exePath
+		}
+		pBin := filepath.Join(binDir, "bin", exeName)
+		if exists, isDir := CheckFileExists(pBin); exists && !isDir {
+			if abs, err := filepath.Abs(pBin); err == nil {
+				return abs
+			}
+			return pBin
 		}
 	}
 
-	absPath, err := exec.LookPath(exeName)
-	if err != nil {
-		log.Printf("No %s found after searching PATH: %s", exeName, os.Getenv("PATH"))
-		return ""
+	// 2. Check in current working directory
+	cwd, err := os.Getwd()
+	if err == nil {
+		exePath := filepath.Join(cwd, exeName)
+		if exists, isDir := CheckFileExists(exePath); exists && !isDir {
+			if abs, err := filepath.Abs(exePath); err == nil {
+				return abs
+			}
+			return exePath
+		}
+		pBin := filepath.Join(cwd, "bin", exeName)
+		if exists, isDir := CheckFileExists(pBin); exists && !isDir {
+			if abs, err := filepath.Abs(pBin); err == nil {
+				return abs
+			}
+			return pBin
+		}
 	}
 
-	return absPath
+	// 3. Fallback to LookPath
+	absPath, err := exec.LookPath(exeName)
+	if err == nil {
+		if abs, err := filepath.Abs(absPath); err == nil {
+			return abs
+		}
+		return absPath
+	}
+
+	log.Printf("No %s found after searching PATH: %s", exeName, os.Getenv("PATH"))
+	return exeName
+}
+
+func lookupExecutable(exeName string) string {
+	return LookupExecutable(exeName)
 }
 
 type CmdBuilder struct {
@@ -62,7 +85,7 @@ type CmdBuilder struct {
 func (b *CmdBuilder) Check() (string, error) {
 	path := b.Path
 	if filepath.Base(path) == path {
-		path = lookupExecutable(path)
+		path = LookupExecutable(path)
 	} else {
 		exists, isDir := CheckFileExists(path)
 		if !exists || isDir {

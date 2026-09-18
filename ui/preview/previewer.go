@@ -29,6 +29,9 @@ func NewPreviewer(srv *service.ServiceFacade) *Previewer {
 }
 
 func (p *Previewer) Navigate(url string) {
+	if p.webview == nil {
+		p.webview = NewWebView()
+	}
 	p.webview.Navigate(url)
 }
 
@@ -71,15 +74,17 @@ func (p *Previewer) Restart() {
 func (p *Previewer) Layout(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 	// Handle pending destroy request
 	if p.destroyPending {
-		p.webview.Destroy(gtx)
-		p.webview = nil
+		if p.webview != nil {
+			p.webview.Destroy(gtx)
+			p.webview = nil
+		}
 		p.destroyPending = false
 		return layout.Dimensions{}
 	}
 
-	// If webview was destroyed and not recreated, return empty dimensions
+	// If webview was destroyed and not recreated, recreate it
 	if p.webview == nil {
-		return layout.Dimensions{}
+		p.webview = NewWebView()
 	}
 
 	// Left inset so the native webview doesn't cover the resize drag handle.

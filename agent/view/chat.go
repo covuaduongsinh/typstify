@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"image"
 	"log"
-	"slices"
 	"strings"
 	"sync"
 
@@ -18,7 +17,6 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/coder/acp-go-sdk"
 	"github.com/oligo/gioview/misc"
 	"github.com/oligo/gioview/theme"
 	"looz.ws/typstify/agent"
@@ -403,28 +401,25 @@ func (v *AgentChat) isPromptRunning() bool {
 }
 
 func (v *AgentChat) canSend() bool {
-	return len(v.inputEditor.Text()) > 0
+	return len(v.inputEditor.Text()) > 0 || v.inputEditor.HasAttachments()
 }
 
 func (v *AgentChat) doSend() {
 	text := strings.TrimSpace(v.inputEditor.Text())
-	if text == "" {
+	attachments := v.inputEditor.Attachments()
+	if text == "" && len(attachments) == 0 {
 		return
 	}
 
 	blocks := v.inputEditor.Blocks()
-	v.inputEditor.SetText("")
-
-	textBlkIdx := slices.IndexFunc(blocks, func(blk acp.ContentBlock) bool { return blk.Text != nil })
-	if textBlkIdx < 0 {
-		panic("expects at least one text block")
-	}
+	v.inputEditor.Clear()
 
 	// Echo the user message locally so it appears immediately.
 	v.mu.Lock()
 	v.messages = append(v.messages, chatMessage{
 		Kind:    msgUser,
-		Content: blocks[textBlkIdx].Text.Text,
+		Content: text,
+		Images:  attachments,
 	})
 	v.mu.Unlock()
 

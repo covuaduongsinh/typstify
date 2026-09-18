@@ -10,7 +10,8 @@ import (
 )
 
 func BuildCmd(ctx context.Context, path string, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, path, args...)
+	resolved := LookupExecutable(path)
+	return exec.CommandContext(ctx, resolved, args...)
 }
 
 func OpenInExternalApp(path string) error {
@@ -24,6 +25,7 @@ func OpenInExternalApp(path string) error {
 }
 
 func runCmd(cmdName string, arg ...string) error {
-	cmd := exec.Command(cmdName, arg...)
+	resolved := LookupExecutable(cmdName)
+	cmd := exec.Command(resolved, arg...)
 	return cmd.Run()
 }

@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"log"
 	"os/exec"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -81,11 +82,23 @@ func (v *AgentView) resolveAndSave(entry *settings.AgentEntry) {
 		v.setting.Cmd = "uvx"
 		v.setting.Args = entry.Distribution.Uvx.Package + " " + joinArgs(entry.Distribution.Uvx.Args)
 	default:
-		// binary — use the first available binary's cmd and args
-		for _, bin := range entry.Distribution.Binary {
+		// binary — use the current platform's binary if available
+		platform := runtime.GOOS + "-" + runtime.GOARCH
+		if runtime.GOARCH == "amd64" {
+			platform = runtime.GOOS + "-x86_64"
+		}
+		if entry.ID == "antigravity-acp" {
+			v.setting.Cmd = "antigravity_bridge.exe"
+			v.setting.Args = ""
+		} else if bin, ok := entry.Distribution.Binary[platform]; ok {
 			v.setting.Cmd = bin.Cmd
 			v.setting.Args = joinArgs(bin.Args)
-			break
+		} else {
+			for _, bin := range entry.Distribution.Binary {
+				v.setting.Cmd = bin.Cmd
+				v.setting.Args = joinArgs(bin.Args)
+				break
+			}
 		}
 		if v.setting.Cmd == "" {
 			v.setting.Cmd = ""

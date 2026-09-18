@@ -9,7 +9,8 @@ import (
 )
 
 func BuildCmd(ctx context.Context, path string, args ...string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, path, args...)
+	resolved := LookupExecutable(path)
+	cmd := exec.CommandContext(ctx, resolved, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
 		CreationFlags: 0x08000000, // CREATE_NO_WINDOW

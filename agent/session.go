@@ -292,7 +292,7 @@ func (sn *ACPSession) Prompt(ctx context.Context, contents ...acp.ContentBlock) 
 		}
 
 		if !sn.conn.AgentCapabilities.PromptCapabilities.Image && isImage {
-			return PromptResponse{}, fmt.Errorf("unsupported content block: %s", content.Image.Type)
+			log.Printf("session: agent did not explicitly declare image prompt capability, sending anyway")
 		}
 
 		if !sn.conn.AgentCapabilities.PromptCapabilities.EmbeddedContext && isEmbeddedContext {

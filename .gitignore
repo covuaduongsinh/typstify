@@ -1,3 +1,11 @@
 builds/
 .DS_Store
 .vscode/
+*.exe
+*.exe~
+bin/
+scratch/
+.omc/
+web/.omc/
+chessbook/
+demo/

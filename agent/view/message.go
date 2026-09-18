@@ -1,11 +1,21 @@
 package view
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"strings"
 
+	"gioui.org/op/paint"
 	"gioui.org/widget"
 	"github.com/coder/acp-go-sdk"
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/webp"
+
 	"looz.ws/typstify/agent"
 )
 
@@ -23,6 +33,7 @@ const (
 type chatMessage struct {
 	Kind      msgKind
 	Content   string
+	Images    []ImageAttachment
 	MessageID string
 	ToolCall  *agent.ToolCall
 	Plan      *agent.Plan
@@ -35,6 +46,28 @@ func extractText(block acp.ContentBlock) string {
 		return block.Text.Text
 	}
 	return ""
+}
+
+func extractImage(block acp.ContentBlock) *ImageAttachment {
+	if block.Image != nil && block.Image.Data != "" {
+		data, err := base64.StdEncoding.DecodeString(block.Image.Data)
+		if err == nil {
+			img, format, err := image.Decode(bytes.NewReader(data))
+			if err == nil {
+				mimeType := block.Image.MimeType
+				if mimeType == "" {
+					mimeType = "image/" + format
+				}
+				return &ImageAttachment{
+					Data:     data,
+					MimeType: mimeType,
+					Image:    img,
+					ImageOp:  paint.NewImageOp(img),
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func sameID(a string, b *string) bool {
@@ -73,6 +106,7 @@ func formatPlan(plan *agent.Plan) string {
 
 func (v *AgentChat) OnUserMessage(chunk agent.UserMessageChunk) {
 	text := extractText(chunk.Content)
+	imgAtt := extractImage(chunk.Content)
 	v.mu.Lock()
 	if len(v.messages) > 0 {
 		last := &v.messages[len(v.messages)-1]
@@ -80,19 +114,29 @@ func (v *AgentChat) OnUserMessage(chunk agent.UserMessageChunk) {
 			if sameID(last.MessageID, chunk.MessageId) {
 				// Same message, append chunk.
 				last.Content += text
+				if imgAtt != nil {
+					last.Images = append(last.Images, *imgAtt)
+				}
 			} else if last.MessageID == "" {
 				// Local echo from doSend(); merge with first server chunk.
 				last.MessageID = derefStr(chunk.MessageId)
 				if text != "" {
 					last.Content = text
 				}
+				if imgAtt != nil && len(last.Images) == 0 {
+					last.Images = append(last.Images, *imgAtt)
+				}
 			} else {
 				// New user message from server.
-				v.messages = append(v.messages, chatMessage{
+				msg := chatMessage{
 					Kind:      msgUser,
 					Content:   text,
 					MessageID: derefStr(chunk.MessageId),
-				})
+				}
+				if imgAtt != nil {
+					msg.Images = append(msg.Images, *imgAtt)
+				}
+				v.messages = append(v.messages, msg)
 			}
 			v.mu.Unlock()
 			v.scrollToEnd()
@@ -100,11 +144,15 @@ func (v *AgentChat) OnUserMessage(chunk agent.UserMessageChunk) {
 			return
 		}
 	}
-	v.messages = append(v.messages, chatMessage{
+	msg := chatMessage{
 		Kind:      msgUser,
 		Content:   text,
 		MessageID: derefStr(chunk.MessageId),
-	})
+	}
+	if imgAtt != nil {
+		msg.Images = append(msg.Images, *imgAtt)
+	}
+	v.messages = append(v.messages, msg)
 	v.mu.Unlock()
 	v.scrollToEnd()
 	v.invalidate()
@@ -112,22 +160,32 @@ func (v *AgentChat) OnUserMessage(chunk agent.UserMessageChunk) {
 
 func (v *AgentChat) OnAgentMessage(chunk agent.AgentMessageChunk) {
 	text := extractText(chunk.Content)
+	imgAtt := extractImage(chunk.Content)
 	v.mu.Lock()
 	if len(v.messages) > 0 {
 		last := &v.messages[len(v.messages)-1]
 		if last.Kind == msgAgent && sameID(last.MessageID, chunk.MessageId) {
-			last.Content += text
+			if text != "" {
+				last.Content += text
+			}
+			if imgAtt != nil {
+				last.Images = append(last.Images, *imgAtt)
+			}
 			v.mu.Unlock()
 			v.scrollToEnd()
 			v.invalidate()
 			return
 		}
 	}
-	v.messages = append(v.messages, chatMessage{
+	msg := chatMessage{
 		Kind:      msgAgent,
 		Content:   text,
 		MessageID: derefStr(chunk.MessageId),
-	})
+	}
+	if imgAtt != nil {
+		msg.Images = append(msg.Images, *imgAtt)
+	}
+	v.messages = append(v.messages, msg)
 	v.mu.Unlock()
 	v.scrollToEnd()
 	v.invalidate()

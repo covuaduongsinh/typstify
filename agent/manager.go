@@ -197,9 +197,13 @@ func (sm *SessionManager) NewSession(ctx context.Context, cwd string) (*ACPSessi
 		return nil, err
 	}
 
+	mcpServers := sm.mcpServers
+	if mcpServers == nil {
+		mcpServers = []acp.McpServer{}
+	}
 	resp, err := conn.Conn.NewSession(ctx, acp.NewSessionRequest{
 		Cwd:        cwd,
-		McpServers: sm.mcpServers,
+		McpServers: mcpServers,
 	})
 
 	err = checkACPErr(err)

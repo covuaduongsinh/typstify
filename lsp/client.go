@@ -20,9 +20,10 @@ import (
 )
 
 var (
-	StartTimeout         = 5 * time.Second
-	ConnectTimeout       = 2000 * time.Millisecond
-	CommunicationTimeout = 500 * time.Millisecond
+	StartTimeout         = 30 * time.Second
+	ConnectTimeout       = 1000 * time.Millisecond
+	InitializeTimeout    = 15 * time.Second
+	CommunicationTimeout = 1000 * time.Millisecond
 )
 
 type Client struct {
@@ -164,7 +165,7 @@ func (c *Client) buildInitOptions(setting *settings.Settings) map[string]any {
 
 // Connect to the LSP server. It also starts a goroutine to monitor receiving requests.
 func (c *Client) connectServer(ctx context.Context, initOpts map[string]any) error {
-	ctx, cancel := context.WithTimeout(ctx, ConnectTimeout)
+	ctx, cancel := context.WithTimeout(ctx, InitializeTimeout)
 	defer cancel()
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -20,6 +20,7 @@ type PreviewOptions struct {
 	ProjectRoot   string
 	InvertColor   string
 	PartialRender bool
+	EntryFile     string
 }
 
 type previewTask struct {
@@ -52,34 +53,37 @@ func (p *PreviewService) Start(ctx context.Context, opts PreviewOptions, onFinis
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	retry := 10
+	retry := 25
 	for retry > 0 {
 		if p.client.IsReady() {
 			break
 		}
 
-		time.Sleep(1 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 		retry--
+	}
+
+	if !p.client.IsReady() {
+		return fmt.Errorf("lsp client is not ready")
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// Kill existing preveiw first.
-	err := p.killLspPreview(ctx)
-	if err != nil {
-		return err
-	}
+	_ = p.killLspPreview(ctx)
 
 	// Update tinymist.startDefaultPreview configs via workspace/didChangeConfiguration notification.
-	err = p.updatePreview(ctx, opts)
+	err := p.updatePreview(ctx, opts)
 	if err != nil {
+		log.Printf("update preview config failed: %v", err)
 		return err
 	}
 
 	// Lastly start a new preview server.
-	previewServerPort, err := p.startPreview(ctx)
+	previewServerPort, err := p.startPreview(ctx, opts)
 	if err != nil {
+		log.Printf("start preview failed: %v", err)
 		return err
 	}
 
@@ -127,6 +131,10 @@ func (p *PreviewService) updatePreview(ctx context.Context, opts PreviewOptions)
 
 	args = append(args, "--no-open")
 
+	if opts.EntryFile != "" {
+		args = append(args, opts.EntryFile)
+	}
+
 	settings := map[string]any{
 		"preview": map[string]any{
 			"browsing": map[string]any{
@@ -139,8 +147,20 @@ func (p *PreviewService) updatePreview(ctx context.Context, opts PreviewOptions)
 
 }
 
-func (p *PreviewService) startPreview(ctx context.Context) (int, error) {
-	result, err := p.client.ExecuteCommand(ctx, "tinymist.startDefaultPreview", nil)
+func (p *PreviewService) startPreview(ctx context.Context, opts PreviewOptions) (int, error) {
+	if opts.EntryFile != "" {
+		_, _ = p.client.ExecuteCommand(ctx, "tinymist.pinMain", []any{opts.EntryFile})
+	}
+
+	var args []any
+	if opts.EntryFile != "" {
+		args = []any{opts.EntryFile}
+	}
+
+	result, err := p.client.ExecuteCommand(ctx, "tinymist.startDefaultPreview", args)
+	if err != nil && len(args) > 0 {
+		result, err = p.client.ExecuteCommand(ctx, "tinymist.startDefaultPreview", nil)
+	}
 	if err != nil {
 		log.Println("start previewer failed: ", err)
 		return 0, err
@@ -149,10 +169,18 @@ func (p *PreviewService) startPreview(ctx context.Context) (int, error) {
 	// Try to open in built-in webview
 	cmdResp, ok := result.(map[string]any)
 	if !ok {
-		panic("invalid cmd response type")
+		return 0, fmt.Errorf("invalid cmd response type: %T", result)
 	}
 
-	previewServerPort := cmdResp["staticServerPort"].(float64)
+	portVal, ok := cmdResp["staticServerPort"]
+	if !ok || portVal == nil {
+		return 0, fmt.Errorf("staticServerPort missing in response: %v", cmdResp)
+	}
+
+	previewServerPort, ok := portVal.(float64)
+	if !ok {
+		return 0, fmt.Errorf("staticServerPort is not float64: %T (%v)", portVal, portVal)
+	}
 
 	return int(previewServerPort), nil
 }

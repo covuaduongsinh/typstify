@@ -364,29 +364,49 @@ func (te *TypstEditor) IsVisible() bool {
 
 // LayoutPreview renders the preview panel. Called by home.go when preview is active.
 func (te *TypstEditor) LayoutPreview(gtx C, th *theme.Theme) D {
+	if te.uiPreviewer == nil {
+		return D{}
+	}
+
+	previewSrv := te.srv.PreviewService()
+	if previewSrv == nil || previewSrv.Address() == "" {
+		return layout.Center.Layout(gtx, func(gtx C) D {
+			lbl := material.Label(th.Theme, th.TextSize, i18n.Translate("Starting document preview server..."))
+			lbl.Color = th.Fg
+			return lbl.Layout(gtx)
+		})
+	}
+
 	return te.uiPreviewer.Layout(gtx, th)
 }
 
 func (te *TypstEditor) togglePreview(gtx C) {
 	previewSrv := te.srv.PreviewService()
-	if previewSrv == nil {
-		return
-	}
-
-	serverAddr := previewSrv.Address()
-	if serverAddr == "" {
-		log.Println("preview ERR: no preview server address")
-		return
-	}
 
 	// focus LSP triggers a refresh of the preview server.
 	te.srcEditor.FocusLsp()
 
+	serverAddr := ""
+	if previewSrv != nil {
+		serverAddr = previewSrv.Address()
+	}
+
 	openInBrowser := te.srv.Settings().Lsp().OpenPreviewInBrowser != 0
 	var isLinux = runtime.GOOS == "linux"
-	if (openInBrowser || isLinux) && serverAddr != "" {
-		utils.OpenInExternalApp(serverAddr)
-		te.previewVisible = false
+	if openInBrowser || isLinux {
+		if serverAddr != "" {
+			utils.OpenInExternalApp(serverAddr)
+			te.previewVisible = false
+		} else {
+			te.srv.RestartPreviewWithEntry(context.Background(), te.targetFile, func() {
+				if srv := te.srv.PreviewService(); srv != nil {
+					addr := srv.Address()
+					if addr != "" {
+						utils.OpenInExternalApp(addr)
+					}
+				}
+			})
+		}
 		return
 	}
 
@@ -399,6 +419,16 @@ func (te *TypstEditor) togglePreview(gtx C) {
 
 	if serverAddr != "" && te.uiPreviewer != nil {
 		te.uiPreviewer.Navigate(serverAddr)
+	} else {
+		te.srv.RestartPreviewWithEntry(context.Background(), te.targetFile, func() {
+			if srv := te.srv.PreviewService(); srv != nil && te.uiPreviewer != nil {
+				addr := srv.Address()
+				if addr != "" {
+					te.uiPreviewer.Navigate(addr)
+				}
+			}
+			te.srv.RefreshWindow()
+		})
 	}
 }
 
