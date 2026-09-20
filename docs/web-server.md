@@ -67,6 +67,98 @@ hai, trừ `-password` không có biến môi trường đọc mặc định qua
 | `XDG_CONFIG_HOME` | — | theo OS | Nơi lưu `settings.json` (dùng `os.UserConfigDir()`), nên trỏ vào một thư mục ghi được/bền vững trong container. |
 | `XDG_CACHE_HOME` | — | theo OS | Nơi cache package Typst đã tải (`os.UserCacheDir()`). |
 
+## AI Agent: chọn qua registry + đăng nhập gói thuê bao
+
+Trang Settings của bản web có mục "Agent Registry" (gọi API bên dưới) để chọn agent AI theo
+gói thuê bao hàng tháng của chính nhà cung cấp (Claude Pro/Max, ChatGPT Plus/Pro qua Codex...)
+thay vì trả tiền theo API — xem `~/.claude/skills/ai-subscription-bridge` (nội bộ) cho căn cứ
+kỹ thuật đầy đủ. Nguyên tắc cốt lõi: server chỉ **spawn thẳng binary CLI chính chủ** của agent
+(qua `npx`/binary như registry ACP mô tả) và không tự đọc/giải mã token OAuth của nó.
+
+| Endpoint | Ý nghĩa |
+| --- | --- |
+| `GET /api/agent/registry` | Danh sách đầy đủ agent từ [registry ACP chính thức](https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json) (cache — xem `settings.FetchAgentRegistry`). |
+| `POST /api/agent/select {"agentId": "..."}` | Chọn một agent từ registry, tự resolve ra `cmd`/`args`/`env` đúng nền tảng server đang chạy (`service/settings.ResolveAgentCommand`) và lưu làm agent hiện tại. |
+| `POST /api/agent/auth/{methodId}` | Chạy bước đăng nhập của agent hiện tại (khớp `AuthMethod.id` mà agent tự báo qua ACP `authMethods`) — block tới khi CLI tự hoàn tất OAuth/login của nó. |
+| `GET /api/console` | Đọc thô log stderr của agent hiện tại (cùng luồng Console panel của bản desktop) — frontend dùng để tự tìm link đăng nhập agent tự in ra, theo đúng khuôn "pipe + regex". |
+
+Khi phiên `/ws/agent` cần đăng nhập, server gửi `{"type":"authRequired","data":{...}}`; sau
+khi người dùng bấm "Sign in" trên `AuthCard` (frontend tự gọi `/api/agent/auth/{methodId}` rồi
+poll `/api/console` tìm URL), frontend gửi lại `{"type":"retryAuth"}` để server thử khởi động
+phiên lần nữa.
+
+Agent được đóng gói sẵn trong image Docker (không cần cài thêm gì):
+- **Claude Code** — phân phối qua `npx`, dùng chung Node.js đã có sẵn trong `node:22-slim`.
+  Đã xác nhận chạy được thật (bản desktop, cùng cơ chế `npx`).
+- **Codex** (ChatGPT) — cũng phân phối qua `npx` (`@agentclientprotocol/codex-acp`). **Đã xác
+  nhận chạy được thật** trong container `node:22-slim` (18/9/2026): cài đặt thành công
+  (`npm install`, 20 package, ~23s khi cache CDN đã ấm), binary `codex-acp` khởi động không
+  lỗi và chờ JSON-RPC trên stdio đúng như một ACP server bình thường (cùng hành vi với Claude
+  Code). Lần thử đầu tiên trông như "treo": gói phụ thuộc optional `@openai/codex-linux-x64`
+  (binary CLI Codex nhúng sẵn) mất **~126 giây** để tải lần đầu (cold cache) — dài hơn mọi
+  timeout thử nghiệm ban đầu (60-150s), và ở log level mặc định npm không in gì trong lúc tải
+  nên trông giống bị treo dù thực chất vẫn đang chạy bình thường. Không phải lỗi mạng (`npm
+  view` luôn phản hồi tức thời) cũng không phải lỗi cài đặt.
+- **Google Antigravity** (`antigravity-acp`) — binary Linux gốc của Google
+  (`agy_acp_server.par`, ~vài MB, không cần `localharness.exe`) được tải và xác minh ngay lúc
+  build image (xem stage `antigravity` trong `Dockerfile`). Build sẽ đỏ nếu tải/giải nén lỗi;
+  riêng bước "chạy thử xem có khởi động được không" thì **không** làm đỏ build khi binary bị
+  `SIGILL` do thiếu tập lệnh CPU AVX — chỉ in cảnh báo to. Đã tái hiện SIGILL này thật (exit
+  132) cả lúc build lẫn lúc chạy container thật trên máy dev (VM của Docker Desktop ở đó không
+  lộ AVX ra) — AVX phổ biến trên phần cứng x86_64 thật từ 2011 nên nhiều khả năng đây chỉ là
+  giới hạn của máy dev, nhưng **chưa xác minh được trên một host Linux/CI thật có AVX**, nên
+  coi Antigravity trong Docker là "cài được nhưng chưa chắc chạy được" cho tới khi kiểm tra
+  lại trên phần cứng thật.
+
+Agent khác trong registry (dạng `uvx`, hoặc binary nền tảng khác Antigravity) chưa được đóng
+gói sẵn — `POST /api/agent/select` vẫn cho chọn nhưng sẽ báo lỗi rõ ràng khi không tìm thấy
+lệnh tương ứng trên server.
+
+### Agent mặc định & mức độ ổn định (khuyến nghị)
+
+**Claude Code nên là lựa chọn mặc định** cho bản Web self-host — đã chứng minh ổn định qua toàn
+bộ quá trình phát triển tính năng này: không cần AVX, hỗ trợ đóng phiên (`session/close`) qua
+ACP, và tự echo lại tin nhắn người dùng đúng chuẩn ACP.
+
+**Google Antigravity dùng được, nhưng ở mức "best-effort", không nên đặt làm mặc định**, vì
+nhiều giới hạn đã xác nhận thật (không phải suy đoán) trong quá trình phát triển:
+- Bản Linux (dùng trong Docker) yêu cầu CPU có AVX — không chạy được trên CPU không hỗ trợ (ví
+  dụ dòng Pentium Gold/Celeron của Intel, vốn bị khoá cứng AVX ở phần cứng). Xem mục AI Agent ở
+  trên.
+- **Không hỗ trợ `session/close` qua ACP** — Typstify không có cách nào báo cho tiến trình
+  Antigravity biết một phiên đã kết thúc (tab đóng, mất mạng, reload) ngoài `session/cancel`
+  (đã vá ở `server/agent_ws.go`: luôn gửi cancel khi phiên đang dở dang bị ngắt kết nối, dù agent
+  có hỗ trợ đóng phiên hay không) — nhưng bản thân agent phía Google vẫn có thể tích tụ trạng
+  thái từ nhiều phiên bị bỏ rơi nếu người dùng ngắt kết nối liên tục trong thời gian ngắn.
+- **Không echo lại tin nhắn của người dùng** qua `session/update` (khác Claude Code) — đã vá ở
+  client (`AgentChat.tsx` tự vẽ bong bóng tin nhắn ngay khi gửi, không đợi agent xác nhận).
+- **Đã từng bị dính lỗi cấu hình nghiêm trọng, đã sửa xong** (19/9/2026): cơ chế lưu settings có
+  lỗi logic khiến field `Args` để rỗng có chủ đích (đúng cho Antigravity, không cần tham số) bị
+  tự động ghi đè bằng tham số mặc định của Claude Code mỗi lần đọc lại settings — nghĩa là
+  Antigravity từng bị khởi động kèm tham số hoàn toàn sai (`-y @agentclientprotocol/claude-agent-acp@...`)
+  suốt thời gian dài mà không ai biết. Xem `service/settings/base.go`/`mergeModel` và
+  `TestModelSave_PreservesIntentionallyEmptyField` (test tái hiện đúng lỗi này).
+- **Tự ý "tìm kiếm file trên toàn bộ ổ đĩa" thay vì dùng thư mục project (`cwd`) đã cho qua
+  ACP** — quan sát thật nhiều lần (19/9/2026), kể cả khi prompt nêu rõ đường dẫn tuyệt đối: agent
+  tường thuật "đang tìm kiếm... trên các ổ đĩa", đôi khi kết thúc lượt (`end_turn`) mà chưa thực
+  sự đọc/sửa file nào. Đây là hành vi nội bộ (đóng mã nguồn) của chính agent Google, không phải
+  lỗi trong code Typstify — không có cách sửa từ phía này. Với **câu hỏi đơn giản không cần đọc
+  file**, Antigravity phản hồi tốt trong 10-15 giây; với **tác vụ cần sửa file thật**, kết quả
+  không ổn định (dao động từ 30 giây tới thất bại hoàn toàn tuỳ lần).
+
+Đây không phải khuyến nghị "đừng dùng Antigravity" — chỉ là đặt đúng kỳ vọng: agent còn khá mới
+(beta) từ phía Google, có thể mất 10-15 giây (hoặc hơn, với tác vụ sửa file thật — và đôi khi
+không hoàn thành được, xem điểm trên) cho phản hồi đầu tiên. **Cho việc sửa file thật, khuyến
+nghị dùng Claude Code.** Giao diện web đã có chỉ báo "Agent is thinking…" và nút "Cancel" để chủ
+động huỷ nếu chờ quá lâu (quá 30 giây sẽ tự hiện cảnh báo).
+
+**Cảnh báo điều khoản dịch vụ**: gói thuê bao (Claude Pro/Max, ChatGPT Plus/Pro, Google AI...)
+chỉ dành cho dùng cá nhân thông thường qua CLI chính chủ, không phải cho việc chạy nền liên
+tục hay dùng chung nhiều người trên một tài khoản — kể cả khi server chạy trên VPS riêng của
+bạn. Vì bản web tự host này chỉ có một người dùng và agent chỉ chạy khi bạn chủ động mở chat
+(không có cron/queue nào tự gọi agent), rủi ro vi phạm điều khoản thấp, nhưng vẫn nên biết
+trước khi để server chạy 24/7 trên máy chủ công cộng.
+
 ## Giới hạn đã biết của v1
 
 Xem đầy đủ ở mục "Rủi ro & điểm cần xử lý sớm" trong
@@ -74,8 +166,17 @@ Xem đầy đủ ở mục "Rủi ro & điểm cần xử lý sớm" trong
 trực tiếp tới vận hành:
 
 - **Preview không tự cập nhật theo từng phím gõ chưa lưu** — cần `Ctrl+S` để thấy thay đổi.
-- **Chỉ hỗ trợ chính thức agent AI phân phối qua `npx`** (ví dụ Claude Code mặc định). Agent
-  dạng `uvx` (Python) hoặc binary riêng nền tảng chưa được đóng gói sẵn trong image Docker.
+- **Chỉ đóng gói sẵn trong Docker image: agent phân phối qua `npx`** (Claude Code, Codex — cả
+  hai đã xác nhận chạy được thật) và **Google Antigravity** (binary Linux riêng, đã xác nhận
+  cài đúng nhưng cần CPU có AVX để chạy, xem mục AI Agent phía trên). Agent dạng `uvx` (Python)
+  hoặc binary nền tảng khác chưa được đóng gói sẵn.
+- **Lần đầu chọn một agent phân phối qua `npx` (Claude Code, Codex) có thể mất 1-2 phút** để
+  `npx` tải gói lần đầu (một số gói kèm binary CLI nhúng sẵn, quan sát thực tế ~126s cho gói
+  của Codex) — các lần sau nhanh hơn nhiều nhờ cache npm của container/máy chủ. Đây là hành vi
+  bình thường của `npx`, không phải lỗi.
+- **`grok-build` (xAI) tồn tại trong registry ACP nhưng chưa xác nhận có đường dùng qua gói
+  SuperGrok** — thử nghiệm thực tế cho thấy package hiện không khởi động ổn định qua ACP; đừng
+  giả định nó dùng được gói thuê bao cho tới khi tự kiểm chứng lại.
 - **Chưa có quản lý package Typst qua giao diện web** (`pkg_api`) — để lại cho giai đoạn hoàn
   thiện tiếp theo.
 - Server dùng **một mật khẩu chung** cho toàn instance (không có khái niệm nhiều tài khoản) —

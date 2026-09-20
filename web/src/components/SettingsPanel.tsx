@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api/client'
+import { ApiError, api } from '../api/client'
 import type { AgentSettings, GeneralSettings, LspSettings, TypstSettings } from '../api/types'
+import { AgentRegistryPicker } from './AgentRegistryPicker'
 
 function Section<T extends object>({
   title,
@@ -13,6 +14,7 @@ function Section<T extends object>({
 }) {
   const [value, setValue] = useState<T | null>(null)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     api.get<T>(path).then(setValue)
@@ -21,10 +23,15 @@ function Section<T extends object>({
   if (!value) return <section className="settings-section">Loading {title}…</section>
 
   const save = async () => {
-    const updated = await api.putJson<T>(path, value)
-    setValue(updated)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1500)
+    setError(null)
+    try {
+      const updated = await api.putJson<T>(path, value)
+      setValue(updated)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1500)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to save settings')
+    }
   }
 
   return (
@@ -41,11 +48,14 @@ function Section<T extends object>({
       ))}
       <button onClick={save}>Save</button>
       {saved && <span className="settings-saved">Saved</span>}
+      {error && <div className="error">{error}</div>}
     </section>
   )
 }
 
 export function SettingsPanel() {
+  const [agentSettingsVersion, setAgentSettingsVersion] = useState(0)
+
   return (
     <div className="settings-panel">
       <Section<GeneralSettings>
@@ -72,8 +82,10 @@ export function SettingsPanel() {
         path="/api/settings/lsp"
         fields={[]}
       />
+      <AgentRegistryPicker onSelected={() => setAgentSettingsVersion((v) => v + 1)} />
       <Section<AgentSettings>
-        title="AI Agent"
+        key={agentSettingsVersion}
+        title="AI Agent (manual/advanced)"
         path="/api/settings/agent"
         fields={[
           { key: 'agentName', label: 'Name' },

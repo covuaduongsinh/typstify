@@ -31,6 +31,16 @@ function Node({ entry, depth, activePath, onOpenFile }: NodeProps) {
         className={`file-tree-row${entry.path === activePath ? ' active' : ''}`}
         style={{ paddingLeft: depth * 14 }}
         onClick={toggle}
+        role="treeitem"
+        aria-expanded={entry.isDir ? expanded : undefined}
+        aria-selected={entry.path === activePath}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            toggle()
+          }
+        }}
       >
         {entry.isDir ? (expanded ? '▾' : '▸') : '·'} {entry.name}
       </div>
@@ -53,7 +63,7 @@ export function FileTree({ activePath, onOpenFile }: { activePath: string; onOpe
   }, [])
 
   return (
-    <div className="file-tree">
+    <div className="file-tree" role="tree">
       {roots.map((r) => (
         <Node key={r.path} entry={r} depth={0} activePath={activePath} onOpenFile={onOpenFile} />
       ))}

@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 )
 
@@ -96,6 +100,74 @@ func FetchAgentRegistry(ctx context.Context) (*AgentRegistry, error) {
 
 	cachedRegistry = &reg
 	return cachedRegistry, nil
+}
+
+// ResolvedAgentCommand is what an AgentEntry resolves to for the current
+// platform: the (Cmd, Args, Env) to store in AcpAgentSettings.
+type ResolvedAgentCommand struct {
+	Cmd  string
+	Args string
+	Env  string
+}
+
+// ResolveAgentCommand converts a registry entry into a concrete command to
+// run, for the current OS/arch. Shared by the desktop UI
+// (ui/settings/agent.go) and the web backend (server/agent_api.go) so both
+// pick agents identically -- see docs/plans (AI subscription agents plan).
+func ResolveAgentCommand(entry *AgentEntry) ResolvedAgentCommand {
+	switch entry.DistKind() {
+	case "npx":
+		args := "-y " + entry.Distribution.Npx.Package
+		if len(entry.Distribution.Npx.Args) > 0 {
+			args += " " + strings.Join(entry.Distribution.Npx.Args, " ")
+		}
+		return ResolvedAgentCommand{Cmd: "npx", Args: args}
+
+	case "uvx":
+		args := entry.Distribution.Uvx.Package
+		if len(entry.Distribution.Uvx.Args) > 0 {
+			args += " " + strings.Join(entry.Distribution.Uvx.Args, " ")
+		}
+		return ResolvedAgentCommand{Cmd: "uvx", Args: args}
+
+	default:
+		platform := runtime.GOOS + "-" + runtime.GOARCH
+		if runtime.GOARCH == "amd64" {
+			platform = runtime.GOOS + "-x86_64"
+		}
+
+		var bin *BinaryDistro
+		if b, ok := entry.Distribution.Binary[platform]; ok {
+			bin = b
+		} else {
+			for _, b := range entry.Distribution.Binary {
+				bin = b
+				break
+			}
+		}
+		if bin == nil {
+			return ResolvedAgentCommand{}
+		}
+
+		// Registry binary Cmd values are given as "./name" (relative to
+		// wherever the archive was extracted); Typstify's own
+		// utils.LookupExecutable already searches the app dir, its bin/
+		// subdir, cwd, and PATH for a bare name, so strip the "./"/".\"
+		// prefix rather than pass it through literally.
+		result := ResolvedAgentCommand{
+			Cmd:  strings.TrimPrefix(strings.TrimPrefix(bin.Cmd, "./"), ".\\"),
+			Args: strings.Join(bin.Args, " "),
+		}
+
+		if entry.ID == "antigravity-acp" {
+			// agy_acp_server has been observed to hang without a writable
+			// TEMP/TMP; point it at a dedicated subdirectory of the OS temp
+			// dir rather than leaving it unset. Verified live 2026-09-18.
+			dir := filepath.Join(os.TempDir(), "typstify-agy")
+			result.Env = "TEMP=" + dir + " TMP=" + dir
+		}
+		return result
+	}
 }
 
 // LookupAgent finds a registry entry by ID. Returns nil if not found.

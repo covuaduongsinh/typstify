@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"gioui.org/font"
 	"gioui.org/layout"
@@ -22,33 +23,73 @@ type AuthenticationView struct {
 	authMethods     []acp.AuthMethod
 	authMethodClick []*widget.Clickable
 	authFunc        AuthFunction
-	authErr         error
-	authSuccess     bool
+	// invalidate requests a redraw once the async authFunc call below
+	// finishes and authErr/authSuccess/authenticating have changed.
+	invalidate func()
+
+	mu             sync.Mutex
+	authenticating bool
+	authErr        error
+	authSuccess    bool
 }
 
-func NewAuthenticationView(agentInfo acp.Implementation, authMethods []acp.AuthMethod, authFunc AuthFunction) *AuthenticationView {
+func NewAuthenticationView(agentInfo acp.Implementation, authMethods []acp.AuthMethod, authFunc AuthFunction, invalidate func()) *AuthenticationView {
 	return &AuthenticationView{
 		agentInfo:   agentInfo,
 		authMethods: authMethods,
 		authFunc:    authFunc,
+		invalidate:  invalidate,
 	}
 }
 
 func (a *AuthenticationView) AuthErr() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	return a.authErr
 }
 
 func (a *AuthenticationView) Authenticated() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	return a.authSuccess
 }
 
+// Layout. Clicking an auth method used to call authFunc (the blocking ACP
+// Authenticate RPC -- can take as long as the user needs to complete an
+// OAuth login in their browser) directly on this goroutine, which is Gio's
+// UI/layout goroutine -- freezing the entire window for the duration.
+// Found and fixed 2026-09-18. Now runs off-thread and pokes invalidate() to
+// redraw once it settles.
 func (a *AuthenticationView) Layout(gtx C, th *theme.Theme) D {
 	for idx, clk := range a.authMethodClick {
 		if clk.Clicked(gtx) {
-			a.authErr = a.authFunc(context.Background(), methodID(a.authMethods[idx]))
-			a.authSuccess = a.authErr == nil
+			id := methodID(a.authMethods[idx])
+			a.mu.Lock()
+			alreadyRunning := a.authenticating
+			if !alreadyRunning {
+				a.authenticating = true
+			}
+			a.mu.Unlock()
+
+			if !alreadyRunning {
+				go func() {
+					err := a.authFunc(context.Background(), id)
+					a.mu.Lock()
+					a.authenticating = false
+					a.authErr = err
+					a.authSuccess = err == nil
+					a.mu.Unlock()
+					if a.invalidate != nil {
+						a.invalidate()
+					}
+				}()
+			}
 		}
 	}
+
+	a.mu.Lock()
+	authenticating := a.authenticating
+	a.mu.Unlock()
 
 	return layout.Center.Layout(gtx, func(gtx C) D {
 		return layout.Flex{
@@ -66,6 +107,15 @@ func (a *AuthenticationView) Layout(gtx C, th *theme.Theme) D {
 			layout.Rigid(func(gtx C) D {
 				lb := material.Label(th.Theme, th.TextSize, i18n.Translate("Please choose a method to authenticate the agent:"))
 				return lb.Layout(gtx)
+			}),
+			layout.Rigid(func(gtx C) D {
+				if !authenticating {
+					return D{}
+				}
+				lb := material.Label(th.Theme, th.TextSize,
+					i18n.Translate("Authenticating... if the agent needs you to open a login link or enter a code, check the Console panel for it."))
+				lb.Font.Weight = font.SemiBold
+				return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, lb.Layout)
 			}),
 			layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
 			layout.Rigid(func(gtx C) D {

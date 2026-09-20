@@ -6,7 +6,6 @@ import (
 	"image/color"
 	"log"
 	"os/exec"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -70,41 +69,20 @@ func (v *AgentView) checkRuntimes() {
 	v.uvxReady = err == nil
 }
 
-// resolveStoredCommand converts a registry entry to cmd/args strings and saves.
+// resolveAndSave converts a registry entry to cmd/args/env strings (via the
+// shared settings.ResolveAgentCommand, also used by the web backend) and
+// saves.
 func (v *AgentView) resolveAndSave(entry *settings.AgentEntry) {
 	v.setting.AgentID = entry.ID
 	v.setting.AgentName = entry.Name
-	switch entry.DistKind() {
-	case "npx":
-		v.setting.Cmd = "npx"
-		v.setting.Args = "-y " + entry.Distribution.Npx.Package + " " + joinArgs(entry.Distribution.Npx.Args)
-	case "uvx":
-		v.setting.Cmd = "uvx"
-		v.setting.Args = entry.Distribution.Uvx.Package + " " + joinArgs(entry.Distribution.Uvx.Args)
-	default:
-		// binary — use the current platform's binary if available
-		platform := runtime.GOOS + "-" + runtime.GOARCH
-		if runtime.GOARCH == "amd64" {
-			platform = runtime.GOOS + "-x86_64"
-		}
-		if entry.ID == "antigravity-acp" {
-			v.setting.Cmd = "antigravity_bridge.exe"
-			v.setting.Args = ""
-		} else if bin, ok := entry.Distribution.Binary[platform]; ok {
-			v.setting.Cmd = bin.Cmd
-			v.setting.Args = joinArgs(bin.Args)
-		} else {
-			for _, bin := range entry.Distribution.Binary {
-				v.setting.Cmd = bin.Cmd
-				v.setting.Args = joinArgs(bin.Args)
-				break
-			}
-		}
-		if v.setting.Cmd == "" {
-			v.setting.Cmd = ""
-			v.setting.Args = ""
-		}
-	}
+
+	resolved := settings.ResolveAgentCommand(entry)
+	v.setting.Cmd = resolved.Cmd
+	v.setting.Args = resolved.Args
+	// Always overwrite, including with "" -- see the matching fix/comment
+	// in server/agent_api.go's handleAgentSelect.
+	v.setting.Env = resolved.Env
+
 	v.lastErr = v.setting.Save()
 }
 
@@ -119,10 +97,6 @@ func linkLabel(gtx C, th *theme.Theme, text string) D {
 	paint.FillShape(gtx.Ops, th.ContrastBg, rect.Op())
 	offStack.Pop()
 	return dims
-}
-
-func joinArgs(args []string) string {
-	return strings.Join(args, " ")
 }
 
 func (v *AgentView) Layout(gtx C, th *theme.Theme) D {

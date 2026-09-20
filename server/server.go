@@ -90,6 +90,12 @@ func (s *Server) routes() {
 	s.handle("GET /api/settings/tpix", settingsGetHandler(s.appSrv.Settings().Tpix))
 	s.handle("PUT /api/settings/tpix", settingsPutHandler(s.appSrv.Settings().Tpix))
 
+	// AI agent registry / selection / auth.
+	s.handle("GET /api/agent/registry", s.handleAgentRegistry)
+	s.handle("POST /api/agent/select", s.handleAgentSelect)
+	s.handle("POST /api/agent/auth/{methodId}", s.handleAgentAuth)
+	s.handle("GET /api/console", s.handleConsole)
+
 	// LSP + AI agent, over WebSocket.
 	s.handle("GET /ws/lsp", s.handleLspWS)
 	s.handle("GET /ws/agent", s.handleAgentWS)

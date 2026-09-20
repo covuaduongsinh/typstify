@@ -124,6 +124,15 @@ func (c *ConsoleState) appendText(msg string) {
 	c.truncate()
 }
 
+// Text returns the currently buffered console output as plain text. Unlike
+// visibleText, it is safe to call from any goroutine (used by the web
+// server's read-only /api/console endpoint, server/console_api.go).
+func (c *ConsoleState) Text() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.visibleText()
+}
+
 func (c *ConsoleState) visibleText() string {
 	var b strings.Builder
 	total := 0

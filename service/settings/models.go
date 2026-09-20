@@ -358,7 +358,7 @@ func init() {
 		AgentID:          "claude-acp",
 		AgentName:        "Claude Code",
 		Cmd:              "npx",
-		Args:             "-y @agentclientprotocol/claude-agent-acp@0.35.0",
+		Args:             "-y @agentclientprotocol/claude-agent-acp@0.50.0",
 		UseStaticMcpPort: 0, // not-fixed, or 1 for static port.
 	}
 }

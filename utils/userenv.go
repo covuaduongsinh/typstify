@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,20 @@ func LoginShellEnv() map[string]string {
 
 func captureLoginShellEnv() map[string]string {
 	env := make(map[string]string)
+
+	// Windows has no POSIX login shell to probe. Worse, if $SHELL happens to
+	// be set anyway (e.g. Git Bash/MSYS2, WSL-adjacent tooling installed
+	// alongside a normal Windows dev setup), running it here would merge its
+	// Unix-style PATH (/c/Program Files/... , ':'-separated) over the real
+	// Windows PATH, which breaks npx.cmd's own internal path handling --
+	// observed live 2026-09-18: it makes every npx-based ACP agent
+	// (including the default Claude Code one) fail to start with
+	// `'"node"' is not recognized`. app.go's init() already skips the
+	// equivalent PATH-capture step on Windows for the same reason; mirror
+	// that guard here so every caller (not just app.go) is covered.
+	if runtime.GOOS == "windows" {
+		return env
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

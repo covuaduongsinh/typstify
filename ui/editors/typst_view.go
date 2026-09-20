@@ -341,7 +341,7 @@ func (te *TypstEditor) layoutAuthView(gtx layout.Context, th *theme.Theme) layou
 			return layout.Dimensions{}
 		}
 
-		te.authView = agentview.NewAuthenticationView(conn.AgentInfo, conn.AuthMethods, sm.Authenticate)
+		te.authView = agentview.NewAuthenticationView(conn.AgentInfo, conn.AuthMethods, sm.Authenticate, te.srv.RefreshWindow)
 	}
 
 	if te.authView.Authenticated() {

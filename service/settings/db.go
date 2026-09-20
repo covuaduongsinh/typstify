@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"looz.ws/typstify/service/bus"
 )
@@ -11,6 +12,15 @@ import (
 type Settings struct {
 	store    *settingsStore
 	eventbus *bus.EventBus
+
+	// mu guards the lazy-init + reload-on-every-call accessors below
+	// (General, Editor, Typst, Lsp, Tpix, AcpAgent). Each one mutates a
+	// cached model shared across every caller and reloads it from disk on
+	// every call -- without a lock, two goroutines calling the same
+	// accessor concurrently (e.g. two /ws/agent connections both calling
+	// AcpAgent() from ServiceFacade.StartACPSession) race on that shared
+	// model's fields. Confirmed with `go run -race`.
+	mu sync.Mutex
 
 	general  *GeneralSettings
 	editor   *EditorSettings
@@ -54,6 +64,9 @@ func (s *Settings) Close() {
 }
 
 func (s *Settings) General() *GeneralSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.general == nil {
 		s.general = &GeneralSettings{
 			baseModel: s.initModel("general"),
@@ -65,6 +78,9 @@ func (s *Settings) General() *GeneralSettings {
 }
 
 func (s *Settings) Editor() *EditorSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.editor == nil {
 		s.editor = &EditorSettings{
 			baseModel: s.initModel("editor"),
@@ -77,6 +93,9 @@ func (s *Settings) Editor() *EditorSettings {
 }
 
 func (s *Settings) Typst() *TypstSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.typst == nil {
 		s.typst = &TypstSettings{
 			baseModel: s.initModel("typst"),
@@ -88,6 +107,9 @@ func (s *Settings) Typst() *TypstSettings {
 }
 
 func (s *Settings) Lsp() *LspSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.lsp == nil {
 		s.lsp = &LspSettings{
 			baseModel: s.initModel("lsp"),
@@ -99,6 +121,9 @@ func (s *Settings) Lsp() *LspSettings {
 }
 
 func (s *Settings) Tpix() *TpixSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.tpix == nil {
 		s.tpix = &TpixSettings{
 			baseModel: s.initModel("tpix"),
@@ -110,6 +135,9 @@ func (s *Settings) Tpix() *TpixSettings {
 }
 
 func (s *Settings) AcpAgent() *AcpAgentSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.acpAgent == nil {
 		s.acpAgent = &AcpAgentSettings{
 			baseModel: s.initModel("acpAgent"),

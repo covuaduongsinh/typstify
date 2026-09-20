@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"sync"
@@ -21,6 +22,12 @@ type agentClientMessage struct {
 	Type     string `json:"type"`
 	Text     string `json:"text,omitempty"`
 	OptionID string `json:"optionId,omitempty"`
+}
+
+// agentAuthRequiredData is the payload of an "authRequired" server message.
+type agentAuthRequiredData struct {
+	AgentName   string           `json:"agentName"`
+	AuthMethods []acp.AuthMethod `json:"authMethods"`
 }
 
 // agentServerMessage is the wire format for server -> browser messages. Data
@@ -97,6 +104,64 @@ func (w *wsSubscriber) resolvePermission(optID acp.PermissionOptionId) {
 	}
 }
 
+// startSessionOrRequireAuth tries to start an ACP session, and if the agent
+// reports it needs authentication (agent.AuthRequiredErr), sends an
+// "authRequired" message with the agent's AuthMethods and then waits for
+// the browser to send "retryAuth" (after driving POST /api/agent/auth/...
+// and/or the SetupIntent-style out-of-band login flow the agent itself
+// prints instructions for -- see GET /api/console) before trying again.
+// Returns (nil, false) if the connection closes/context is cancelled first.
+func (s *Server) startSessionOrRequireAuth(ctx context.Context, conn *websocket.Conn, root string) (*agent.ACPSession, bool) {
+	for {
+		session, err := s.appSrv.StartACPSession(ctx, root)
+		if err == nil {
+			return session, true
+		}
+
+		// The agent's session manager was torn down because the open project
+		// changed while this connection was starting up. This connection was
+		// opened for the old project root, so retrying it here would attach
+		// a session for the wrong cwd to whatever agent is running now --
+		// the frontend already opens a fresh /ws/agent connection for the
+		// new project (AgentChat remounts on projectPath change), so just
+		// close this one with a message that tells the user why, instead of
+		// the generic "connection was lost" text.
+		if errors.Is(err, agent.ErrSessionManagerClosed) {
+			_ = wsjson.Write(context.Background(), conn, agentServerMessage{Type: "error", Message: "Project changed while connecting to the agent. Switch back to this project to reconnect."})
+			_ = conn.Close(websocket.StatusNormalClosure, "project changed")
+			return nil, false
+		}
+
+		if !errors.Is(err, agent.AuthRequiredErr) {
+			_ = wsjson.Write(context.Background(), conn, agentServerMessage{Type: "error", Message: err.Error()})
+			_ = conn.Close(websocket.StatusInternalError, "failed to start agent session")
+			return nil, false
+		}
+
+		data := agentAuthRequiredData{}
+		if mgr := s.appSrv.AcpSessionManager(); mgr != nil && mgr.AgentConn() != nil {
+			data.AgentName = mgr.AgentConn().AgentInfo.Name
+			data.AuthMethods = mgr.AgentConn().AuthMethods
+		}
+		if err := wsjson.Write(ctx, conn, agentServerMessage{Type: "authRequired", Data: data}); err != nil {
+			return nil, false
+		}
+
+		// Wait for the browser to ask us to retry (after it drove
+		// POST /api/agent/auth/{methodId}), ignoring any other message type
+		// that might arrive while we're gated on auth.
+		for {
+			var msg agentClientMessage
+			if err := wsjson.Read(ctx, conn, &msg); err != nil {
+				return nil, false
+			}
+			if msg.Type == "retryAuth" {
+				break
+			}
+		}
+	}
+}
+
 // handleAgentWS starts (or reuses) an ACP session against the currently
 // configured AI agent for the open project, and bridges it to the browser
 // over a WebSocket. One session per connection.
@@ -116,15 +181,26 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 	sessCtx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	session, err := s.appSrv.StartACPSession(sessCtx, root)
-	if err != nil {
-		_ = wsjson.Write(context.Background(), conn, agentServerMessage{Type: "error", Message: err.Error()})
-		_ = conn.Close(websocket.StatusInternalError, "failed to start agent session")
+	session, ok := s.startSessionOrRequireAuth(sessCtx, conn, root)
+	if !ok {
 		return
 	}
 	defer func() {
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), sessionCloseTimeout)
 		defer closeCancel()
+		// session/cancel is a base ACP capability every agent must support,
+		// unlike session/close (gated by an optional capability -- see
+		// CloseACPSession/CloseSession, a no-op when the agent doesn't
+		// declare it). Send it whenever a turn is still in flight so the
+		// agent process itself learns the browser is gone, regardless of
+		// whether it supports close -- otherwise an abandoned turn (tab
+		// closed, reload, network drop) lingers server-side forever with
+		// nothing to tell the agent to stop, and on a long-lived
+		// multi-session agent process this accumulates across
+		// disconnects. Best-effort: the agent may already be gone too.
+		if session.HasOngoingTurn() {
+			_ = session.Cancel(closeCtx)
+		}
 		_ = s.appSrv.CloseACPSession(closeCtx, session.SessionID)
 	}()
 

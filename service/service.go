@@ -54,6 +54,8 @@ type ServiceFacade struct {
 	consoleState       *console.ConsoleState
 	acpSessionManager  *agent.SessionManager
 	acpMu              sync.Mutex
+	acpCond            *sync.Cond
+	acpStarting        bool
 	mcpServer          *agent.McpServer // the built-in mcp server
 
 	currentProjectDir string
@@ -74,6 +76,7 @@ func NewService(ctx context.Context) *ServiceFacade {
 		windowSrv:    NewWindowService(ctx, st),
 		consoleState: console.NewConsoleState(1000),
 	}
+	s.acpCond = sync.NewCond(&s.acpMu)
 
 	pkgSrv := pkg.NewTypstPkgService(st.Typst(), st.Tpix(), s.TpixClient())
 	s.pkgService = pkgSrv
@@ -362,30 +365,58 @@ func (s *ServiceFacade) StartACPSession(ctx context.Context, projectDir string) 
 	as := s.settings.AcpAgent()
 
 	s.acpMu.Lock()
-	mgr := s.acpSessionManager
-	// If the configured agent changed, stop the running one.
-	if mgr != nil && !configEqual(mgr.Config(), as) {
+	// If the configured agent changed, stop the running one so the next
+	// getOrCreateAcpSessionManager call spawns a fresh one with the new config.
+	if mgr := s.acpSessionManager; mgr != nil && !configEqual(mgr.Config(), as) {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := mgr.Close(closeCtx); err != nil {
 			log.Printf("close old ACP session manager: %v", err)
 		}
 		s.acpSessionManager = nil
-		mgr = nil
 		log.Println("agent config changed, restarting session manager...")
 	}
 	s.acpMu.Unlock()
 
-	if mgr == nil {
-		if err := s.startAcpSessionManager(ctx); err != nil {
-			return nil, err
-		}
-		s.acpMu.Lock()
-		mgr = s.acpSessionManager
-		s.acpMu.Unlock()
+	mgr, err := s.getOrCreateAcpSessionManager(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	return mgr.NewSession(ctx, projectDir)
+}
+
+// getOrCreateAcpSessionManager returns the current ACP session manager,
+// starting one if none exists. Concurrent callers that observe no manager
+// coordinate through acpCond so only one of them actually spawns the agent
+// process -- the rest wait for that spawn to finish and reuse its result.
+// Without this, two /ws/agent connections opening close together (e.g. one
+// racing a project switch) could each spawn their own `npx` agent process
+// and independently publish s.acpSessionManager with no ordering guarantee,
+// orphaning whichever process lost the race.
+func (s *ServiceFacade) getOrCreateAcpSessionManager(ctx context.Context) (*agent.SessionManager, error) {
+	s.acpMu.Lock()
+	for s.acpSessionManager == nil && s.acpStarting {
+		s.acpCond.Wait()
+	}
+	if mgr := s.acpSessionManager; mgr != nil {
+		s.acpMu.Unlock()
+		return mgr, nil
+	}
+	s.acpStarting = true
+	s.acpMu.Unlock()
+
+	mgr, err := s.startAcpSessionManager(ctx)
+
+	s.acpMu.Lock()
+	s.acpStarting = false
+	if err == nil {
+		s.acpSessionManager = mgr
+	}
+	s.acpCond.Broadcast()
+	s.acpMu.Unlock()
+
+	return mgr, err
 }
 
 func configEqual(a agent.AgentConfig, as *settings.AcpAgentSettings) bool {
@@ -423,10 +454,15 @@ func (s *ServiceFacade) buildAgentConfig() agent.AgentConfig {
 	}
 }
 
-func (s *ServiceFacade) startAcpSessionManager(ctx context.Context) error {
+// startAcpSessionManager spawns a new agent process for the currently
+// configured AI agent and completes the ACP Initialize handshake. It does
+// not touch s.acpSessionManager -- callers publish the result themselves
+// under s.acpMu (see getOrCreateAcpSessionManager) so concurrent callers
+// never race on that field.
+func (s *ServiceFacade) startAcpSessionManager(ctx context.Context) (*agent.SessionManager, error) {
 	cwd := s.CurrentProjectDir()
 	if cwd == "" {
-		return errors.New("No project dir is open")
+		return nil, errors.New("No project dir is open")
 	}
 
 	childCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
@@ -444,11 +480,10 @@ func (s *ServiceFacade) startAcpSessionManager(ctx context.Context) error {
 	// stream agent logs(usually streamed via stderr) to console. Some agents like Cline
 	// write Device-auth flow guide to the console log stream, so user can complete the authentication flow.
 	if err := mgr.Start(childCtx, agentConfig, acpDebug, s.consoleState); err != nil {
-		return err
+		return nil, err
 	}
 
-	s.acpSessionManager = mgr
-	return nil
+	return mgr, nil
 }
 
 func (s *ServiceFacade) stopAcpSessionManager(ctx context.Context) {
@@ -464,20 +499,12 @@ func (s *ServiceFacade) stopAcpSessionManager(ctx context.Context) {
 }
 
 func (s *ServiceFacade) AcpSessionManager() *agent.SessionManager {
-	if s.acpSessionManager != nil {
-		return s.acpSessionManager
-	}
-
-	childCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
-	err := s.startAcpSessionManager(childCtx)
+	mgr, err := s.getOrCreateAcpSessionManager(context.Background())
 	if err != nil {
 		log.Println("start ACP session manager failed: ", err)
 		return nil
 	}
-
-	return s.acpSessionManager
+	return mgr
 }
 
 func (s *ServiceFacade) TpixClient() *tpix.TpixSdk {

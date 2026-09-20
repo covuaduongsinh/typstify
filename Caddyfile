@@ -1,0 +1,14 @@
+# Reverse proxy + automatic TLS (Let's Encrypt) for Typstify Web.
+#
+# Set the domain via .env (see docker-compose.yml's `caddy` service) or edit
+# the placeholder below directly. Point the domain's DNS A record at this
+# VPS's IP before starting Caddy, since it needs to answer the HTTP-01
+# challenge on port 80 to obtain a certificate.
+#
+# Caddy's reverse_proxy forwards the Upgrade/Connection headers for
+# WebSocket upgrades automatically, so /ws/agent, /ws/lsp, and /preview
+# (see server/server.go and server/preview_proxy.go) all work with no extra
+# directives.
+{$TYPSTIFY_DOMAIN} {
+	reverse_proxy typstify:8080
+}

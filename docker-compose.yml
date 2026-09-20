@@ -1,12 +1,13 @@
 # Example self-hosted deployment. See docs/web-server.md.
 #
-#   cp .env.example .env   # then set TYPSTIFY_SERVER_PASSWORD
+#   cp .env.example .env   # then set TYPSTIFY_SERVER_PASSWORD and TYPSTIFY_DOMAIN
 #   docker compose up -d --build
 #
-# By default this only binds to localhost:8080; put it behind a TLS reverse
-# proxy (Caddy, nginx, Traefik...) before exposing it on a real network --
-# this server does not terminate TLS itself and the password/session cookie
-# would otherwise travel in plaintext.
+# The `typstify` service only binds to localhost:8080; the `caddy` service
+# in front of it terminates real TLS (automatic Let's Encrypt certificate
+# for TYPSTIFY_DOMAIN) and is the only service exposed on 80/443. Do not
+# expose 8080 directly -- this server does not terminate TLS itself and the
+# password/session cookie would otherwise travel in plaintext.
 services:
   typstify:
     build: .
@@ -18,5 +19,22 @@ services:
     volumes:
       - typstify-data:/data
 
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - typstify
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      TYPSTIFY_DOMAIN: ${TYPSTIFY_DOMAIN:?set your domain in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
 volumes:
   typstify-data:
+  caddy-data:
+  caddy-config:

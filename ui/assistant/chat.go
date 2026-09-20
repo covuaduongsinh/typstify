@@ -233,7 +233,7 @@ func (cv *AgentChatView) layoutAuthView(gtx layout.Context, th *theme.Theme) lay
 			return layout.Dimensions{}
 		}
 
-		cv.authView = agentview.NewAuthenticationView(conn.AgentInfo, conn.AuthMethods, sm.Authenticate)
+		cv.authView = agentview.NewAuthenticationView(conn.AgentInfo, conn.AuthMethods, sm.Authenticate, cv.srv.RefreshWindow)
 	}
 
 	if cv.authView.Authenticated() {

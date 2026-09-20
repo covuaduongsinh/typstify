@@ -1,8 +1,10 @@
 package settings
 
 import (
+	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 )
 
 type baseModel struct {
@@ -45,14 +47,14 @@ func (m *baseModel) load(model Model, defaultVal Model) error {
 		return errors.New("model is detached")
 	}
 
-	loaded, err := m.store.load(m.name, model)
+	raw, loaded, err := m.store.load(m.name, model)
 	if err != nil {
 		return err
 	}
 	m.loaded = loaded
 
 	if defaultVal != nil {
-		if err := mergeModel(defaultVal, model); err != nil {
+		if err := mergeModel(defaultVal, model, jsonPresentKeys(raw)); err != nil {
 			return err
 		}
 	}
@@ -61,7 +63,52 @@ func (m *baseModel) load(model Model, defaultVal Model) error {
 	return nil
 }
 
-func mergeModel(src, dest Model) error {
+// jsonPresentKeys returns the set of top-level keys actually present in a
+// persisted settings section, so mergeModel can tell "saved as zero value
+// on purpose" apart from "never saved". nil/empty raw (nothing persisted
+// yet) yields an empty set, so every field falls through to the default --
+// the same behavior as before this distinction existed.
+func jsonPresentKeys(raw json.RawMessage) map[string]bool {
+	keys := map[string]bool{}
+	if len(raw) == 0 {
+		return keys
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return keys
+	}
+	for k := range m {
+		keys[k] = true
+	}
+	return keys
+}
+
+func jsonTagName(field reflect.StructField) string {
+	tag, ok := field.Tag.Lookup("json")
+	if !ok {
+		return ""
+	}
+	name, _, _ := strings.Cut(tag, ",")
+	return name
+}
+
+// mergeModel fills dest's fields from src (the defaults) wherever the
+// persisted data didn't actually save that field -- present in
+// presentKeys means "this exact field was saved, even if its value is the
+// zero value on purpose" (e.g. Args="" for a binary agent that takes no
+// arguments) and must NOT be overwritten by the default. Only fields
+// genuinely absent from what was persisted (a key added to the struct
+// after the settings file was last written) fall back to the default.
+//
+// Before this distinction existed, mergeModel treated "field equals its
+// zero value" as "field was never set", which silently reset any
+// intentionally-empty saved field back to its default on every load --
+// observed live 2026-09-19: AcpAgentSettings.Args="" (correct for
+// antigravity-acp on Windows, which takes no args) kept reverting to
+// defaultAcpAgentSettings.Args (Claude Code's npx args) on every settings
+// read, so the agent process was actually launched with bogus
+// leftover arguments.
+func mergeModel(src, dest Model, presentKeys map[string]bool) error {
 	if reflect.TypeOf(src) != reflect.TypeOf(dest) {
 		return errors.New("model types unmacthed")
 	}
@@ -80,12 +127,14 @@ func mergeModel(src, dest Model) error {
 			continue
 		}
 
-		if reflect.Zero(field.Type()).Interface() == field.Interface() {
-			srcField := srcVal.Field(i)
-			fieldVal := srcField.Interface()
-			if err := setFieldValue(field, fieldVal); err != nil {
-				return err
-			}
+		if jsonKey := jsonTagName(srcTypeField); jsonKey != "" && presentKeys[jsonKey] {
+			continue
+		}
+
+		srcField := srcVal.Field(i)
+		fieldVal := srcField.Interface()
+		if err := setFieldValue(field, fieldVal); err != nil {
+			return err
 		}
 	}
 

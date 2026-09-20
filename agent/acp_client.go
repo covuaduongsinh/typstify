@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/coder/acp-go-sdk"
 )
@@ -33,6 +34,30 @@ func NewACPClient(sm *SessionManager) *ACPClient {
 		sm:         sm,
 		extMethods: make(map[string]ExtentionHandler),
 	}
+}
+
+// waitForActiveSession retries GetActiveSession for a short bounded time.
+// NewSession/LoadSession/ResumeSession (manager.go) append to
+// sm.activeSessions only after their RPC call returns, but the agent can
+// send its first session/update (or session/request_permission)
+// notification for that same session slightly earlier -- the ACP SDK
+// dispatches inbound notifications on a goroutine independent from the one
+// resuming our New/Load/ResumeSession call. Without this, that first
+// notification is dropped ("No active ACP session found") right as a brand
+// new session is being created. The race window observed in practice is
+// microseconds to low milliseconds, so a short bounded poll is enough.
+func (a *ACPClient) waitForActiveSession(sessionID string) *ACPSession {
+	if session := a.sm.GetActiveSession(sessionID); session != nil {
+		return session
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+		if session := a.sm.GetActiveSession(sessionID); session != nil {
+			return session
+		}
+	}
+	return nil
 }
 
 // ReadTextFile implements [acp.Client].
@@ -134,7 +159,7 @@ func (a *ACPClient) RequestPermission(ctx context.Context, params acp.RequestPer
 	}
 
 	//log.Printf("Agent request permission for toolcall: %v", params.ToolCall.ToolCallId)
-	session := a.sm.GetActiveSession(string(params.SessionId))
+	session := a.waitForActiveSession(string(params.SessionId))
 	if session == nil {
 		log.Printf("No active ACP session found: %s", params.SessionId)
 		return emptyResp, fmt.Errorf("No active ACP session found: %s", params.SessionId)
@@ -189,7 +214,7 @@ func (a *ACPClient) SessionUpdate(ctx context.Context, params acp.SessionNotific
 	}
 
 	update := params.Update
-	session := a.sm.GetActiveSession(string(params.SessionId))
+	session := a.waitForActiveSession(string(params.SessionId))
 	if session == nil {
 		log.Printf("No active ACP session found: %s", params.SessionId)
 		return fmt.Errorf("No active ACP session found: %s", params.SessionId)

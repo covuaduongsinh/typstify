@@ -38,23 +38,29 @@ func newSettingsStore(root string) *settingsStore {
 	}
 }
 
-func (s *settingsStore) load(name string, model Model) (bool, error) {
+// load unmarshals the persisted section named name into model. The
+// returned json.RawMessage is the exact bytes that were persisted (nil if
+// nothing was ever saved under name) -- callers use it to tell "this field
+// was saved as its zero value on purpose" apart from "this field was never
+// saved at all", which a zero-value check alone can't distinguish. See
+// mergeModel.
+func (s *settingsStore) load(name string, model Model) (json.RawMessage, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if err := s.ensureLoadedLocked(); err != nil {
-		return false, err
+		return nil, false, err
 	}
 
 	raw, ok := s.data[name]
 	if !ok {
-		return false, nil
+		return nil, false, nil
 	}
 
 	if err := json.Unmarshal(raw, model); err != nil {
-		return false, err
+		return nil, false, err
 	}
-	return true, nil
+	return raw, true, nil
 }
 
 func (s *settingsStore) save(name string, model Model) error {

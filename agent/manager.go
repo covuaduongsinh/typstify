@@ -21,6 +21,12 @@ import (
 
 var (
 	AuthRequiredErr = errors.New("Authentication required")
+	// ErrSessionManagerClosed is returned by NewSession/LoadSession/
+	// ResumeSession/Authenticate when the manager's agent process has
+	// already been shut down (e.g. the project changed underneath an
+	// in-flight call) -- callers should treat it as transient and retry
+	// against a freshly created manager, not as a hard failure.
+	ErrSessionManagerClosed = errors.New("agent session manager was closed (project changed)")
 )
 
 type AgentConfig struct {
@@ -52,6 +58,10 @@ type SessionManager struct {
 	// Active ACP sessions which are either newly created, loaded or resumed from Agents.
 	activeSessions []*ACPSession
 	mu             sync.Mutex
+	// closed is set once Close has torn down the agent process. Guards
+	// NewSession/LoadSession/ResumeSession/Authenticate against issuing an
+	// RPC against a connection whose process was already killed.
+	closed bool
 
 	// Optional mcp servers to use when initializing sessions
 	mcpServers []acp.McpServer
@@ -67,6 +77,33 @@ func NewSessionManager(mcpServers []acp.McpServer) *SessionManager {
 
 func (sm *SessionManager) Config() AgentConfig {
 	return sm.agentConfig
+}
+
+// mcpServersForConn returns sm.mcpServers filtered to only the transports
+// the connected agent actually declared support for in its Initialize
+// response. Sending an agent an MCP server over a transport it just told us
+// it doesn't support is worse than sending nothing: observed live
+// 2026-09-18 with Google Antigravity (McpCapabilities.Http == false, logged
+// as "Agent does not support MCP over HTTP, built-in tools will not be
+// accessible") -- a simple no-tool prompt still worked, but a real
+// file-editing prompt (which needs the agent to reach for a tool) hung
+// indefinitely with zero ACP updates, consistent with the agent getting
+// stuck trying to use a server entry it cannot actually connect to.
+func (sm *SessionManager) mcpServersForConn(conn *AgentConn) []acp.McpServer {
+	if conn == nil {
+		return []acp.McpServer{}
+	}
+	filtered := make([]acp.McpServer, 0, len(sm.mcpServers))
+	for _, s := range sm.mcpServers {
+		if s.Http != nil && !conn.AgentCapabilities.McpCapabilities.Http {
+			continue
+		}
+		if s.Sse != nil && !conn.AgentCapabilities.McpCapabilities.Sse {
+			continue
+		}
+		filtered = append(filtered, s)
+	}
+	return filtered
 }
 
 func (sm *SessionManager) AgentConn() *AgentConn {
@@ -144,6 +181,15 @@ func (sm *SessionManager) Start(ctx context.Context, agentConfig AgentConfig, en
 		return err
 	}
 
+	// A non-compliant (or crashed-before-replying) agent can return a
+	// nil-but-no-error Initialize response -- observed live 2026-09-18 with
+	// the community "grok-build" ACP registry entry, which panicked the
+	// whole app here. Fail the connection instead of dereferencing nil.
+	if initResp.AgentInfo == nil {
+		_ = cmd.Process.Kill()
+		return fmt.Errorf("agent %q returned an invalid initialize response (missing agentInfo)", agentConfig.Name)
+	}
+
 	go func() {
 		<-conn.Done()
 		log.Println("Peer closed connections")
@@ -168,8 +214,12 @@ func (sm *SessionManager) Start(ctx context.Context, agentConfig AgentConfig, en
 func (sm *SessionManager) Authenticate(ctx context.Context, methodID string) error {
 	sm.mu.Lock()
 	conn := sm.conn
+	closed := sm.closed
 	sm.mu.Unlock()
 
+	if closed {
+		return ErrSessionManagerClosed
+	}
 	if conn == nil {
 		return fmt.Errorf("Agent not initialized")
 	}
@@ -186,8 +236,12 @@ func (sm *SessionManager) Authenticate(ctx context.Context, methodID string) err
 func (sm *SessionManager) NewSession(ctx context.Context, cwd string) (*ACPSession, error) {
 	sm.mu.Lock()
 	conn := sm.conn
+	closed := sm.closed
 	sm.mu.Unlock()
 
+	if closed {
+		return nil, ErrSessionManagerClosed
+	}
 	if conn == nil {
 		return nil, fmt.Errorf("not connected to agent")
 	}
@@ -197,13 +251,9 @@ func (sm *SessionManager) NewSession(ctx context.Context, cwd string) (*ACPSessi
 		return nil, err
 	}
 
-	mcpServers := sm.mcpServers
-	if mcpServers == nil {
-		mcpServers = []acp.McpServer{}
-	}
 	resp, err := conn.Conn.NewSession(ctx, acp.NewSessionRequest{
 		Cwd:        cwd,
-		McpServers: mcpServers,
+		McpServers: sm.mcpServersForConn(conn),
 	})
 
 	err = checkACPErr(err)
@@ -291,25 +341,33 @@ func (sm *SessionManager) LoadSession(ctx context.Context, session *ACPSession) 
 		return session, nil
 	}
 
-	if sm.conn == nil {
+	sm.mu.Lock()
+	conn := sm.conn
+	closed := sm.closed
+	sm.mu.Unlock()
+
+	if closed {
+		return nil, ErrSessionManagerClosed
+	}
+	if conn == nil {
 		return nil, fmt.Errorf("not connected to agent")
 	}
 
 	// If the agent does not support loading session, return without error.
-	if !sm.conn.AgentCapabilities.LoadSession {
+	if !conn.AgentCapabilities.LoadSession {
 		return nil, nil
 	}
 
 	// Agents will call 'session/update' before returing from LoadSession, so we have to make
 	// it an active session before the rpc return.
 	sm.mu.Lock()
-	session.SetConn(sm.conn)
+	session.SetConn(conn)
 	sm.activeSessions = append(sm.activeSessions, session)
 	sm.mu.Unlock()
 
-	resp, err := sm.conn.Conn.LoadSession(ctx, acp.LoadSessionRequest{
+	resp, err := conn.Conn.LoadSession(ctx, acp.LoadSessionRequest{
 		Cwd:        session.Cwd,
-		McpServers: sm.mcpServers,
+		McpServers: sm.mcpServersForConn(conn),
 		SessionId:  acp.SessionId(session.SessionID),
 	})
 
@@ -333,12 +391,20 @@ func (sm *SessionManager) ResumeSession(ctx context.Context, session *ACPSession
 		return session, nil
 	}
 
-	if sm.conn == nil {
+	sm.mu.Lock()
+	conn := sm.conn
+	closed := sm.closed
+	sm.mu.Unlock()
+
+	if closed {
+		return nil, ErrSessionManagerClosed
+	}
+	if conn == nil {
 		return nil, fmt.Errorf("not connected to agent")
 	}
 
 	// If the agent does not support resume sessions, return without error.
-	resumeCap := sm.conn.AgentCapabilities.SessionCapabilities.Resume
+	resumeCap := conn.AgentCapabilities.SessionCapabilities.Resume
 	if resumeCap == nil {
 		return nil, fmt.Errorf("Agent does not support resuming session")
 	}
@@ -346,13 +412,13 @@ func (sm *SessionManager) ResumeSession(ctx context.Context, session *ACPSession
 	// Agents will call 'session/update' before returing from ResumeSession, so we have to make
 	// it an active session before the rpc return.
 	sm.mu.Lock()
-	session.SetConn(sm.conn)
+	session.SetConn(conn)
 	sm.activeSessions = append(sm.activeSessions, session)
 	sm.mu.Unlock()
 
-	resp, err := sm.conn.Conn.ResumeSession(ctx, acp.ResumeSessionRequest{
+	resp, err := conn.Conn.ResumeSession(ctx, acp.ResumeSessionRequest{
 		Cwd:        session.Cwd,
-		McpServers: sm.mcpServers,
+		McpServers: sm.mcpServersForConn(conn),
 		SessionId:  acp.SessionId(session.SessionID),
 	})
 
@@ -449,6 +515,7 @@ func (sm *SessionManager) Close(ctx context.Context) error {
 	if closeErr != nil {
 		err = errors.Join(err, closeErr)
 	}
+	sm.closed = true
 
 	return err
 }
