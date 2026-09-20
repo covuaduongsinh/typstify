@@ -104,6 +104,17 @@ func (w *wsSubscriber) resolvePermission(optID acp.PermissionOptionId) {
 	}
 }
 
+// agentAuthRequiredData builds the payload for an "authRequired" server
+// message from whatever agent is currently connected (if any).
+func (s *Server) agentAuthRequiredData() agentAuthRequiredData {
+	data := agentAuthRequiredData{}
+	if mgr := s.appSrv.AcpSessionManager(); mgr != nil && mgr.AgentConn() != nil {
+		data.AgentName = mgr.AgentConn().AgentInfo.Name
+		data.AuthMethods = mgr.AgentConn().AuthMethods
+	}
+	return data
+}
+
 // startSessionOrRequireAuth tries to start an ACP session, and if the agent
 // reports it needs authentication (agent.AuthRequiredErr), sends an
 // "authRequired" message with the agent's AuthMethods and then waits for
@@ -138,12 +149,7 @@ func (s *Server) startSessionOrRequireAuth(ctx context.Context, conn *websocket.
 			return nil, false
 		}
 
-		data := agentAuthRequiredData{}
-		if mgr := s.appSrv.AcpSessionManager(); mgr != nil && mgr.AgentConn() != nil {
-			data.AgentName = mgr.AgentConn().AgentInfo.Name
-			data.AuthMethods = mgr.AgentConn().AuthMethods
-		}
-		if err := wsjson.Write(ctx, conn, agentServerMessage{Type: "authRequired", Data: data}); err != nil {
+		if err := wsjson.Write(ctx, conn, agentServerMessage{Type: "authRequired", Data: s.agentAuthRequiredData()}); err != nil {
 			return nil, false
 		}
 
@@ -222,6 +228,20 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 			go func() { _ = session.Cancel(sessCtx) }()
 		case "permissionResponse":
 			sub.resolvePermission(acp.PermissionOptionId(msg.OptionID))
+		case "retryAuth":
+			// The auth-required error surfaced from a Prompt() call, after
+			// the session itself was already established (unlike Claude
+			// Code, most agents report AuthRequiredErr at session start --
+			// see startSessionOrRequireAuth -- but Claude Code's ACP bridge
+			// only discovers it's logged out once it actually tries to
+			// query the model). The frontend's AuthCard is showing because
+			// it got an "authRequired" message; re-sending "ready" is what
+			// clears that state (AgentChat.tsx only clears it on "ready"),
+			// letting the user resend their prompt now that login (driven
+			// via POST /api/agent/auth/{methodId}, same as the connect-time
+			// flow) has hopefully completed. The session/turn itself needs
+			// no restart -- only the next Prompt() call did.
+			go func() { _ = wsjson.Write(sessCtx, conn, agentServerMessage{Type: "ready", SessionID: session.SessionID}) }()
 		default:
 			log.Printf("agent_ws: unknown message type %q", msg.Type)
 		}
@@ -232,6 +252,10 @@ func (s *Server) runPrompt(ctx context.Context, conn *websocket.Conn, session *a
 	resp, err := session.Prompt(ctx, acp.ContentBlock{Text: &acp.ContentBlockText{Type: "text", Text: text}})
 	if err != nil {
 		if err == agent.ErrPromptBuffered {
+			return
+		}
+		if errors.Is(err, agent.AuthRequiredErr) {
+			_ = wsjson.Write(ctx, conn, agentServerMessage{Type: "authRequired", Data: s.agentAuthRequiredData()})
 			return
 		}
 		_ = wsjson.Write(ctx, conn, agentServerMessage{Type: "error", Message: err.Error()})
