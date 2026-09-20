@@ -228,9 +228,7 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 	session.SubscribeUpdates(sessCtx, sub)
 
 	_ = wsjson.Write(sessCtx, conn, agentServerMessage{Type: "ready", SessionID: session.SessionID})
-	opts := session.ConfigOptions()
-	log.Printf("agent_ws: DEBUG initial configOptions count=%d raw=%+v", len(opts), opts)
-	if len(opts) > 0 {
+	if opts := session.ConfigOptions(); len(opts) > 0 {
 		_ = wsjson.Write(sessCtx, conn, agentServerMessage{Type: "configOptions", Data: opts})
 	}
 

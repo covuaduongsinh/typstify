@@ -175,6 +175,7 @@
   color: var(--text-dim);
   border-bottom: 1px solid var(--border);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -183,9 +184,14 @@
   padding: 2px 8px;
 }
 .chat-model-select {
-  margin-left: auto;
   font-size: 11px;
-  padding: 2px 6px;
+  padding: 2px 4px;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-model-select:first-of-type {
+  margin-left: auto;
 }
 .chat-pending-images {
   display: flex;
