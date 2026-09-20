@@ -245,7 +245,14 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 			go func(configID, value string) {
 				if err := session.UpdateConfig(sessCtx, acp.SessionConfigId(configID), acp.SessionConfigValueId(value)); err != nil {
 					_ = wsjson.Write(sessCtx, conn, agentServerMessage{Type: "error", Message: err.Error()})
+					return
 				}
+				// UpdateConfig's own RPC response already updated
+				// session.configOptions -- push it now instead of waiting on
+				// an agent-initiated session/update notification, since not
+				// every agent sends one for a change it already applied and
+				// returned synchronously (observed: Claude Code doesn't).
+				_ = wsjson.Write(sessCtx, conn, agentServerMessage{Type: "configOptions", Data: session.ConfigOptions()})
 			}(msg.ConfigID, msg.Value)
 		case "cancel":
 			go func() { _ = session.Cancel(sessCtx) }()
