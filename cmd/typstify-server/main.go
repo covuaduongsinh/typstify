@@ -32,6 +32,7 @@ func main() {
 	addrFlag := flag.String("addr", envOr("TYPSTIFY_SERVER_ADDR", ":8080"), "Address to listen on")
 	passwordFlag := flag.String("password", os.Getenv("TYPSTIFY_SERVER_PASSWORD"), "Password required to use the server. Empty disables auth (loopback/dev use only)")
 	staticDirFlag := flag.String("static-dir", envOr("TYPSTIFY_STATIC_DIR", "web/dist"), "Directory containing the built web frontend to serve; ignored if it doesn't exist")
+	projectRootFlag := flag.String("project-root", os.Getenv("TYPSTIFY_PROJECT_ROOT"), "If set, confine Open/Create Project to this directory (e.g. a persistent volume mount) -- anywhere else is rejected. Empty means unrestricted")
 	flag.Parse()
 
 	projectDir, err := resolveProjectDir(*projectDirFlag)
@@ -62,8 +63,9 @@ func main() {
 	httpSrv := &http.Server{
 		Addr: *addrFlag,
 		Handler: server.New(appSrv, server.Options{
-			Password:  *passwordFlag,
-			StaticDir: staticDir,
+			Password:    *passwordFlag,
+			StaticDir:   staticDir,
+			ProjectRoot: *projectRootFlag,
 		}).Handler(),
 	}
 

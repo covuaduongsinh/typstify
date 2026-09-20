@@ -118,6 +118,7 @@ WORKDIR /app
 # explicitly by whoever runs the container (see docs/web-server.md).
 ENV TYPSTIFY_STATIC_DIR=/app/web/dist \
     TYPSTIFY_PROJECT_DIR=/data/project \
+    TYPSTIFY_PROJECT_ROOT=/data \
     TYPSTIFY_SERVER_ADDR=:8080 \
     HOME=/data \
     XDG_CONFIG_HOME=/data/config \

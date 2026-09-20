@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -9,6 +10,19 @@ import (
 	"sort"
 	"time"
 )
+
+// checkProjectRoot rejects abs when the server was started with a
+// ProjectRoot confinement (see server.Options) and abs falls outside of it.
+// A no-op when unconfined.
+func (s *Server) checkProjectRoot(abs string) error {
+	if s.opts.ProjectRoot == "" || isUnderRoot(s.opts.ProjectRoot, abs) {
+		return nil
+	}
+	return fmt.Errorf(
+		"projects must live under %s on this server -- anywhere else (including this path) is wiped on the next deploy, since only %s is backed by persistent storage",
+		s.opts.ProjectRoot, s.opts.ProjectRoot,
+	)
+}
 
 type treeEntry struct {
 	Name    string    `json:"name"`
@@ -274,6 +288,10 @@ func (s *Server) handleOpenProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := s.checkProjectRoot(abs); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	info, err := os.Stat(abs)
 	if err != nil || !info.IsDir() {
 		writeError(w, http.StatusBadRequest, "not a directory")
@@ -297,6 +315,10 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 
 	abs, err := filepath.Abs(req.Path)
 	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.checkProjectRoot(abs); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}

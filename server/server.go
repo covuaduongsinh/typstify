@@ -18,6 +18,16 @@ type Options struct {
 	// StaticDir, when non-empty, serves the built web frontend (web/dist)
 	// for any path not matched below, with SPA fallback to index.html.
 	StaticDir string
+	// ProjectRoot, when non-empty, confines handleOpenProject/
+	// handleCreateProject to this directory (or subdirectories of it) --
+	// e.g. the Docker image sets it to /data, the only path backed by a
+	// persistent volume (see Dockerfile's VOLUME ["/data"]). Opening or
+	// creating a project outside of it (e.g. under /app, which is baked
+	// into the image layer) silently gets wiped on the next deploy: real
+	// user data was lost this way before this guard existed. Empty means
+	// unrestricted -- the desktop app and bare (non-Docker) server runs
+	// have no such distinction between ephemeral and persistent storage.
+	ProjectRoot string
 }
 
 // Server is the HTTP/WebSocket API described in Giai doan 1 of

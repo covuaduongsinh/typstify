@@ -40,3 +40,15 @@ func relPath(root, p string) (string, error) {
 	}
 	return filepath.ToSlash(r), nil
 }
+
+// isUnderRoot reports whether the already-absolute path abs is root itself or
+// somewhere underneath it. Unlike resolveInRoot, abs is not joined onto root
+// -- it's an independent absolute path being checked for containment (see
+// handleOpenProject/handleCreateProject's ProjectRoot guard).
+func isUnderRoot(root, abs string) bool {
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return false
+	}
+	return abs == rootAbs || strings.HasPrefix(abs, rootAbs+string(filepath.Separator))
+}

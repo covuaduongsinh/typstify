@@ -54,7 +54,7 @@ export function ProjectPicker({ onOpened }: { onOpened: (path: string) => void }
       <div className="open-project">
         <h2>Open or create a project</h2>
         <input
-          placeholder="/path/to/project"
+          placeholder="/data/project (self-hosted: must live under /data -- see docs/web-server.md)"
           value={path}
           onChange={(e) => setPath(e.target.value)}
         />
