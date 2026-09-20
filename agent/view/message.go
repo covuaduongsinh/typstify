@@ -295,6 +295,10 @@ func (v *AgentChat) OnPlan(plan agent.Plan) {
 	v.invalidate()
 }
 
+func (v *AgentChat) OnConfigOptionUpdate(update agent.ConfigOptionUpdate) {
+	v.invalidate()
+}
+
 func (v *AgentChat) OnRequestPermission(params agent.PermissionGrantRequest) {
 	v.mu.Lock()
 	buttons := make([]widget.Clickable, len(params.Req.Options))

@@ -54,6 +54,8 @@ type SessionUpdateSubsciber interface {
 	OnPlan(plan Plan)
 
 	OnRequestPermission(params PermissionGrantRequest)
+
+	OnConfigOptionUpdate(update ConfigOptionUpdate)
 }
 
 type ACPSession struct {
@@ -445,6 +447,7 @@ func (sn *ACPSession) SubscribeUpdates(ctx context.Context, sub SessionUpdateSub
 					sn.OnAgentUpdateMode(string(update.CurrentModeId))
 				case ConfigOptionUpdate:
 					sn.SetConfigOptions(update.ConfigOptions)
+					sub.OnConfigOptionUpdate(update)
 				case SessionInfoUpdate:
 					var title, updatedAt string
 					if update.Title != nil {

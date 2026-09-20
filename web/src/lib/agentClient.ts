@@ -1,4 +1,5 @@
 import { wsUrl } from '../api/client'
+import type { ImageAttachment } from './acpTypes'
 
 // Wire format mirrors server/agent_ws.go's agentClientMessage/
 // agentServerMessage. `data` carries the underlying ACP payload as-is
@@ -71,8 +72,14 @@ export class AgentClient {
     // so there is nothing new to report here.
   }
 
-  prompt(text: string) {
-    this.send({ type: 'prompt', text })
+  prompt(text: string, images?: ImageAttachment[]) {
+    this.send({ type: 'prompt', text, images })
+  }
+
+  /** Change a session config option (e.g. the model picker) -- see
+   * server/agent_ws.go's "setConfigOption" handler / acp.SessionConfigOption. */
+  setConfigOption(configId: string, value: string) {
+    this.send({ type: 'setConfigOption', configId, value })
   }
 
   cancel() {

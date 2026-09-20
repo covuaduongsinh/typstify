@@ -19,9 +19,20 @@ const sessionCloseTimeout = 10 * time.Second
 // agentClientMessage is the wire format for browser -> server messages on
 // /ws/agent.
 type agentClientMessage struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	OptionID string `json:"optionId,omitempty"`
+	Type     string            `json:"type"`
+	Text     string            `json:"text,omitempty"`
+	OptionID string            `json:"optionId,omitempty"`
+	Images   []imageAttachment `json:"images,omitempty"`
+	ConfigID string            `json:"configId,omitempty"`
+	Value    string            `json:"value,omitempty"`
+}
+
+// imageAttachment is a base64-encoded image pasted into the chat input,
+// matching the desktop client's acp.ImageBlock construction
+// (agent/view/inputbox.go).
+type imageAttachment struct {
+	Data     string `json:"data"`
+	MimeType string `json:"mimeType"`
 }
 
 // agentAuthRequiredData is the payload of an "authRequired" server message.
@@ -68,6 +79,9 @@ func (w *wsSubscriber) OnAgentThought(chunk agent.AgentThoughtChunk) { w.send("a
 func (w *wsSubscriber) OnToolCallInit(tc agent.ToolCall)             { w.send("toolCall", tc) }
 func (w *wsSubscriber) OnToolCallUpdate(tc agent.ToolCallUpdate)     { w.send("toolCallUpdate", tc) }
 func (w *wsSubscriber) OnPlan(plan agent.Plan)                       { w.send("plan", plan) }
+func (w *wsSubscriber) OnConfigOptionUpdate(update agent.ConfigOptionUpdate) {
+	w.send("configOptions", update.ConfigOptions)
+}
 
 func (w *wsSubscriber) OnRequestPermission(req agent.PermissionGrantRequest) {
 	ch := make(chan acp.PermissionOptionId, 1)
@@ -214,6 +228,9 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 	session.SubscribeUpdates(sessCtx, sub)
 
 	_ = wsjson.Write(sessCtx, conn, agentServerMessage{Type: "ready", SessionID: session.SessionID})
+	if opts := session.ConfigOptions(); len(opts) > 0 {
+		_ = wsjson.Write(sessCtx, conn, agentServerMessage{Type: "configOptions", Data: opts})
+	}
 
 	for {
 		var msg agentClientMessage
@@ -223,7 +240,13 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 
 		switch msg.Type {
 		case "prompt":
-			go s.runPrompt(sessCtx, conn, session, msg.Text)
+			go s.runPrompt(sessCtx, conn, session, msg.Text, msg.Images)
+		case "setConfigOption":
+			go func(configID, value string) {
+				if err := session.UpdateConfig(sessCtx, acp.SessionConfigId(configID), acp.SessionConfigValueId(value)); err != nil {
+					_ = wsjson.Write(sessCtx, conn, agentServerMessage{Type: "error", Message: err.Error()})
+				}
+			}(msg.ConfigID, msg.Value)
 		case "cancel":
 			go func() { _ = session.Cancel(sessCtx) }()
 		case "permissionResponse":
@@ -248,8 +271,16 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) runPrompt(ctx context.Context, conn *websocket.Conn, session *agent.ACPSession, text string) {
-	resp, err := session.Prompt(ctx, acp.ContentBlock{Text: &acp.ContentBlockText{Type: "text", Text: text}})
+func (s *Server) runPrompt(ctx context.Context, conn *websocket.Conn, session *agent.ACPSession, text string, images []imageAttachment) {
+	blocks := make([]acp.ContentBlock, 0, 1+len(images))
+	if text != "" {
+		blocks = append(blocks, acp.TextBlock(text))
+	}
+	for _, img := range images {
+		blocks = append(blocks, acp.ImageBlock(img.Data, img.MimeType))
+	}
+
+	resp, err := session.Prompt(ctx, blocks...)
 	if err != nil {
 		if err == agent.ErrPromptBuffered {
 			return

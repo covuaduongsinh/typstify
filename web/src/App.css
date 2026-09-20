@@ -182,6 +182,43 @@
   font-size: 11px;
   padding: 2px 8px;
 }
+.chat-model-select {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 6px;
+}
+.chat-pending-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 8px 0;
+}
+.chat-pending-image {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.chat-pending-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.chat-pending-image-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  line-height: 1;
+  padding: 0;
+  font-size: 12px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+}
 .agent-chat-log {
   flex: 1;
   overflow-y: auto;

@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { AgentClient } from '../lib/agentClient'
-import { contentBlockText, type AuthRequiredData, type MessageChunk, type PermissionRequest, type ToolCall } from '../lib/acpTypes'
+import {
+  contentBlockText,
+  type AuthRequiredData,
+  type ImageAttachment,
+  type MessageChunk,
+  type PermissionRequest,
+  type SessionConfigOption,
+  type ToolCall,
+} from '../lib/acpTypes'
 import { AuthCard } from './AuthCard'
 import { QuickActions } from './QuickActions'
 
@@ -30,6 +38,8 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
   const [waitingLong, setWaitingLong] = useState(false)
   const [pendingPermission, setPendingPermission] = useState<PermissionRequest | null>(null)
   const [authRequired, setAuthRequired] = useState<AuthRequiredData | null>(null)
+  const [configOptions, setConfigOptions] = useState<SessionConfigOption[]>([])
+  const [pendingImages, setPendingImages] = useState<ImageAttachment[]>([])
   const [retryToken, setRetryToken] = useState(0)
   const [hasDisconnectedOnce, setHasDisconnectedOnce] = useState(false)
   const clientRef = useRef<AgentClient | null>(null)
@@ -79,6 +89,9 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
           break
         case 'authRequired':
           setAuthRequired(msg.data as AuthRequiredData)
+          break
+        case 'configOptions':
+          setConfigOptions(msg.data as SessionConfigOption[])
           break
         case 'userMessage':
           // Most agents don't echo the user's own prompt back (observed:
@@ -139,6 +152,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
           setConnected(false)
           setWaiting(false)
           setHasDisconnectedOnce(true)
+          setConfigOptions([])
           streamingAgentId.current = null
           streamingThoughtId.current = null
           // If the server already sent a specific {type:'error'} message just
@@ -186,19 +200,48 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
     return () => window.clearTimeout(timer)
   }, [waiting])
 
-  const sendPrompt = (text: string) => {
+  const sendPrompt = (text: string, images: ImageAttachment[] = []) => {
     const trimmed = text.trim()
-    if (!trimmed || !clientRef.current) return
-    append({ kind: 'user', id: `e${nextEntryId++}`, text: trimmed })
+    if ((!trimmed && images.length === 0) || !clientRef.current) return
+    append({
+      kind: 'user',
+      id: `e${nextEntryId++}`,
+      text: trimmed || `[${images.length} image${images.length > 1 ? 's' : ''}]`,
+    })
     setWaiting(true)
-    clientRef.current.prompt(trimmed)
+    clientRef.current.prompt(trimmed, images)
   }
 
   const submit = () => {
     const text = input.trim()
-    if (!text) return
-    sendPrompt(text)
+    if (!text && pendingImages.length === 0) return
+    sendPrompt(text, pendingImages)
     setInput('')
+    setPendingImages([])
+  }
+
+  // Reads image items out of a paste event's clipboard data (screenshots,
+  // copied images) as base64 -- text paste is left to the textarea's own
+  // default behavior. Mirrors the desktop client's clipboard.FmtImage path
+  // (agent/view/inputbox.go) so both surfaces support the same workflow.
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    const imageItems = Array.from(items).filter((item) => item.type.startsWith('image/'))
+    if (imageItems.length === 0) return
+    e.preventDefault()
+    for (const item of imageItems) {
+      const file = item.getAsFile()
+      if (!file) continue
+      const mimeType = item.type
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = reader.result as string
+        const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
+        setPendingImages((prev) => [...prev, { data: base64, mimeType }])
+      }
+      reader.readAsDataURL(file)
+    }
   }
 
   const respond = (optionId: string) => {
@@ -234,6 +277,24 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
             Retry connection
           </button>
         )}
+        {connected &&
+          configOptions
+            .filter((opt) => opt.type === 'select' && Array.isArray(opt.options))
+            .map((opt) => (
+              <select
+                key={opt.id}
+                className="chat-model-select"
+                title={opt.name}
+                value={typeof opt.currentValue === 'string' ? opt.currentValue : ''}
+                onChange={(e) => clientRef.current?.setConfigOption(opt.id, e.target.value)}
+              >
+                {opt.options!.map((choice) => (
+                  <option key={choice.value} value={choice.value}>
+                    {choice.name}
+                  </option>
+                ))}
+              </select>
+            ))}
       </div>
       <div className="agent-chat-log" ref={scrollRef} role="log" aria-live="polite">
         {entries.map((e) => (
@@ -280,6 +341,23 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
 
       <QuickActions onPrompt={sendPrompt} disabled={waiting} />
 
+      {pendingImages.length > 0 && (
+        <div className="chat-pending-images">
+          {pendingImages.map((img, i) => (
+            <div key={i} className="chat-pending-image">
+              <img src={`data:${img.mimeType};base64,${img.data}`} alt={`pasted ${i + 1}`} />
+              <button
+                className="chat-pending-image-remove"
+                title="Remove"
+                onClick={() => setPendingImages((prev) => prev.filter((_, idx) => idx !== i))}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="agent-chat-input">
         <textarea
           value={input}
@@ -290,7 +368,8 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
               if (connected && !waiting) submit()
             }
           }}
-          placeholder="Ask the AI agent…"
+          onPaste={handlePaste}
+          placeholder="Ask the AI agent… (paste an image to attach it)"
         />
         <button onClick={submit} disabled={!connected || waiting}>
           Send

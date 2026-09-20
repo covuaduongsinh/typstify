@@ -58,6 +58,37 @@ export interface AuthRequiredData {
   authMethods: AuthMethod[]
 }
 
+// Mirrors acp.SessionConfigOption's flat wire shape (server/agent_ws.go
+// relays the ACP-SDK type as-is, its custom MarshalJSON flattens the
+// Select/Boolean variant with a "type" discriminator). Only "select" is
+// rendered (e.g. the model picker); other types/categories are ignored.
+export interface SessionConfigSelectOption {
+  name: string
+  value: string
+  description?: string
+}
+
+export interface SessionConfigOption {
+  type: 'select' | 'boolean'
+  id: string
+  name: string
+  category?: string
+  currentValue?: string | boolean
+  // Only the "ungrouped" shape (a flat array) is supported; a "grouped"
+  // Options payload would serialize as a different (object) shape and is
+  // just ignored by contentBlockText-style callers filtering on Array.isArray.
+  options?: SessionConfigSelectOption[]
+  description?: string
+}
+
+// Outgoing image attachment for AgentClient.prompt() -- base64 data (no
+// "data:...;base64," prefix) plus its MIME type, matching
+// server/agent_ws.go's imageAttachment and acp.ImageBlock.
+export interface ImageAttachment {
+  data: string
+  mimeType: string
+}
+
 export function contentBlockText(block: ContentBlock | undefined): string {
   if (!block) return ''
   if (block.type === 'text') return block.text ?? ''
