@@ -80,6 +80,10 @@ func (s *Server) routes() {
 
 	// Export (PDF/PNG/SVG download).
 	s.handle("GET /api/export", s.handleExport)
+	// Static-PDF preview, served inline for an <iframe>/<embed> -- see
+	// handlePreviewPdf's doc comment for why this exists alongside the
+	// WebSocket-based /preview/ proxy below.
+	s.handle("GET /api/preview/pdf", s.handlePreviewPdf)
 
 	// Typst package manager (Tpix).
 	s.handle("GET /api/packages/search", s.handlePkgSearch)

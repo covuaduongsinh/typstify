@@ -119,7 +119,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         </main>
 
         <section className="workspace-preview">
-          <PreviewPane key={`${activePath}-${previewVersion}`} />
+          <PreviewPane key={`${activePath}-${previewVersion}`} path={activePath} />
         </section>
 
         {sidePanel && (

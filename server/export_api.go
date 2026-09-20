@@ -107,6 +107,78 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handlePreviewPdf compiles a Typst document to PDF and serves it inline
+// (no Content-Disposition) so a browser <iframe>/<embed> renders it directly
+// with the browser's native PDF viewer, instead of the "download" behavior
+// handleExport wants for its explicit Export button.
+//
+// This exists because the tinymist live-preview WebSocket (server/
+// preview_proxy.go, /preview/) does not work through this deployment's
+// reverse proxy chain (confirmed: the browser's WebSocket-over-HTTP/2
+// upgrade to it fails with code 1006 on every attempt, while a plain
+// HTTP/1.1 WS handshake to the same backend succeeds -- an HTTP/2-vs-
+// WebSocket interaction in the shared Traefik instance in front of this
+// server, not something fixable from here without touching config that
+// also serves other unrelated apps). A plain PDF fetched over a normal GET
+// request needs no WebSocket at all, so it sidesteps the problem entirely.
+// Same tradeoff as before: refreshes on save (via Workspace.tsx bumping
+// previewVersion), not on every keystroke -- matching what the WS preview
+// only ever did too (docs/web-server.md's known v1 limitation).
+func (s *Server) handlePreviewPdf(w http.ResponseWriter, r *http.Request) {
+	root, err := s.projectRoot()
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+
+	targetFile, err := resolveInRoot(root, r.URL.Query().Get("path"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if _, err := os.Stat(targetFile); err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+
+	outDir, err := os.MkdirTemp("", "typstify-preview-*")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer os.RemoveAll(outDir)
+
+	outName := strings.TrimSuffix(filepath.Base(targetFile), filepath.Ext(targetFile))
+
+	helper := export.NewCompileHelper(root, s.appSrv.Settings().Typst())
+	helper.Format = typst.PDF
+	helper.PPI = 144
+
+	params, err := helper.BuildParams(targetFile, outName)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	params.OutDir = outDir
+
+	if err := helper.Compile(params); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "compile failed: "+err.Error())
+		return
+	}
+
+	pdfPath := filepath.Join(outDir, outName+".pdf")
+	if _, err := os.Stat(pdfPath); err != nil {
+		writeError(w, http.StatusInternalServerError, "compile produced no PDF")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/pdf")
+	// Best-effort: lets a plain reload notice the file changed instead of
+	// showing a cached copy of the previous compile.
+	w.Header().Set("Cache-Control", "no-store")
+	http.ServeFile(w, r, pdfPath)
+}
+
 func addFileToZip(zw *zip.Writer, path string) error {
 	f, err := os.Open(path)
 	if err != nil {
