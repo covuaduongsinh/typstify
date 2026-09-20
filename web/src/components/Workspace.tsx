@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useTranslations } from '../lib/i18n'
 import { AgentChat } from './AgentChat'
-import { Editor } from './Editor'
+import { Editor, type EditorHandle } from './Editor'
 import { ExportButton } from './ExportButton'
 import { FileTree } from './FileTree'
 import { PackageManager } from './PackageManager'
@@ -23,9 +23,11 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const [dirty, setDirty] = useState(false)
   const [sidePanel, setSidePanel] = useState<SidePanel>('agent')
   const [previewVersion, setPreviewVersion] = useState(0)
+  const editorRef = useRef<EditorHandle>(null)
   const t = useTranslations(I18N_KEYS)
 
   useEffect(() => {
+    setDirty(false)
     if (!activePath) {
       setContent(null)
       return
@@ -64,7 +66,16 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
       <header className="workspace-header">
         <button onClick={onCloseProject}>&larr; Projects</button>
         <span className="project-path">{projectPath}</span>
-        {dirty && <span className="dirty-indicator">unsaved</span>}
+        {activePath && (
+          <button
+            className="save-btn"
+            title="Save (Ctrl+S)"
+            disabled={!dirty}
+            onClick={() => editorRef.current?.save()}
+          >
+            {dirty ? 'Save*' : 'Saved'}
+          </button>
+        )}
         <div className="header-spacer" />
         {activePath?.endsWith('.typ') && <ExportButton path={activePath} />}
         <button
@@ -96,6 +107,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
           {activePath && content !== null ? (
             <Editor
               key={activePath}
+              ref={editorRef}
               path={activePath}
               initialContent={content}
               onDirtyChange={setDirty}

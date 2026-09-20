@@ -4,8 +4,16 @@ import { EditorState, type Extension, type Text } from '@codemirror/state'
 import { EditorView, hoverTooltip, keymap } from '@codemirror/view'
 import { basicSetup } from 'codemirror'
 import { typst_lezer } from 'codemirror-lang-typst/lezer'
-import { useEffect, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { LspClient, type LspDiagnostic } from '../lib/lspClient'
+
+// Exposes an imperative save() so a toolbar button can trigger the same
+// save path as the editor's own Ctrl+S keymap -- the shortcut alone isn't
+// discoverable (observed: a user who pasted content in couldn't find any
+// way to save it).
+export interface EditorHandle {
+  save: () => void
+}
 
 interface EditorProps {
   path: string
@@ -51,19 +59,42 @@ function toCmDiagnostics(doc: Text, diags: LspDiagnostic[]): CmDiagnostic[] {
  * (via codemirror-lang-typst's WASM-free Lezer grammar) plus live
  * completion/hover/diagnostics sourced from the tinymist LSP over
  * /ws/lsp (see server/lsp_ws.go and lib/lspClient.ts). */
-export function Editor({ path, initialContent, onDirtyChange, onSave }: EditorProps) {
+export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
+  { path, initialContent, onDirtyChange, onSave },
+  ref,
+) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
   const lspRef = useRef<LspClient | null>(null)
+  const changeTimerRef = useRef<number | undefined>(undefined)
+
+  // Flushes any pending debounced didChange synchronously so the LSP's
+  // document cache (which didSave relies on) has the latest content, and so
+  // the debounce timer doesn't fire afterwards and re-mark the file dirty
+  // right after this just cleared it. Shared by the Ctrl+S keymap below and
+  // the imperative handle a toolbar Save button drives.
+  const saveRef = useRef<() => void>(() => {})
+  saveRef.current = () => {
+    const view = viewRef.current
+    const lsp = lspRef.current
+    if (!view || !lsp) return
+    window.clearTimeout(changeTimerRef.current)
+    const text = view.state.doc.toString()
+    lsp.didChange(path, text)
+    onSave?.(text)
+    lsp.didSave(path)
+    onDirtyChange?.(false)
+  }
+
+  useImperativeHandle(ref, () => ({ save: () => saveRef.current() }))
 
   useEffect(() => {
     const lsp = new LspClient()
     lspRef.current = lsp
 
-    let changeTimer: number | undefined
     const scheduleChange = (content: string) => {
-      window.clearTimeout(changeTimer)
-      changeTimer = window.setTimeout(() => {
+      window.clearTimeout(changeTimerRef.current)
+      changeTimerRef.current = window.setTimeout(() => {
         lsp.didChange(path, content)
         onDirtyChange?.(true)
       }, 250)
@@ -119,17 +150,8 @@ export function Editor({ path, initialContent, onDirtyChange, onSave }: EditorPr
         {
           key: 'Mod-s',
           preventDefault: true,
-          run: (view) => {
-            // Flush any pending debounced didChange synchronously so the LSP's
-            // document cache (which didSave relies on) has the latest content,
-            // and so the debounce timer doesn't fire afterwards and re-mark
-            // the file dirty right after we just cleared that below.
-            window.clearTimeout(changeTimer)
-            const text = view.state.doc.toString()
-            lsp.didChange(path, text)
-            onSave?.(text)
-            lsp.didSave(path)
-            onDirtyChange?.(false)
+          run: () => {
+            saveRef.current()
             return true
           },
         },
@@ -150,7 +172,7 @@ export function Editor({ path, initialContent, onDirtyChange, onSave }: EditorPr
     })
 
     return () => {
-      window.clearTimeout(changeTimer)
+      window.clearTimeout(changeTimerRef.current)
       unsubscribe()
       lsp.didClose(path)
       lsp.close()
@@ -163,4 +185,4 @@ export function Editor({ path, initialContent, onDirtyChange, onSave }: EditorPr
   }, [path])
 
   return <div className="editor-host" ref={hostRef} />
-}
+})
