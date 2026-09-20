@@ -197,6 +197,12 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.CloseNow()
+	// The default 32KiB read limit (coder/websocket) is well under a single
+	// pasted screenshot once base64-encoded -- every such paste silently
+	// killed the connection (wsjson.Read erroring out of the loop below with
+	// no message, surfacing to the browser as a generic "Connection to the
+	// agent was lost"). 20MiB comfortably covers realistic screenshots.
+	conn.SetReadLimit(20 << 20)
 
 	sessCtx, cancel := context.WithCancel(r.Context())
 	defer cancel()
