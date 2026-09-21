@@ -108,6 +108,7 @@ func (s *Server) routes() {
 	s.handle("GET /api/agent/registry", s.handleAgentRegistry)
 	s.handle("POST /api/agent/select", s.handleAgentSelect)
 	s.handle("POST /api/agent/auth/{methodId}", s.handleAgentAuth)
+	s.handle("POST /api/agent/preferred-config", s.handleSavePreferredConfig)
 	s.handle("GET /api/console", s.handleConsole)
 
 	// LSP + AI agent, over WebSocket.

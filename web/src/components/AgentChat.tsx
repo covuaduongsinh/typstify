@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { api } from '../api/client'
 import { AgentClient } from '../lib/agentClient'
 import {
   contentBlockText,
@@ -254,6 +255,18 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
     setWaiting(false)
   }
 
+  // Applies a config change (model/mode/etc.) to the live session AND saves
+  // it as the default for future sessions, so picking "Sonnet 5" once
+  // doesn't need repeating every time a new session spawns (server side:
+  // agent_ws.go's applyPreferredConfig, driven by this same endpoint).
+  const changeConfigOption = (configId: string, value: string) => {
+    clientRef.current?.setConfigOption(configId, value)
+    void api.post('/api/agent/preferred-config', { configId, value }).catch(() => {
+      // Best-effort -- the live change above already applied; only the
+      // "remember this for next time" part failed, nothing to surface here.
+    })
+  }
+
   if (authRequired) {
     return (
       <div className="agent-chat">
@@ -286,7 +299,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
                 className="chat-model-select"
                 title={opt.name}
                 value={typeof opt.currentValue === 'string' ? opt.currentValue : ''}
-                onChange={(e) => clientRef.current?.setConfigOption(opt.id, e.target.value)}
+                onChange={(e) => changeConfigOption(opt.id, e.target.value)}
               >
                 {opt.options!.map((choice) => (
                   <option key={choice.value} value={choice.value}>

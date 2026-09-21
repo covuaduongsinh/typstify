@@ -101,6 +101,14 @@ type AcpAgentSettings struct {
 
 	// MCP server
 	UseStaticMcpPort int `key:"useStaticMcpPort" json:"useStaticMcpPort"` // use fixed port when starting MCP server.
+
+	// PreferredConfig holds space-separated "configId=value" pairs (same
+	// convention as Args/Env above) applied to every freshly created ACP
+	// session via session/set_config_option -- e.g. "model=sonnet
+	// mode=auto" -- so a model/mode choice sticks across new sessions
+	// instead of resetting to the agent's own default each time (see
+	// server/agent_ws.go's applyPreferredConfig).
+	PreferredConfig string `key:"preferredConfig" json:"preferredConfig"`
 }
 
 func (s *AcpAgentSettings) Validate() error { return nil }

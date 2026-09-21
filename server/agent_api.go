@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"looz.ws/typstify/service/settings"
@@ -113,5 +115,43 @@ func (s *Server) handleAgentAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+type savePreferredConfigRequest struct {
+	ConfigID string `json:"configId"`
+	Value    string `json:"value"`
+}
+
+// handleSavePreferredConfig persists a session config choice (e.g. the
+// model or mode picker) so it's re-applied to every future session via
+// server/agent_ws.go's applyPreferredConfig, instead of resetting to the
+// agent's own default each time a new one spawns.
+func (s *Server) handleSavePreferredConfig(w http.ResponseWriter, r *http.Request) {
+	var req savePreferredConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.ConfigID == "" {
+		writeError(w, http.StatusBadRequest, "configId is required")
+		return
+	}
+
+	agentSettings := s.appSrv.Settings().AcpAgent()
+	preferred := parsePreferredConfig(agentSettings.PreferredConfig)
+	preferred[req.ConfigID] = req.Value
+
+	pairs := make([]string, 0, len(preferred))
+	for id, value := range preferred {
+		pairs = append(pairs, id+"="+value)
+	}
+	sort.Strings(pairs) // deterministic on-disk order, easier to diff/read
+	agentSettings.PreferredConfig = strings.Join(pairs, " ")
+
+	if err := agentSettings.Save(); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

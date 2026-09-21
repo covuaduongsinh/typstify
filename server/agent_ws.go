@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -115,6 +116,64 @@ func (w *wsSubscriber) resolvePermission(optID acp.PermissionOptionId) {
 	select {
 	case ch <- optID:
 	default:
+	}
+}
+
+// parsePreferredConfig parses the space-separated "configId=value" pairs
+// convention (matching AcpAgentSettings.Args/Env) into a map.
+func parsePreferredConfig(s string) map[string]string {
+	out := map[string]string{}
+	for _, pair := range strings.Fields(s) {
+		id, value, ok := strings.Cut(pair, "=")
+		if !ok || id == "" {
+			continue
+		}
+		out[id] = value
+	}
+	return out
+}
+
+// configOptionCurrentValue extracts a SessionConfigOption's id and its
+// current value as a string, regardless of whether it's the Select or
+// Boolean variant.
+func configOptionCurrentValue(opt acp.SessionConfigOption) (id string, value string, ok bool) {
+	switch {
+	case opt.Select != nil:
+		return string(opt.Select.Id), string(opt.Select.CurrentValue), true
+	case opt.Boolean != nil:
+		v := "false"
+		if opt.Boolean.CurrentValue {
+			v = "true"
+		}
+		return string(opt.Boolean.Id), v, true
+	default:
+		return "", "", false
+	}
+}
+
+// applyPreferredConfig re-applies the user's saved model/mode/etc. choices
+// (AcpAgentSettings.PreferredConfig) to a freshly created session, so
+// picking "Sonnet 5" + "Auto" once persists across future sessions instead
+// of resetting to the agent's own default every time a new one spawns (see
+// server/agent_api.go's handleSavePreferredConfig for how the frontend
+// writes this setting when the user changes a dropdown).
+func (s *Server) applyPreferredConfig(ctx context.Context, session *agent.ACPSession) {
+	preferred := parsePreferredConfig(s.appSrv.Settings().AcpAgent().PreferredConfig)
+	if len(preferred) == 0 {
+		return
+	}
+	for _, opt := range session.ConfigOptions() {
+		id, current, ok := configOptionCurrentValue(opt)
+		if !ok {
+			continue
+		}
+		want, ok := preferred[id]
+		if !ok || want == current {
+			continue
+		}
+		if err := session.UpdateConfig(ctx, acp.SessionConfigId(id), acp.SessionConfigValueId(want)); err != nil {
+			log.Printf("agent_ws: applying preferred config %s=%s failed: %v", id, want, err)
+		}
 	}
 }
 
@@ -232,6 +291,8 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 
 	sub := &wsSubscriber{ctx: sessCtx, conn: conn}
 	session.SubscribeUpdates(sessCtx, sub)
+
+	s.applyPreferredConfig(sessCtx, session)
 
 	_ = wsjson.Write(sessCtx, conn, agentServerMessage{Type: "ready", SessionID: session.SessionID})
 	if opts := session.ConfigOptions(); len(opts) > 0 {
