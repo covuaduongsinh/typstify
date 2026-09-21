@@ -70,6 +70,21 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     editorRef.current?.insertText(text)
   }
 
+  const handleCreateNewDoc = async () => {
+    const fileName = window.prompt('Nhập tên file Typst mới:', 'chess_document.typ')
+    if (!fileName || !fileName.trim()) return
+    let target = fileName.trim()
+    if (!target.includes('.')) target += '.typ'
+    const initialCode = `// Tài Liệu Cờ Vua Mới\n#set text(font: ("Arial", "Segoe UI Symbol"), size: 9.5pt, lang: "vi")\n\n= Tiêu Đề Tài Liệu\n\n`
+    try {
+      await api.post('/api/workspace/file/create', { path: target, isDir: false })
+      await api.put(`/api/workspace/file?path=${encodeURIComponent(target)}`, initialCode)
+    } catch {
+      // open anyway if exists
+    }
+    setActivePath(target)
+  }
+
   return (
     <div className="workspace">
       <header className="workspace-header">
@@ -137,8 +152,11 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 <h3>♟️ Typstify Chess Publishing Studio</h3>
                 <p>Chọn một file <code>.typ</code> ở danh sách bên trái để bắt đầu soạn thảo, hoặc sử dụng các công cụ nhanh dưới đây:</p>
                 <div className="welcome-actions">
-                  <button className="welcome-btn primary" onClick={() => setActivePath(`${projectPath}/main.typ`)}>
+                  <button className="welcome-btn primary" onClick={() => setActivePath('main.typ')}>
                     📄 Mở main.typ
+                  </button>
+                  <button className="welcome-btn primary" onClick={handleCreateNewDoc}>
+                    ➕ Tạo File Mới
                   </button>
                   <button className="welcome-btn" onClick={() => setIsBoardOpen(true)}>
                     ♟️ Xếp Bàn Cờ
