@@ -13,6 +13,8 @@ import { LspClient, type LspDiagnostic } from '../lib/lspClient'
 // way to save it).
 export interface EditorHandle {
   save: () => void
+  insertText: (text: string) => void
+  getContent: () => string
 }
 
 interface EditorProps {
@@ -86,7 +88,23 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     onDirtyChange?.(false)
   }
 
-  useImperativeHandle(ref, () => ({ save: () => saveRef.current() }))
+  const insertTextRef = useRef<(textToInsert: string) => void>(() => {})
+  insertTextRef.current = (textToInsert: string) => {
+    const view = viewRef.current
+    if (!view) return
+    const sel = view.state.selection.main
+    view.dispatch({
+      changes: { from: sel.from, to: sel.to, insert: textToInsert },
+      selection: { anchor: sel.from + textToInsert.length },
+    })
+    view.focus()
+  }
+
+  useImperativeHandle(ref, () => ({
+    save: () => saveRef.current(),
+    insertText: (text: string) => insertTextRef.current(text),
+    getContent: () => viewRef.current?.state.doc.toString() ?? '',
+  }))
 
   useEffect(() => {
     const lsp = new LspClient()

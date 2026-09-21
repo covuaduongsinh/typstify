@@ -515,3 +515,399 @@
   font-size: 12px;
   margin-top: 6px;
 }
+
+/* ==========================================================================
+   CHESS PUBLISHING STUDIO WEB STYLES
+   ========================================================================== */
+
+.editor-container-with-toolbar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.chess-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  overflow-x: auto;
+}
+
+.chess-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.chess-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.chess-tool-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chess-tool-btn.primary {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #1d4ed8;
+}
+
+.chess-tool-btn.primary:hover {
+  background: #1d4ed8;
+}
+
+.chess-sym-btn {
+  padding: 2px 6px;
+  font-size: 13px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+}
+
+.chess-sym-btn.nag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.chess-sym-btn:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+}
+
+.templates-dropdown-wrap {
+  position: relative;
+}
+
+.chess-templates-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  min-width: 180px;
+}
+
+.chess-template-item {
+  padding: 8px 12px;
+  font-size: 12px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--text);
+}
+
+.chess-template-item:last-child {
+  border-bottom: none;
+}
+
+.chess-template-item:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
+
+/* Modal styling */
+.chess-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.chess-modal-container {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 90%;
+  max-width: 860px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.chess-modal-container.pgn-modal {
+  max-width: 600px;
+}
+
+.chess-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chess-modal-header h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.chess-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-dim);
+}
+
+.chess-modal-body {
+  padding: 16px;
+  display: flex;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.chess-board-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.chess-board-grid {
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #2d3748;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.chess-board-row {
+  display: flex;
+}
+
+.chess-square {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chess-square.light {
+  background-color: #f0d9b5;
+}
+
+.chess-square.dark {
+  background-color: #b58863;
+}
+
+.chess-piece {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.chess-piece.white {
+  color: #ffffff;
+  text-shadow: 0 0 2px #000000;
+}
+
+.chess-piece.black {
+  color: #1a1a1a;
+}
+
+.chess-piece-palette {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.palette-label {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.palette-row {
+  display: flex;
+  gap: 4px;
+}
+
+.palette-btn {
+  flex: 1;
+  height: 32px;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.palette-btn.selected {
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.15);
+}
+
+.board-actions-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.small-action-btn {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.chess-config-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.config-group label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.config-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.chess-select,
+.chess-input {
+  padding: 6px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.chess-code-preview {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  font-family: monospace;
+  font-size: 11px;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+.chess-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.copy-fen-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.insert-code-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #2563eb;
+  color: white;
+  border: 1px solid #1d4ed8;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.insert-code-btn:hover {
+  background: #1d4ed8;
+}
+
+.pgn-input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.pgn-input-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pgn-input-header label {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.pgn-file-upload-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pgn-textarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+}
+

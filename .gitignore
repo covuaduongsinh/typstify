@@ -7,6 +7,13 @@ builds/
 bin/
 scratch/
 .omc/
+.claude/
 web/.omc/
-chessbook/
-demo/
+chessbook/.omc/
+chessbook/.typstify/
+chessbook/.vscode/
+chessbook/*.pdf
+chessbook/output/*.pdf
+chessbook/output/*.png
+demo/
+testproject/

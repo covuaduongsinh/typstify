@@ -8,6 +8,9 @@ import { FileTree } from './FileTree'
 import { PackageManager } from './PackageManager'
 import { PreviewPane } from './PreviewPane'
 import { SettingsPanel } from './SettingsPanel'
+import { ChessToolbar } from './ChessToolbar'
+import { ChessBoardModal } from './ChessBoardModal'
+import { PgnImportModal } from './PgnImportModal'
 
 // Keys matching i18n/translations catalog entries verbatim, so they reuse
 // the desktop app's existing zh-CN/de translations (see server/i18n_api.go
@@ -23,6 +26,8 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const [dirty, setDirty] = useState(false)
   const [sidePanel, setSidePanel] = useState<SidePanel>('agent')
   const [previewVersion, setPreviewVersion] = useState(0)
+  const [isBoardOpen, setIsBoardOpen] = useState(false)
+  const [isPgnOpen, setIsPgnOpen] = useState(false)
   const editorRef = useRef<EditorHandle>(null)
   const t = useTranslations(I18N_KEYS)
 
@@ -59,6 +64,10 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
       await api.post('/api/preview/restart', { entryFile: activePath })
       setPreviewVersion((v) => v + 1)
     }
+  }
+
+  const handleInsertText = (text: string) => {
+    editorRef.current?.insertText(text)
   }
 
   return (
@@ -105,14 +114,23 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
 
         <main className="workspace-editor">
           {activePath && content !== null ? (
-            <Editor
-              key={activePath}
-              ref={editorRef}
-              path={activePath}
-              initialContent={content}
-              onDirtyChange={setDirty}
-              onSave={saveActiveFile}
-            />
+            <div className="editor-container-with-toolbar">
+              {activePath.endsWith('.typ') && (
+                <ChessToolbar
+                  onInsertText={handleInsertText}
+                  onOpenBoard={() => setIsBoardOpen(true)}
+                  onOpenPgn={() => setIsPgnOpen(true)}
+                />
+              )}
+              <Editor
+                key={activePath}
+                ref={editorRef}
+                path={activePath}
+                initialContent={content}
+                onDirtyChange={setDirty}
+                onSave={saveActiveFile}
+              />
+            </div>
           ) : (
             <div className="no-file-open">Select a file to start editing</div>
           )}
@@ -130,6 +148,18 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
           </aside>
         )}
       </div>
+
+      {/* Chess Modals */}
+      <ChessBoardModal
+        isOpen={isBoardOpen}
+        onClose={() => setIsBoardOpen(false)}
+        onInsertCode={handleInsertText}
+      />
+      <PgnImportModal
+        isOpen={isPgnOpen}
+        onClose={() => setIsPgnOpen(false)}
+        onInsertCode={handleInsertText}
+      />
     </div>
   )
 }
