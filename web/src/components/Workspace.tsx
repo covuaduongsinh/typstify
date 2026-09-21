@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { api } from '../api/client'
 import { useTranslations } from '../lib/i18n'
 import { AgentChat } from './AgentChat'
@@ -12,10 +12,6 @@ import { ChessToolbar } from './ChessToolbar'
 import { ChessBoardModal } from './ChessBoardModal'
 import { PgnImportModal } from './PgnImportModal'
 
-// Keys matching i18n/translations catalog entries verbatim, so they reuse
-// the desktop app's existing zh-CN/de translations (see server/i18n_api.go
-// and docs/plans/plan_web_version.md Giai doan 5). "Packages" has no
-// desktop equivalent and stays English-only for now.
 const I18N_KEYS = ['AI Assistant', 'Settings', 'Export']
 
 type SidePanel = 'agent' | 'packages' | 'settings' | null
@@ -28,8 +24,98 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const [previewVersion, setPreviewVersion] = useState(0)
   const [isBoardOpen, setIsBoardOpen] = useState(false)
   const [isPgnOpen, setIsPgnOpen] = useState(false)
+
+  // Layout & Resizing States
+  const [showFileTree, setShowFileTree] = useState<boolean>(() => {
+    const saved = localStorage.getItem('typstify_show_filetree')
+    return saved !== null ? saved === 'true' : true
+  })
+  const [fileTreeWidth, setFileTreeWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('typstify_filetree_width')
+    return saved ? Math.max(160, Math.min(500, parseInt(saved, 10))) : 230
+  })
+
+  const [showPreview, setShowPreview] = useState<boolean>(() => {
+    const saved = localStorage.getItem('typstify_show_preview')
+    return saved !== null ? saved === 'true' : true
+  })
+  const [editorRatio, setEditorRatio] = useState<number>(() => {
+    const saved = localStorage.getItem('typstify_editor_ratio')
+    return saved ? Math.max(0.15, Math.min(0.85, parseFloat(saved))) : 0.5
+  })
+
+  const [sidePanelWidth, setSidePanelWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('typstify_sidepanel_width')
+    return saved ? Math.max(260, Math.min(650, parseInt(saved, 10))) : 340
+  })
+
+  const [resizing, setResizing] = useState<'filetree' | 'editor' | 'sidepanel' | null>(null)
+
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const middleAreaRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<EditorHandle>(null)
   const t = useTranslations(I18N_KEYS)
+
+  // Persist layout settings
+  useEffect(() => {
+    localStorage.setItem('typstify_show_filetree', String(showFileTree))
+  }, [showFileTree])
+
+  useEffect(() => {
+    localStorage.setItem('typstify_filetree_width', String(fileTreeWidth))
+  }, [fileTreeWidth])
+
+  useEffect(() => {
+    localStorage.setItem('typstify_show_preview', String(showPreview))
+  }, [showPreview])
+
+  useEffect(() => {
+    localStorage.setItem('typstify_editor_ratio', String(editorRatio))
+  }, [editorRatio])
+
+  useEffect(() => {
+    localStorage.setItem('typstify_sidepanel_width', String(sidePanelWidth))
+  }, [sidePanelWidth])
+
+  // Mouse move and up handlers for resizing
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!resizing) return
+
+      if (resizing === 'filetree' && bodyRef.current) {
+        const bodyRect = bodyRef.current.getBoundingClientRect()
+        const newWidth = Math.max(160, Math.min(500, e.clientX - bodyRect.left))
+        setFileTreeWidth(newWidth)
+      } else if (resizing === 'editor' && middleAreaRef.current) {
+        const middleRect = middleAreaRef.current.getBoundingClientRect()
+        const relativeX = e.clientX - middleRect.left
+        const ratio = Math.max(0.15, Math.min(0.85, relativeX / middleRect.width))
+        setEditorRatio(ratio)
+      } else if (resizing === 'sidepanel' && bodyRef.current) {
+        const bodyRect = bodyRef.current.getBoundingClientRect()
+        const newWidth = Math.max(260, Math.min(650, bodyRect.right - e.clientX))
+        setSidePanelWidth(newWidth)
+      }
+    },
+    [resizing]
+  )
+
+  const handleMouseUp = useCallback(() => {
+    if (resizing) {
+      setResizing(null)
+    }
+  }, [resizing])
+
+  useEffect(() => {
+    if (resizing) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [resizing, handleMouseMove, handleMouseUp])
 
   useEffect(() => {
     setDirty(false)
@@ -42,11 +128,6 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
       .then(setContent)
       .catch(() => setContent(''))
 
-    // Pin this file as the preview's compile entry, matching the desktop
-    // app's behaviour (ui/editors/typst_view.go calls RestartPreviewWithEntry
-    // whenever a Typst file's editor view opens) -- tinymist's default
-    // preview does not automatically follow which file the LSP client is
-    // editing, it needs to be told explicitly.
     if (activePath.endsWith('.typ')) {
       void api.post('/api/preview/restart', { entryFile: activePath })
     }
@@ -56,10 +137,6 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     if (!activePath) return
     await api.put(`/api/workspace/file?path=${encodeURIComponent(activePath)}`, newContent)
 
-    // The preview reacts to disk content on (re)start, not to live LSP
-    // didChange edits (see risk #2 follow-up in docs/plans/plan_web_version.md)
-    // -- for v1, "save" is what refreshes it, similar to a classic
-    // compile-on-save workflow.
     if (activePath.endsWith('.typ')) {
       await api.post('/api/preview/restart', { entryFile: activePath })
       setPreviewVersion((v) => v + 1)
@@ -87,9 +164,31 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
 
   return (
     <div className="workspace">
+      {/* Invisible overlay while resizing to prevent iframes/embeds from swallowing mouse events */}
+      {resizing && <div className="resizing-overlay" />}
+
       <header className="workspace-header">
-        <button onClick={onCloseProject}>&larr; Projects</button>
+        <button onClick={onCloseProject} title="Quay lại danh sách dự án">&larr; Projects</button>
         <span className="project-path">{projectPath}</span>
+
+        {/* View Layout Toggles */}
+        <div className="workspace-header-layout-toggles">
+          <button
+            className={`toggle-panel-btn ${showFileTree ? 'active' : ''}`}
+            onClick={() => setShowFileTree(!showFileTree)}
+            title={showFileTree ? 'Ẩn Cây Thư Mục' : 'Hiện Cây Thư Mục'}
+          >
+            📁 Files
+          </button>
+          <button
+            className={`toggle-panel-btn ${showPreview ? 'active' : ''}`}
+            onClick={() => setShowPreview(!showPreview)}
+            title={showPreview ? 'Ẩn Bản Xem Trước' : 'Hiện Bản Xem Trước'}
+          >
+            👁️ Preview
+          </button>
+        </div>
+
         {activePath && (
           <button
             className="save-btn"
@@ -122,60 +221,120 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         </button>
       </header>
 
-      <div className="workspace-body">
-        <aside className="workspace-filetree">
-          <FileTree activePath={activePath ?? ''} onOpenFile={setActivePath} />
-        </aside>
+      <div className="workspace-body" ref={bodyRef}>
+        {/* Left FileTree Panel */}
+        {showFileTree && (
+          <aside className="workspace-filetree" style={{ width: fileTreeWidth }}>
+            <FileTree activePath={activePath ?? ''} onOpenFile={setActivePath} />
+          </aside>
+        )}
 
-        <main className="workspace-editor">
-          {activePath && content !== null ? (
-            <div className="editor-container-with-toolbar">
-              {activePath.endsWith('.typ') && (
-                <ChessToolbar
-                  onInsertText={handleInsertText}
-                  onOpenBoard={() => setIsBoardOpen(true)}
-                  onOpenPgn={() => setIsPgnOpen(true)}
+        {/* Resizer 1: FileTree <-> Middle Area */}
+        {showFileTree && (
+          <div
+            className={`panel-resizer resizer-filetree ${resizing === 'filetree' ? 'active' : ''}`}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              setResizing('filetree')
+            }}
+            title="Kéo để chỉnh kích thước File Tree (Nhấp đúp về mặc định)"
+            onDoubleClick={() => setFileTreeWidth(230)}
+          />
+        )}
+
+        {/* Middle Area: Editor + Preview */}
+        <div className="workspace-middle-area" ref={middleAreaRef}>
+          <main
+            className="workspace-editor"
+            style={{
+              flex: showPreview ? `0 0 ${editorRatio * 100}%` : '1 1 100%',
+              maxWidth: showPreview ? `${editorRatio * 100}%` : '100%',
+            }}
+          >
+            {activePath && content !== null ? (
+              <div className="editor-container-with-toolbar">
+                {activePath.endsWith('.typ') && (
+                  <ChessToolbar
+                    onInsertText={handleInsertText}
+                    onOpenBoard={() => setIsBoardOpen(true)}
+                    onOpenPgn={() => setIsPgnOpen(true)}
+                  />
+                )}
+                <Editor
+                  key={activePath}
+                  ref={editorRef}
+                  path={activePath}
+                  initialContent={content}
+                  onDirtyChange={setDirty}
+                  onSave={saveActiveFile}
                 />
-              )}
-              <Editor
-                key={activePath}
-                ref={editorRef}
-                path={activePath}
-                initialContent={content}
-                onDirtyChange={setDirty}
-                onSave={saveActiveFile}
-              />
-            </div>
-          ) : (
-            <div className="no-file-open-welcome">
-              <div className="welcome-chess-card">
-                <h3>♟️ Typstify Chess Publishing Studio</h3>
-                <p>Chọn một file <code>.typ</code> ở danh sách bên trái để bắt đầu soạn thảo, hoặc sử dụng các công cụ nhanh dưới đây:</p>
-                <div className="welcome-actions">
-                  <button className="welcome-btn primary" onClick={() => setActivePath('main.typ')}>
-                    📄 Mở main.typ
-                  </button>
-                  <button className="welcome-btn primary" onClick={handleCreateNewDoc}>
-                    ➕ Tạo File Mới
-                  </button>
-                  <button className="welcome-btn" onClick={() => setIsBoardOpen(true)}>
-                    ♟️ Xếp Bàn Cờ
-                  </button>
-                  <button className="welcome-btn" onClick={() => setIsPgnOpen(true)}>
-                    📜 Nhập PGN
-                  </button>
+              </div>
+            ) : (
+              <div className="no-file-open-welcome">
+                <div className="welcome-chess-card">
+                  <h3>♟️ Typstify Chess Publishing Studio</h3>
+                  <p>Chọn một file <code>.typ</code> ở danh sách bên trái để bắt đầu soạn thảo, hoặc sử dụng các công cụ nhanh dưới đây:</p>
+                  <div className="welcome-actions">
+                    <button className="welcome-btn primary" onClick={() => setActivePath('main.typ')}>
+                      📄 Mở main.typ
+                    </button>
+                    <button className="welcome-btn primary" onClick={handleCreateNewDoc}>
+                      ➕ Tạo File Mới
+                    </button>
+                    <button className="welcome-btn" onClick={() => setIsBoardOpen(true)}>
+                      ♟️ Xếp Bàn Cờ
+                    </button>
+                    <button className="welcome-btn" onClick={() => setIsPgnOpen(true)}>
+                      📜 Nhập PGN
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+          </main>
+
+          {/* Resizer 2: Editor <-> Preview */}
+          {showPreview && (
+            <div
+              className={`panel-resizer resizer-editor ${resizing === 'editor' ? 'active' : ''}`}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                setResizing('editor')
+              }}
+              title="Kéo để chỉnh tỷ lệ Editor / Preview (Nhấp đúp về 50/50)"
+              onDoubleClick={() => setEditorRatio(0.5)}
+            />
           )}
-        </main>
 
-        <section className="workspace-preview">
-          <PreviewPane key={`${activePath}-${previewVersion}`} path={activePath} />
-        </section>
+          {showPreview && (
+            <section
+              className="workspace-preview"
+              style={{
+                flex: `0 0 ${(1 - editorRatio) * 100}%`,
+                maxWidth: `${(1 - editorRatio) * 100}%`,
+              }}
+            >
+              <PreviewPane key={`${activePath}-${previewVersion}`} path={activePath} />
+            </section>
+          )}
+        </div>
 
+        {/* Resizer 3: Middle Area <-> Side Panel */}
         {sidePanel && (
-          <aside className="workspace-side-panel">
+          <div
+            className={`panel-resizer resizer-sidepanel ${resizing === 'sidepanel' ? 'active' : ''}`}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              setResizing('sidepanel')
+            }}
+            title="Kéo để chỉnh kích thước bảng điều khiển phụ (Nhấp đúp về mặc định)"
+            onDoubleClick={() => setSidePanelWidth(340)}
+          />
+        )}
+
+        {/* Right Side Panel */}
+        {sidePanel && (
+          <aside className="workspace-side-panel" style={{ width: sidePanelWidth }}>
             {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
             {sidePanel === 'packages' && <PackageManager />}
             {sidePanel === 'settings' && <SettingsPanel />}
@@ -197,3 +356,4 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     </div>
   )
 }
+
