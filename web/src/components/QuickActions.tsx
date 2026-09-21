@@ -54,6 +54,27 @@ const ACTIONS: QuickAction[] = [
       'Add a bibliography citation for this source to the currently active document, ' +
       `using correct Typst citation syntax (a bibliography file plus a #cite/@key reference): \n\n${source}`,
   },
+  {
+    id: 'chess-puzzle',
+    label: '♟️ Thêm Bài Tập Cờ Vua',
+    input: { placeholder: 'Mô tả thế cờ, FEN hoặc chủ đề chiến thuật' },
+    buildPrompt: (desc) =>
+      `Hãy viết mã Typst chèn một bài tập cờ vua hoàn chỉnh bằng hàm #puzzle-card(...) từ thư viện cờ vua theo yêu cầu sau: "${desc}". Bao gồm mã FEN, số thứ tự bài, tiêu đề, lượt đi (w/b), độ khó (1-5 sao), gợi ý và lời giải chi tiết.`,
+  },
+  {
+    id: 'chess-eco',
+    label: '📖 Thêm Khai Cuộc ECO',
+    input: { placeholder: 'Mã ECO và tên khai cuộc, ví dụ: C58 Phòng thủ hai mã' },
+    buildPrompt: (eco) =>
+      `Hãy soạn cấu trúc chuyên khảo khai cuộc cờ vua bằng các hàm #eco-header(...), #opening-diagram-box(...) và #eco-table(...) từ thư viện cờ vua cho khai cuộc sau: "${eco}".`,
+  },
+  {
+    id: 'chess-lesson',
+    label: '🎓 Soạn Bài Giảng Cờ Vua',
+    input: { placeholder: 'Chủ đề bài giảng, ví dụ: Đòn đánh đôi, Đòn ghim...' },
+    buildPrompt: (topic) =>
+      `Hãy soạn một bài giảng huấn luyện cờ vua hoàn chỉnh bằng các hàm #lesson-header(...), #concept-box(...), #teaching-diagram(...) và #practice-question(...) cho chủ đề: "${topic}".`,
+  },
 ]
 
 export function QuickActions({ onPrompt, disabled = false }: { onPrompt: (text: string) => void; disabled?: boolean }) {

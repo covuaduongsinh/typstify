@@ -132,7 +132,23 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
               />
             </div>
           ) : (
-            <div className="no-file-open">Select a file to start editing</div>
+            <div className="no-file-open-welcome">
+              <div className="welcome-chess-card">
+                <h3>♟️ Typstify Chess Publishing Studio</h3>
+                <p>Chọn một file <code>.typ</code> ở danh sách bên trái để bắt đầu soạn thảo, hoặc sử dụng các công cụ nhanh dưới đây:</p>
+                <div className="welcome-actions">
+                  <button className="welcome-btn primary" onClick={() => setActivePath(`${projectPath}/main.typ`)}>
+                    📄 Mở main.typ
+                  </button>
+                  <button className="welcome-btn" onClick={() => setIsBoardOpen(true)}>
+                    ♟️ Xếp Bàn Cờ
+                  </button>
+                  <button className="welcome-btn" onClick={() => setIsPgnOpen(true)}>
+                    📜 Nhập PGN
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </main>
 

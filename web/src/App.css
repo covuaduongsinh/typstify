@@ -108,12 +108,66 @@
   min-width: 0;
   overflow: auto;
 }
-.no-file-open {
+.no-file-open,
+.no-file-open-welcome {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   color: var(--text-dim);
+}
+.welcome-chess-card {
+  max-width: 420px;
+  padding: 24px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+.welcome-chess-card h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: var(--text);
+}
+.welcome-chess-card p {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0 0 16px;
+  line-height: 1.4;
+}
+.welcome-chess-card code {
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+.welcome-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.welcome-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
+.welcome-btn.primary {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #1d4ed8;
+}
+.welcome-btn:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+}
+.welcome-btn.primary:hover {
+  background: #1d4ed8;
 }
 .workspace-preview {
   flex: 1;
