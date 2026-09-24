@@ -20,7 +20,7 @@ function Section<T extends object>({
     api.get<T>(path).then(setValue)
   }, [path])
 
-  if (!value) return <section className="settings-section">Loading {title}…</section>
+  if (!value) return <section className="settings-section">Đang tải {title}…</section>
 
   const save = async () => {
     setError(null)
@@ -30,7 +30,7 @@ function Section<T extends object>({
       setSaved(true)
       setTimeout(() => setSaved(false), 1500)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to save settings')
+      setError(err instanceof ApiError ? err.message : 'Không lưu được cài đặt')
     }
   }
 
@@ -46,8 +46,8 @@ function Section<T extends object>({
           />
         </label>
       ))}
-      <button onClick={save}>Save</button>
-      {saved && <span className="settings-saved">Saved</span>}
+      <button onClick={save}>Lưu</button>
+      {saved && <span className="settings-saved">Đã lưu</span>}
       {error && <div className="error">{error}</div>}
     </section>
   )
@@ -59,22 +59,22 @@ export function SettingsPanel() {
   return (
     <div className="settings-panel">
       <Section<GeneralSettings>
-        title="General"
+        title="Chung"
         path="/api/settings/general"
         fields={[
-          { key: 'language', label: 'Language' },
-          { key: 'theme', label: 'Theme' },
-          { key: 'externalTypst', label: 'typst executable path (optional)' },
-          { key: 'externalTinymist', label: 'tinymist executable path (optional)' },
+          { key: 'language', label: 'Ngôn ngữ' },
+          { key: 'theme', label: 'Giao diện' },
+          { key: 'externalTypst', label: 'Đường dẫn typst (tùy chọn)' },
+          { key: 'externalTinymist', label: 'Đường dẫn tinymist (tùy chọn)' },
         ]}
       />
       <Section<TypstSettings>
         title="Typst"
         path="/api/settings/typst"
         fields={[
-          { key: 'cacheDir', label: 'Package cache dir' },
-          { key: 'localPkgDir', label: 'Local package dir' },
-          { key: 'extraFontPath', label: 'Extra font path' },
+          { key: 'cacheDir', label: 'Thư mục cache gói' },
+          { key: 'localPkgDir', label: 'Thư mục gói cục bộ' },
+          { key: 'extraFontPath', label: 'Thư mục font bổ sung' },
         ]}
       />
       <Section<LspSettings>
@@ -85,13 +85,13 @@ export function SettingsPanel() {
       <AgentRegistryPicker onSelected={() => setAgentSettingsVersion((v) => v + 1)} />
       <Section<AgentSettings>
         key={agentSettingsVersion}
-        title="AI Agent (manual/advanced)"
+        title="Trợ lý AI (thủ công / nâng cao)"
         path="/api/settings/agent"
         fields={[
-          { key: 'agentName', label: 'Name' },
-          { key: 'cmd', label: 'Command' },
-          { key: 'args', label: 'Args (space-separated)' },
-          { key: 'env', label: 'Env (KEY=value, space-separated)' },
+          { key: 'agentName', label: 'Tên' },
+          { key: 'cmd', label: 'Lệnh' },
+          { key: 'args', label: 'Tham số (cách nhau bởi dấu cách)' },
+          { key: 'env', label: 'Biến môi trường (KEY=value, cách nhau bởi dấu cách)' },
         ]}
       />
     </div>

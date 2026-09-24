@@ -12,7 +12,7 @@ export function PreviewPane({ path }: { path: string | null }) {
   if (!path || !path.endsWith('.typ')) {
     return (
       <div className="preview-pane">
-        <div className="preview-loading">Select a Typst file to preview</div>
+        <div className="preview-loading">Chọn một file .typ để xem trước</div>
       </div>
     )
   }

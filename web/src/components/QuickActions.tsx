@@ -18,38 +18,38 @@ interface QuickAction {
 const ACTIONS: QuickAction[] = [
   {
     id: 'fix-errors',
-    label: 'Fix compile errors',
+    label: 'Sửa lỗi biên dịch',
     buildPrompt: () =>
       'Check the currently active Typst document for compile/diagnostic errors ' +
       '(use the getActiveDocument and queryDiagnostics tools), then fix them directly in the file.',
   },
   {
     id: 'summarize',
-    label: 'Summarize document',
+    label: 'Tóm tắt tài liệu',
     buildPrompt: () =>
       'Summarize the currently active Typst document (use getActiveDocument to find it) ' +
       'in a few concise bullet points.',
   },
   {
     id: 'translate',
-    label: 'Translate document',
-    input: { placeholder: 'Target language, e.g. Vietnamese' },
+    label: 'Dịch tài liệu',
+    input: { placeholder: 'Ngôn ngữ đích, ví dụ: tiếng Anh' },
     buildPrompt: (lang) =>
       `Translate the currently active Typst document into ${lang || 'Vietnamese'}, ` +
       'preserving all Typst markup and commands unchanged, and write the translation to a new file next to the original.',
   },
   {
     id: 'suggest-package',
-    label: 'Suggest a Typst package',
-    input: { placeholder: 'What do you need? e.g. "a resume template"' },
+    label: 'Gợi ý gói Typst',
+    input: { placeholder: 'Bạn cần gì? Ví dụ: "mẫu bảng biểu"' },
     buildPrompt: (need) =>
       `Search the Typst package registry (use the searchPackages tool) for something matching this need: "${need}". ` +
       'Suggest the best matching package(s) and explain why.',
   },
   {
     id: 'add-citation',
-    label: 'Add bibliography citation',
-    input: { placeholder: 'Paste the source (title, author, URL, etc.)' },
+    label: 'Thêm trích dẫn',
+    input: { placeholder: 'Dán nguồn (tên sách, tác giả, URL…)' },
     buildPrompt: (source) =>
       'Add a bibliography citation for this source to the currently active document, ' +
       `using correct Typst citation syntax (a bibliography file plus a #cite/@key reference): \n\n${source}`,
@@ -116,9 +116,9 @@ export function QuickActions({ onPrompt, disabled = false }: { onPrompt: (text: 
             }}
           />
           <button onClick={() => run(ACTIONS.find((a) => a.id === openId)!)} disabled={disabled}>
-            Send
+            Gửi
           </button>
-          <button onClick={() => setOpenId(null)}>Cancel</button>
+          <button onClick={() => setOpenId(null)}>Hủy</button>
         </div>
       )}
     </div>

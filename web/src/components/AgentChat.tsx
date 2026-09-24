@@ -134,7 +134,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
         }
         case 'plan':
           setWaiting(false)
-          append({ kind: 'plan', id: `e${nextEntryId++}`, text: 'Plan updated' })
+          append({ kind: 'plan', id: `e${nextEntryId++}`, text: 'Đã cập nhật kế hoạch' })
           break
         case 'permissionRequest':
           setWaiting(false)
@@ -147,7 +147,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
           break
         case 'error':
           setWaiting(false)
-          append({ kind: 'error', id: `e${nextEntryId++}`, text: msg.message ?? 'Unknown agent error' })
+          append({ kind: 'error', id: `e${nextEntryId++}`, text: msg.message ?? 'Lỗi không xác định từ trợ lý AI' })
           break
         case 'disconnected':
           setConnected(false)
@@ -165,7 +165,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
             append({
               kind: 'error',
               id: `e${nextEntryId++}`,
-              text: 'Connection to the agent was lost. Use "Retry connection" below to start a new session.',
+              text: 'Mất kết nối với trợ lý AI. Bấm "Kết nối lại" để mở phiên mới.',
             })
           }
           break
@@ -207,7 +207,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
     append({
       kind: 'user',
       id: `e${nextEntryId++}`,
-      text: trimmed || `[${images.length} image${images.length > 1 ? 's' : ''}]`,
+      text: trimmed || `[${images.length} ảnh]`,
     })
     setWaiting(true)
     clientRef.current.prompt(trimmed, images)
@@ -284,10 +284,10 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
   return (
     <div className="agent-chat">
       <div className="agent-chat-status">
-        {connected ? 'Agent connected' : 'Connecting to agent…'}
+        {connected ? 'Trợ lý AI đã sẵn sàng' : 'Đang kết nối trợ lý AI…'}
         {!connected && hasDisconnectedOnce && (
           <button className="chat-retry-btn" onClick={() => setRetryToken((n) => n + 1)}>
-            Retry connection
+            Kết nối lại
           </button>
         )}
         {connected &&
@@ -329,11 +329,11 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
           <div className="chat-entry chat-entry-waiting">
             <div className="chat-text">
               {waitingLong
-                ? 'Still waiting — this is taking longer than usual. The agent may be working on something complex, or stuck.'
-                : 'Agent is thinking…'}
+                ? 'Vẫn đang chờ — lâu hơn bình thường. Trợ lý có thể đang xử lý việc phức tạp, hoặc bị treo.'
+                : 'Trợ lý đang suy nghĩ…'}
             </div>
             <button className="chat-cancel-btn" onClick={cancelTurn}>
-              Cancel
+              Dừng
             </button>
           </div>
         )}
@@ -358,10 +358,10 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
         <div className="chat-pending-images">
           {pendingImages.map((img, i) => (
             <div key={i} className="chat-pending-image">
-              <img src={`data:${img.mimeType};base64,${img.data}`} alt={`pasted ${i + 1}`} />
+              <img src={`data:${img.mimeType};base64,${img.data}`} alt={`ảnh dán ${i + 1}`} />
               <button
                 className="chat-pending-image-remove"
-                title="Remove"
+                title="Bỏ ảnh"
                 onClick={() => setPendingImages((prev) => prev.filter((_, idx) => idx !== i))}
               >
                 ×
@@ -382,10 +382,10 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
             }
           }}
           onPaste={handlePaste}
-          placeholder="Ask the AI agent… (paste an image to attach it)"
+          placeholder="Hỏi trợ lý AI… (Enter để gửi, Shift+Enter xuống dòng, dán ảnh để đính kèm)"
         />
         <button onClick={submit} disabled={!connected || waiting}>
-          Send
+          Gửi
         </button>
       </div>
     </div>

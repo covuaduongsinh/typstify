@@ -16,7 +16,7 @@ export function PackageManager() {
       const res = await api.get<SearchResponse>(`/api/packages/search?query=${encodeURIComponent(query)}`)
       setResults(res.packages ?? [])
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Search failed')
+      setError(err instanceof ApiError ? err.message : 'Tìm kiếm thất bại')
     } finally {
       setBusy(false)
     }
@@ -34,7 +34,7 @@ export function PackageManager() {
       })
       setResults((prev) => prev.map((p) => (p === pkg ? { ...p, IsCached: true } : p)))
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Download failed')
+      setError(err instanceof ApiError ? err.message : 'Tải xuống thất bại')
     } finally {
       setDownloading(null)
     }
@@ -44,13 +44,13 @@ export function PackageManager() {
     <div className="package-manager">
       <div className="package-search">
         <input
-          placeholder="Search Typst packages…"
+          placeholder="Tìm gói Typst…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && search()}
         />
         <button onClick={search} disabled={busy}>
-          Search
+          {busy ? 'Đang tìm…' : 'Tìm'}
         </button>
       </div>
 
@@ -71,10 +71,10 @@ export function PackageManager() {
               <div className="package-footer">
                 <span className="package-license">{pkg.license}</span>
                 {pkg.IsCached ? (
-                  <span className="package-cached">Cached</span>
+                  <span className="package-cached">Đã tải</span>
                 ) : (
                   <button onClick={() => download(pkg)} disabled={downloading === key}>
-                    {downloading === key ? 'Downloading…' : 'Download'}
+                    {downloading === key ? 'Đang tải…' : 'Tải về'}
                   </button>
                 )}
               </div>

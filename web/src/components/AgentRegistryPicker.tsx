@@ -17,7 +17,7 @@ export function AgentRegistryPicker({ onSelected }: { onSelected: (settings: Age
     api
       .get<AgentRegistry>('/api/agent/registry')
       .then(setRegistry)
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'Failed to load agent registry'))
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Không tải được danh sách trợ lý AI'))
   }, [])
 
   const entry: AgentRegistryEntry | undefined = registry?.agents.find((a) => a.id === selectedId)
@@ -30,7 +30,7 @@ export function AgentRegistryPicker({ onSelected }: { onSelected: (settings: Age
       const settings = await api.post<AgentSettings>('/api/agent/select', { agentId: selectedId })
       onSelected(settings)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to select agent')
+      setError(err instanceof ApiError ? err.message : 'Không chọn được trợ lý AI')
     } finally {
       setBusy(false)
     }
@@ -38,15 +38,15 @@ export function AgentRegistryPicker({ onSelected }: { onSelected: (settings: Age
 
   return (
     <section className="settings-section agent-registry-picker">
-      <h2>Agent Registry</h2>
+      <h2>Chọn trợ lý AI</h2>
       <p className="settings-hint">
-        Select an agent from the official ACP registry. Click "Use" to overwrite the manual
-        configuration below.
+        Chọn một trợ lý từ danh sách ACP chính thức. Bấm "Dùng" để ghi đè cấu hình thủ công
+        bên dưới.
       </p>
 
       <div className="agent-registry-row">
         <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
-          <option value="">Select an agent…</option>
+          <option value="">Chọn trợ lý…</option>
           {registry?.agents.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
@@ -54,7 +54,7 @@ export function AgentRegistryPicker({ onSelected }: { onSelected: (settings: Age
           ))}
         </select>
         <button onClick={use} disabled={!selectedId || busy}>
-          {busy ? 'Selecting…' : 'Use'}
+          {busy ? 'Đang chọn…' : 'Dùng'}
         </button>
       </div>
 
@@ -64,19 +64,19 @@ export function AgentRegistryPicker({ onSelected }: { onSelected: (settings: Age
             {entry.name} <span className="agent-registry-version">{entry.version}</span>
           </div>
           <p>{entry.description}</p>
-          {entry.license && <div>License: {entry.license}</div>}
-          {entry.authors?.length > 0 && <div>Authors: {entry.authors.join(', ')}</div>}
+          {entry.license && <div>Giấy phép: {entry.license}</div>}
+          {entry.authors?.length > 0 && <div>Tác giả: {entry.authors.join(', ')}</div>}
         </div>
       )}
 
       {error && <div className="error">{error}</div>}
 
       <p className="terms-warning">
-        Subscription plans (Claude Pro/Max, Google AI, ChatGPT Plus/Pro…) are meant for normal
-        personal use of that provider's own CLI. Running it unattended in a background loop, or
-        sharing one account across multiple people, falls outside that and providers have
-        suspended accounts for it. If you need unattended background use, configure that agent
-        with its own API key instead (Env field below) rather than a subscription login.
+        Các gói thuê bao (Claude Pro/Max, Google AI, ChatGPT Plus/Pro…) dành cho việc dùng cá
+        nhân qua CLI của chính nhà cung cấp. Chạy tự động liên tục trong nền, hoặc dùng chung một
+        tài khoản cho nhiều người, nằm ngoài phạm vi đó và nhà cung cấp có thể khóa tài khoản. Nếu
+        cần chạy nền tự động, hãy cấu hình trợ lý bằng API key riêng (ô Env bên dưới) thay vì đăng
+        nhập bằng gói thuê bao.
       </p>
     </section>
   )

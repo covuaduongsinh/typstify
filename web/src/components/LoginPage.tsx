@@ -16,7 +16,7 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
       await api.post('/api/auth/login', { password })
       onLoggedIn()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Login failed')
+      setError(err instanceof ApiError ? err.message : 'Đăng nhập thất bại')
     } finally {
       setBusy(false)
     }
@@ -29,7 +29,7 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
         <input
           type="password"
           autoFocus
-          placeholder="Server password"
+          placeholder="Mật khẩu máy chủ"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />

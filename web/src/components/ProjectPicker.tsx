@@ -20,7 +20,7 @@ export function ProjectPicker({ onOpened }: { onOpened: (path: string) => void }
       const res = await api.post<{ path: string }>('/api/workspace/open', { path: p })
       onOpened(res.path)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to open project')
+      setError(err instanceof ApiError ? err.message : 'Không mở được dự án')
     }
   }
 
@@ -30,7 +30,7 @@ export function ProjectPicker({ onOpened }: { onOpened: (path: string) => void }
       const res = await api.post<{ path: string }>('/api/workspace/create', { path })
       onOpened(res.path)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to create project')
+      setError(err instanceof ApiError ? err.message : 'Không tạo được dự án')
     }
   }
 

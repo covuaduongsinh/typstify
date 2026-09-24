@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslations } from '../lib/i18n'
+import { Icon } from './Icon'
 
 const FORMATS = ['pdf', 'png', 'svg'] as const
 
@@ -17,14 +18,17 @@ export function ExportButton({ path }: { path: string }) {
 
   return (
     <div className="export-control">
-      <select value={format} onChange={(e) => setFormat(e.target.value as (typeof FORMATS)[number])}>
+      <select aria-label="Định dạng xuất" value={format} onChange={(e) => setFormat(e.target.value as (typeof FORMATS)[number])}>
         {FORMATS.map((f) => (
           <option key={f} value={f}>
             {f.toUpperCase()}
           </option>
         ))}
       </select>
-      <button onClick={download}>{t('Export')}</button>
+      <button className="btn-primary hdr-btn" onClick={download} title="Tải file đã biên dịch">
+        <Icon name="download" />
+        <span className="hdr-label">{t('Export')}</span>
+      </button>
     </div>
   )
 }

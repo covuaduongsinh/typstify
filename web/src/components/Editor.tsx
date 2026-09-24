@@ -23,6 +23,10 @@ interface EditorProps {
   initialContent: string
   onDirtyChange?: (dirty: boolean) => void
   onSave?: (content: string) => void
+  /** 1-based line/column of the main cursor, for the status bar. */
+  onCursorChange?: (pos: { line: number; col: number }) => void
+  /** Error/warning counts of the latest LSP diagnostics for this file. */
+  onDiagnosticsChange?: (counts: { errors: number; warnings: number }) => void
 }
 
 function posFromLineChar(doc: Text, line: number, character: number): number {
@@ -63,7 +67,7 @@ function toCmDiagnostics(doc: Text, diags: LspDiagnostic[]): CmDiagnostic[] {
  * completion/hover/diagnostics sourced from the tinymist LSP over
  * /ws/lsp (see server/lsp_ws.go and lib/lspClient.ts). */
 export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
-  { path, initialContent, onDirtyChange, onSave },
+  { path, initialContent, onDirtyChange, onSave, onCursorChange, onDiagnosticsChange },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -158,6 +162,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       }
     })
 
+    const reportCursor = (state: EditorState) => {
+      const head = state.selection.main.head
+      const line = state.doc.lineAt(head)
+      onCursorChange?.({ line: line.number, col: head - line.from + 1 })
+    }
+
     const extensions: Extension[] = [
       basicSetup,
       typstifyTheme,
@@ -178,17 +188,24 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       ]),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) scheduleChange(update.state.doc.toString())
+        if (update.docChanged || update.selectionSet) reportCursor(update.state)
       }),
     ]
 
     const state = EditorState.create({ doc: initialContent, extensions })
     const view = new EditorView({ state, parent: hostRef.current! })
     viewRef.current = view
+    reportCursor(state)
+    onDiagnosticsChange?.({ errors: 0, warnings: 0 })
 
     lsp.didOpen(path, initialContent)
     const unsubscribe = lsp.onDiagnostics((diagPath, diags) => {
       if (diagPath !== path) return
       view.dispatch(setDiagnostics(view.state, toCmDiagnostics(view.state.doc, diags)))
+      onDiagnosticsChange?.({
+        errors: diags.filter((d) => d.severity === 1).length,
+        warnings: diags.filter((d) => d.severity === 2).length,
+      })
     })
 
     return () => {
