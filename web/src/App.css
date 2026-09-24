@@ -74,8 +74,36 @@
   gap: 8px;
   padding: 6px 12px;
   background: var(--bg-panel);
+  border-top: 3px solid var(--brand);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+/* Brand */
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.brand-mark svg {
+  display: block;
+}
+.brand-mark-text {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  white-space: nowrap;
+}
+.brand-mark-text b {
+  font-weight: 700;
+  color: var(--accent);
+}
+.theme-toggle {
+  font-size: 15px;
+  width: 30px;
+  height: 28px;
+  padding: 0;
 }
 
 .workspace-header-layout-toggles {
@@ -98,14 +126,14 @@
 }
 
 .toggle-panel-btn:hover {
-  background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+  background: var(--hover);
   color: var(--text);
 }
 
 .toggle-panel-btn.active {
-  background: rgba(37, 99, 235, 0.15);
-  border-color: #2563eb;
-  color: #3b82f6;
+  background: var(--brand-soft);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .workspace-header .project-path {
@@ -172,8 +200,8 @@
 .panel-resizer.active::after {
   width: 3px;
   left: 1px;
-  background: #2563eb;
-  box-shadow: 0 0 6px rgba(37, 99, 235, 0.6);
+  background: var(--gold);
+  box-shadow: 0 0 6px var(--gold-soft);
 }
 
 .workspace-filetree {
@@ -226,7 +254,7 @@
 }
 
 .tree-action-btn:hover {
-  background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+  background: var(--hover);
 }
 
 .tree-create-form {
@@ -234,7 +262,7 @@
   gap: 4px;
   padding: 4px;
   background: var(--bg-panel);
-  border: 1px solid #2563eb;
+  border: 1px solid var(--accent);
   border-radius: 4px;
   margin-bottom: 6px;
 }
@@ -258,8 +286,8 @@
 .tree-confirm-btn {
   padding: 2px 6px;
   font-size: 10px;
-  background: #2563eb;
-  color: #fff;
+  background: var(--brand);
+  color: var(--on-brand);
   border: none;
   border-radius: 3px;
   cursor: pointer;
@@ -318,7 +346,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   text-align: center;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow);
 }
 
 .welcome-chess-card h3 {
@@ -360,17 +388,17 @@
 }
 
 .welcome-btn.primary {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #1d4ed8;
+  background: var(--brand);
+  color: var(--on-brand);
+  border-color: var(--brand-strong);
 }
 
 .welcome-btn:hover {
-  background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+  background: var(--hover);
 }
 
 .welcome-btn.primary:hover {
-  background: #1d4ed8;
+  background: var(--brand-strong);
 }
 
 .workspace-preview {
@@ -417,8 +445,9 @@
   background: var(--bg-elevated);
 }
 .file-tree-row.active {
-  background: var(--accent);
-  color: white;
+  background: var(--brand);
+  color: var(--on-brand);
+  box-shadow: inset 3px 0 0 var(--gold);
 }
 .file-tree-row:focus-visible {
   outline: 2px solid var(--accent);
@@ -671,7 +700,7 @@
   align-items: center;
 }
 .package-cached {
-  color: #4caf50;
+  color: var(--success);
   font-size: 11px;
 }
 
@@ -771,7 +800,7 @@
   color: var(--warning);
 }
 .settings-saved {
-  color: #4caf50;
+  color: var(--success);
   font-size: 12px;
   margin-left: 8px;
 }
@@ -828,13 +857,13 @@
 }
 
 .chess-tool-btn.primary {
-  background: #2563eb;
-  color: #ffffff;
-  border-color: #1d4ed8;
+  background: var(--brand);
+  color: var(--on-brand);
+  border-color: var(--brand-strong);
 }
 
 .chess-tool-btn.primary:hover {
-  background: #1d4ed8;
+  background: var(--brand-strong);
 }
 
 .chess-sym-btn {
@@ -854,11 +883,11 @@
 .chess-sym-btn.nag {
   font-size: 11px;
   font-weight: 600;
-  color: #2563eb;
+  color: var(--accent);
 }
 
 .chess-sym-btn:hover {
-  background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+  background: var(--hover);
 }
 
 .templates-dropdown-wrap {
@@ -873,7 +902,7 @@
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
   z-index: 1000;
@@ -896,14 +925,14 @@
 }
 
 .chess-template-item:hover {
-  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  background: var(--hover);
 }
 
 /* Modal styling */
 .chess-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--overlay);
   backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
@@ -920,7 +949,7 @@
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
 }
 
 .chess-modal-container.pgn-modal {
@@ -965,10 +994,10 @@
 .chess-board-grid {
   display: flex;
   flex-direction: column;
-  border: 2px solid #2d3748;
+  border: 2px solid var(--brand);
   border-radius: 4px;
   overflow: hidden;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow);
 }
 
 .chess-board-row {
@@ -986,11 +1015,11 @@
 }
 
 .chess-square.light {
-  background-color: #f0d9b5;
+  background-color: var(--board-light);
 }
 
 .chess-square.dark {
-  background-color: #b58863;
+  background-color: var(--board-dark);
 }
 
 .chess-piece {
@@ -1000,7 +1029,11 @@
 
 .chess-piece.white {
   color: #ffffff;
-  text-shadow: 0 0 2px #000000;
+  text-shadow:
+    1px 0 0 #000,
+    -1px 0 0 #000,
+    0 1px 0 #000,
+    0 -1px 0 #000;
 }
 
 .chess-piece.black {
@@ -1038,8 +1071,8 @@
 }
 
 .palette-btn.selected {
-  border-color: #2563eb;
-  background: rgba(37, 99, 235, 0.15);
+  border-color: var(--accent);
+  background: var(--brand-soft);
 }
 
 .board-actions-row {
@@ -1126,15 +1159,15 @@
   padding: 6px 14px;
   font-size: 12px;
   font-weight: 600;
-  background: #2563eb;
+  background: var(--brand);
   color: white;
-  border: 1px solid #1d4ed8;
+  border: 1px solid var(--brand-strong);
   border-radius: 4px;
   cursor: pointer;
 }
 
 .insert-code-btn:hover {
-  background: #1d4ed8;
+  background: var(--brand-strong);
 }
 
 .pgn-input-section {

@@ -5,6 +5,7 @@ import { EditorView, hoverTooltip, keymap } from '@codemirror/view'
 import { basicSetup } from 'codemirror'
 import { typst_lezer } from 'codemirror-lang-typst/lezer'
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { typstifyTheme } from '../lib/editorTheme'
 import { LspClient, type LspDiagnostic } from '../lib/lspClient'
 
 // Exposes an imperative save() so a toolbar button can trigger the same
@@ -159,6 +160,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
     const extensions: Extension[] = [
       basicSetup,
+      typstifyTheme,
       typst_lezer(),
       autocompletion({ override: [completionSource] }),
       hover,

@@ -11,6 +11,8 @@ import { SettingsPanel } from './SettingsPanel'
 import { ChessToolbar } from './ChessToolbar'
 import { ChessBoardModal } from './ChessBoardModal'
 import { PgnImportModal } from './PgnImportModal'
+import { BrandMark } from './BrandMark'
+import { useTheme } from '../lib/theme'
 
 const I18N_KEYS = ['AI Assistant', 'Settings', 'Export']
 
@@ -55,6 +57,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const middleAreaRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<EditorHandle>(null)
   const t = useTranslations(I18N_KEYS)
+  const [theme, toggleTheme] = useTheme()
 
   // Persist layout settings
   useEffect(() => {
@@ -168,6 +171,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
       {resizing && <div className="resizing-overlay" />}
 
       <header className="workspace-header">
+        <BrandMark size={22} />
         <button onClick={onCloseProject} title="Quay lại danh sách dự án">&larr; Projects</button>
         <span className="project-path">{projectPath}</span>
 
@@ -218,6 +222,14 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
           onClick={() => setSidePanel(sidePanel === 'settings' ? null : 'settings')}
         >
           {t('Settings')}
+        </button>
+        <button
+          className="btn-ghost theme-toggle"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+          aria-label={theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+        >
+          {theme === 'dark' ? '☀' : '☾'}
         </button>
       </header>
 

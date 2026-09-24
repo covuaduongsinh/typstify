@@ -1,10 +1,26 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web</title>
+    <meta name="description" content="Dương Sinh Chess Studio — soạn thảo và xuất bản sách cờ vua bằng Typst" />
+    <meta name="theme-color" content="#2B3990" />
+    <title>Dương Sinh Chess Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap"
+    />
+    <script>
+      // Apply the saved theme before first paint to avoid a light/dark flash
+      // (same storage key as src/lib/theme.ts).
+      try {
+        var t = localStorage.getItem('typstify_theme')
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
