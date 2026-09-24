@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { useDismiss } from '../lib/useDismiss'
+import { Icon, ICON_NAMES, type IconName } from './Icon'
 
 interface ChessToolbarProps {
   onInsertText: (text: string) => void
@@ -39,8 +41,8 @@ const NAGS = [
 
 const TEMPLATES = [
   {
-    label: '🧩 Bài tập (A)',
-    title: 'Chèn khung bài tập cờ vua A5',
+    label: 'Bài tập cờ vua',
+    title: 'Khung bài tập (puzzle card) khổ A5: FEN, độ khó, gợi ý, lời giải',
     code: `#puzzle-card(
   "r1bqk2r/pppp1ppp/2n5/4p3/1bB1n3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6",
   number: 1,
@@ -52,8 +54,8 @@ const TEMPLATES = [
 )\n`,
   },
   {
-    label: '📖 Khai cuộc ECO (B)',
-    title: 'Chèn tiêu đề & Bảng khai cuộc ECO',
+    label: 'Khai cuộc ECO',
+    title: 'Tiêu đề chuyên khảo khai cuộc theo mã ECO và diễn biến mở đầu',
     code: `#eco-header(
   code: "C 58",
   name: "Phòng thủ Hai Mã",
@@ -62,8 +64,8 @@ const TEMPLATES = [
 )\n`,
   },
   {
-    label: '📰 Tạp chí / Thẻ ván (C)',
-    title: 'Chèn Thẻ ván cờ danh thủ',
+    label: 'Thẻ ván đấu (tạp chí)',
+    title: 'Thông tin ván đấu: kỳ thủ, Elo, giải, vòng, kết quả',
     code: `#game-header(
   white: "Magnus Carlsen",
   white-title: "GM",
@@ -83,8 +85,8 @@ const TEMPLATES = [
 )\n`,
   },
   {
-    label: '🎓 Giáo trình / Bài giảng (D)',
-    title: 'Chèn tiêu đề Bài giảng huấn luyện',
+    label: 'Bài giảng huấn luyện',
+    title: 'Tiêu đề bài giảng: số bài, cấp độ, thời lượng, mục tiêu',
     code: `#lesson-header(
   lesson-num: 1,
   title: "ĐÒN GHIM QUÂN TRONG CHIẾN THUẬT",
@@ -95,49 +97,117 @@ const TEMPLATES = [
   },
 ]
 
+// The annotations used most while commenting a game stay one click away on
+// the bar itself; the full NAG set lives in the "Ký hiệu" popover.
+const QUICK_NAGS = NAGS.slice(0, 6)
+
+type Menu = 'pieces' | 'nags' | 'templates' | null
+
+// Popover widths (px), matching App.css, so a popover opened near the right
+// edge of the window can be shifted left instead of being cut off.
+const POPOVER_WIDTH: Record<Exclude<Menu, null>, number> = { pieces: 344, nags: 372, templates: 320 }
+
 export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn }: ChessToolbarProps) {
-  const [showTemplates, setShowTemplates] = useState(false)
+  const [menu, setMenu] = useState<Menu>(null)
+  const [anchor, setAnchor] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
+  const barRef = useRef<HTMLDivElement>(null)
+  const close = useCallback(() => setMenu(null), [])
+  useDismiss(barRef, menu !== null, close)
+
+  // Popovers are position:fixed so the editor column's overflow clipping
+  // can't cut them off; they're placed under their trigger button.
+  const toggle = (m: Exclude<Menu, null>, trigger: HTMLElement) => {
+    if (menu === m) {
+      setMenu(null)
+      return
+    }
+    const r = trigger.getBoundingClientRect()
+    setAnchor({
+      left: Math.max(8, Math.min(r.left, window.innerWidth - POPOVER_WIDTH[m] - 8)),
+      top: r.bottom + 6,
+    })
+    setMenu(m)
+  }
+  const popoverStyle = { left: anchor.left, top: anchor.top }
+  const insert = (code: string) => {
+    onInsertText(code)
+    setMenu(null)
+  }
+
+  const trigger = (m: Exclude<Menu, null>, icon: IconName | string, label: string) => (
+    <button
+      className={`chess-tool-btn${menu === m ? ' active' : ''}`}
+      aria-label={label}
+      title={label}
+      aria-haspopup="menu"
+      aria-expanded={menu === m}
+      onClick={(e) => toggle(m, e.currentTarget)}
+    >
+      {icon in ICON_NAMES ? <Icon name={icon as IconName} size={14} /> : <span className="tb-glyph">{icon}</span>}
+      <span className="tb-label">{label}</span>
+      <Icon name="chevron-down" size={12} />
+    </button>
+  )
 
   return (
-    <div className="chess-toolbar">
+    <div className="chess-toolbar" ref={barRef} role="toolbar" aria-label="Công cụ cờ vua">
       <div className="chess-toolbar-group">
         <button
-          className="chess-tool-btn primary"
-          title="Mở Bàn cờ trực quan để xếp thế cờ và sinh mã Typst"
+          className="chess-tool-btn btn-primary"
+          aria-label="Xếp bàn cờ"
+          title="Mở bàn cờ trực quan để xếp thế cờ và sinh mã Typst"
           onClick={onOpenBoard}
         >
-          ♟️ Xếp Bàn Cờ
+          <Icon name="board" size={14} /> <span className="tb-label">Xếp bàn cờ</span>
         </button>
         <button
           className="chess-tool-btn"
+          aria-label="Nhập PGN"
           title="Nhập và chuyển đổi ván cờ từ file PGN"
           onClick={onOpenPgn}
         >
-          📜 Nhập PGN
+          <Icon name="scroll" size={14} /> <span className="tb-label">Nhập PGN</span>
         </button>
       </div>
 
       <div className="chess-toolbar-divider" />
 
-      {/* Piece Palette */}
-      <div className="chess-toolbar-group pieces-palette">
-        {PIECES.map((p) => (
-          <button
-            key={p.code}
-            className="chess-sym-btn"
-            title={`${p.title} (${p.code})`}
-            onClick={() => onInsertText(`${p.code} `)}
-          >
-            {p.label}
-          </button>
-        ))}
+      <div className="chess-toolbar-group popover-anchor">
+        {trigger('pieces', '♞', 'Quân cờ')}
+        {menu === 'pieces' && (
+          <div className="chess-popover pieces-popover" role="menu" style={popoverStyle}>
+            {PIECES.map((p) => (
+              <button
+                key={p.code}
+                role="menuitem"
+                className="piece-cell"
+                title={`${p.title} — chèn ${p.code}`}
+                onClick={() => insert(`${p.code} `)}
+              >
+                <span className="piece-glyph">{p.label}</span>
+                <span className="piece-name">{p.title.split(' ')[0]}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="chess-toolbar-divider" />
+      <div className="chess-toolbar-group popover-anchor">
+        {trigger('nags', '!?', 'Ký hiệu')}
+        {menu === 'nags' && (
+          <div className="chess-popover nags-popover" role="menu" style={popoverStyle}>
+            {NAGS.map((n) => (
+              <button key={n.code} role="menuitem" className="nag-row" onClick={() => insert(`${n.code} `)}>
+                <span className="nag-glyph">{n.label}</span>
+                <span className="nag-desc">{n.title.replace(/\s*\(.*\)$/, '')}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-      {/* NAG Symbols Palette */}
-      <div className="chess-toolbar-group nag-palette">
-        {NAGS.map((n) => (
+      <div className="chess-toolbar-group quick-nags" aria-label="Ký hiệu nhanh">
+        {QUICK_NAGS.map((n) => (
           <button
             key={n.code}
             className="chess-sym-btn nag"
@@ -151,27 +221,14 @@ export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn }: ChessTool
 
       <div className="chess-toolbar-divider" />
 
-      {/* Quick Template Dropdown */}
-      <div className="chess-toolbar-group templates-dropdown-wrap">
-        <button
-          className="chess-tool-btn template-toggle"
-          onClick={() => setShowTemplates(!showTemplates)}
-        >
-          📐 Chèn Mẫu ▾
-        </button>
-        {showTemplates && (
-          <div className="chess-templates-menu" onMouseLeave={() => setShowTemplates(false)}>
+      <div className="chess-toolbar-group popover-anchor">
+        {trigger('templates', 'template', 'Chèn mẫu')}
+        {menu === 'templates' && (
+          <div className="chess-popover templates-popover" role="menu" style={popoverStyle}>
             {TEMPLATES.map((tmpl) => (
-              <button
-                key={tmpl.label}
-                className="chess-template-item"
-                title={tmpl.title}
-                onClick={() => {
-                  onInsertText(tmpl.code)
-                  setShowTemplates(false)
-                }}
-              >
-                {tmpl.label}
+              <button key={tmpl.label} role="menuitem" className="template-row" onClick={() => insert(tmpl.code)}>
+                <span className="template-name">{tmpl.label}</span>
+                <span className="template-desc">{tmpl.title}</span>
               </button>
             ))}
           </div>

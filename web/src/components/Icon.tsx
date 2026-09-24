@@ -32,6 +32,9 @@ const PATHS: Record<string, string> = {
 
 export type IconName = keyof typeof PATHS
 
+/** Lookup object for telling an icon name apart from a plain text glyph. */
+export const ICON_NAMES: Readonly<Record<string, unknown>> = PATHS
+
 export function Icon({ name, size = 16, className }: { name: IconName; size?: number; className?: string }) {
   return (
     <svg

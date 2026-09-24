@@ -346,7 +346,8 @@
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   overflow-y: auto;
-  padding: 8px 6px;
+  padding: 0;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   min-width: 160px;
@@ -364,15 +365,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 6px;
+  padding: 6px 6px 6px 10px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
 }
 
 .file-tree-title {
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--text-dim);
 }
 
@@ -382,69 +383,71 @@
 }
 
 .tree-action-btn {
-  padding: 2px 6px;
-  font-size: 11px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--text);
-}
-
-.tree-action-btn:hover {
-  background: var(--hover);
-}
-
-.tree-create-form {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: var(--bg-panel);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  margin-bottom: 6px;
-}
-
-.tree-create-input {
-  flex: 1;
-  font-size: 11px;
-  padding: 2px 6px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-  border-radius: 3px;
-  min-width: 0;
-}
-
-.tree-create-actions {
-  display: flex;
-  gap: 2px;
-}
-
-.tree-confirm-btn {
-  padding: 2px 6px;
-  font-size: 10px;
-  background: var(--brand);
-  color: var(--on-brand);
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.tree-cancel-btn {
-  padding: 2px 6px;
-  font-size: 10px;
-  background: transparent;
-  color: var(--text-dim);
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
 }
 
 .tree-error-msg {
-  font-size: 10px;
+  margin: 0 8px;
+  padding: 6px 8px;
+  font-size: 12px;
   color: var(--error);
-  padding: 2px 4px;
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+.file-tree {
+  padding: 0 4px 8px;
+}
+
+.file-tree-empty {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* Context menu */
+.context-menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 190px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+}
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+}
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
+  background: var(--brand-soft);
+  outline: none;
+}
+.context-menu-item.danger {
+  color: var(--error);
+}
+
+.btn-danger,
+button.btn-danger {
+  background: var(--error);
+  color: #fff;
+  border-color: var(--error);
 }
 
 /* Middle Area: Editor + Preview */
@@ -566,9 +569,62 @@
   height: 100%;
 }
 
-.preview-pane,
-.preview-pane iframe,
-.preview-pane .preview-pdf {
+.preview-pane {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--surface-2);
+}
+
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 6px 0 10px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.preview-toolbar-spacer {
+  flex: 1;
+}
+
+.preview-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+}
+
+.preview-status-ready {
+  color: var(--success);
+}
+
+.preview-status-error {
+  color: var(--error);
+}
+
+.preview-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+}
+
+.preview-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.preview-pdf {
   width: 100%;
   height: 100%;
   border: none;
@@ -576,14 +632,85 @@
 
 .preview-loading {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   width: 100%;
   height: 100%;
   padding: 16px;
   text-align: center;
   font-size: 13px;
   color: var(--text-dim);
+}
+
+.preview-error {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  max-height: 60%;
+  overflow: auto;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--error);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.preview-error-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--error);
+}
+
+.preview-error-message {
+  margin: 8px 0;
+  padding: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.preview-error-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.spinner-lg {
+  width: 28px;
+  height: 28px;
+  border-width: 3px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
 }
 
 .workspace-side-panel {
@@ -617,14 +744,65 @@
 
 /* File tree */
 .file-tree-row {
-  padding: 2px 6px;
-  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding-right: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   white-space: nowrap;
   font-size: 13px;
 }
 .file-tree-row:hover {
-  background: var(--bg-elevated);
+  background: var(--hover);
+}
+.file-tree-caret {
+  display: inline-flex;
+  width: 12px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.file-tree-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-icon {
+  color: var(--text-dim);
+}
+.file-icon-folder {
+  color: var(--gold);
+}
+.file-icon-file-text {
+  color: var(--accent);
+}
+.file-icon-scroll {
+  color: var(--success);
+}
+.file-tree-row.active .file-icon,
+.file-tree-row.active .file-tree-caret {
+  color: inherit;
+}
+.file-tree-more {
+  visibility: hidden;
+  padding: 0 6px;
+  height: 20px;
+  line-height: 1;
+  font-size: 14px;
+  background: transparent;
+  border: none;
+  color: inherit;
+}
+.file-tree-row:hover .file-tree-more,
+.file-tree-row:focus-within .file-tree-more {
+  visibility: visible;
+}
+@media (hover: none) {
+  .file-tree-more {
+    visibility: visible;
+  }
 }
 .file-tree-row.active {
   background: var(--brand);
@@ -1006,12 +1184,12 @@
 .chess-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 6px 10px;
-  background: var(--bg-panel);
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   font-size: 12px;
-  overflow-x: auto;
 }
 
 .chess-toolbar-group {
@@ -1022,49 +1200,46 @@
 
 .chess-toolbar-divider {
   width: 1px;
-  height: 18px;
+  height: 20px;
   background: var(--border);
-  margin: 0 4px;
+  margin: 0 2px;
 }
 
 .chess-tool-btn {
-  padding: 4px 8px;
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
   font-weight: 500;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  cursor: pointer;
   white-space: nowrap;
 }
 
-.chess-tool-btn.primary {
-  background: var(--brand);
-  color: var(--on-brand);
-  border-color: var(--brand-strong);
+.chess-tool-btn:not(.btn-primary) {
+  background: var(--bg);
 }
 
-.chess-tool-btn.primary:hover {
-  background: var(--brand-strong);
+.tb-glyph {
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--accent);
 }
 
 .chess-sym-btn {
-  padding: 2px 6px;
-  font-size: 13px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  height: 24px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 5px;
+  font-size: 12px;
+  background: var(--bg);
 }
 
 .chess-sym-btn.nag {
-  font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--accent);
 }
 
@@ -1072,42 +1247,127 @@
   background: var(--hover);
 }
 
-.templates-dropdown-wrap {
+/* The toolbar adapts to the editor column's width (not the window's),
+   since the column shrinks when preview and side panels are open. */
+.editor-container-with-toolbar {
+  container-type: inline-size;
+}
+@container (max-width: 640px) {
+  .quick-nags {
+    display: none;
+  }
+}
+@container (max-width: 480px) {
+  .chess-toolbar .chess-tool-btn:not(.btn-primary) .tb-label {
+    display: none;
+  }
+}
+
+/* Toolbar popovers */
+.popover-anchor {
   position: relative;
 }
 
-.chess-templates-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 4px;
-  background: var(--bg-panel);
+.chess-popover {
+  position: fixed;
+  z-index: 1500;
+  padding: 6px;
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  z-index: 1000;
-  min-width: 180px;
+  border-top: 3px solid var(--brand);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
 }
 
-.chess-template-item {
-  padding: 8px 12px;
-  font-size: 12px;
+.pieces-popover {
+  display: grid;
+  grid-template-columns: repeat(6, 52px);
+  gap: 4px;
+}
+
+.piece-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  background: var(--bg);
+}
+
+.piece-cell:hover {
+  background: var(--brand-soft);
+}
+
+.piece-glyph {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.piece-name {
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.nags-popover {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  width: 372px;
+}
+
+.nag-row,
+.template-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
   text-align: left;
   background: transparent;
   border: none;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  color: var(--text);
 }
 
-.chess-template-item:last-child {
-  border-bottom: none;
+.nag-row:hover,
+.template-row:hover {
+  background: var(--brand-soft);
 }
 
-.chess-template-item:hover {
-  background: var(--hover);
+.nag-glyph {
+  min-width: 26px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.nag-desc {
+  font-size: 12px;
+}
+
+.templates-popover {
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+}
+
+.template-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border-left: 3px solid transparent;
+}
+
+.template-row:hover {
+  border-left-color: var(--gold);
+}
+
+.template-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.template-desc {
+  font-size: 11.5px;
+  color: var(--text-dim);
 }
 
 /* Modal styling */
@@ -1123,9 +1383,10 @@
 }
 
 .chess-modal-container {
-  background: var(--bg-panel);
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-top: 4px solid var(--brand);
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 860px;
   max-height: 90vh;
@@ -1149,14 +1410,48 @@
 .chess-modal-header h3 {
   margin: 0;
   font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chess-modal-header h3 .icon {
+  color: var(--gold);
 }
 
 .chess-modal-close {
-  background: transparent;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-  color: var(--text-dim);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.board-coord {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  opacity: 0.75;
+}
+.board-coord.rank {
+  top: 2px;
+  left: 2px;
+}
+.board-coord.file {
+  right: 2px;
+  bottom: 2px;
+}
+.chess-square.light .board-coord {
+  color: var(--board-dark);
+}
+.chess-square.dark .board-coord {
+  color: var(--board-light);
+}
+.chess-piece[draggable='true'] {
+  cursor: grab;
 }
 
 .chess-modal-body {
@@ -1187,6 +1482,7 @@
 }
 
 .chess-square {
+  position: relative;
   width: 40px;
   height: 40px;
   display: flex;
@@ -1264,6 +1560,10 @@
 }
 
 .small-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   flex: 1;
   padding: 4px 6px;
   font-size: 11px;
@@ -1329,6 +1629,10 @@
 }
 
 .copy-fen-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   padding: 6px 12px;
   font-size: 12px;
   border: 1px solid var(--border);
@@ -1338,11 +1642,14 @@
 }
 
 .insert-code-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 14px;
   font-size: 12px;
   font-weight: 600;
   background: var(--brand);
-  color: white;
+  color: var(--on-brand);
   border: 1px solid var(--brand-strong);
   border-radius: 4px;
   cursor: pointer;
@@ -1371,6 +1678,10 @@
 }
 
 .pgn-file-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   padding: 4px 8px;
   font-size: 11px;
   border: 1px solid var(--border);

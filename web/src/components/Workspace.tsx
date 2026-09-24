@@ -142,10 +142,11 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     let target = fileName
     if (!target.includes('.')) target += '.typ'
     try {
-      await api.post('/api/workspace/file/create', { path: target, isDir: false })
+      await api.post('/api/workspace/file', { path: target, isDir: false })
       await api.put(`/api/workspace/file?path=${encodeURIComponent(target)}`, NEW_DOC_TEMPLATE)
     } catch {
-      // already exists: just open it
+      // already exists (the create is O_EXCL, so the template write is
+      // skipped and nothing gets overwritten): just open it
     }
     setTreeVersion((v) => v + 1)
     setActivePath(target)
@@ -257,7 +258,20 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
       <div className="workspace-body" ref={bodyRef}>
         {showFileTree && (
           <aside className="workspace-filetree" style={{ width: fileTreeWidth }}>
-            <FileTree key={treeVersion} activePath={activePath ?? ''} onOpenFile={setActivePath} />
+            <FileTree
+              key={treeVersion}
+              activePath={activePath ?? ''}
+              onOpenFile={setActivePath}
+              onPathRemoved={(p) => {
+                if (activePath && (activePath === p || activePath.startsWith(`${p}/`))) setActivePath(null)
+                setTreeVersion((v) => v + 1)
+              }}
+              onPathRenamed={(from, to) => {
+                if (activePath === from) setActivePath(to)
+                else if (activePath?.startsWith(`${from}/`)) setActivePath(to + activePath.slice(from.length))
+                setTreeVersion((v) => v + 1)
+              }}
+            />
           </aside>
         )}
 
@@ -359,7 +373,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 maxWidth: `${(1 - editorRatio) * 100}%`,
               }}
             >
-              <PreviewPane key={`${activePath}-${previewVersion}`} path={activePath} />
+              <PreviewPane path={activePath} version={previewVersion} />
             </section>
           )}
         </div>

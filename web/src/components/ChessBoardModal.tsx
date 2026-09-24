@@ -1,4 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { Icon } from './Icon'
+import { Modal } from './Modal'
 
 interface ChessBoardModalProps {
   isOpen: boolean
@@ -68,6 +70,7 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
   const [difficulty, setDifficulty] = useState(2)
   const [hint, setHint] = useState('')
   const [solution, setSolution] = useState('')
+  const [fenCopied, setFenCopied] = useState(false)
 
   const currentFen = useMemo(() => boardToFen(boardState, turn), [boardState, turn])
 
@@ -121,6 +124,39 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
     setBoardState(newBoard)
   }
 
+  // Drag & drop: from the palette (places a new piece) or from another
+  // square (moves it). Dropping a square's piece outside the board removes it.
+  const DRAG_TYPE = 'application/x-chess-piece'
+  const handleDrop = (e: React.DragEvent, r: number, c: number) => {
+    e.preventDefault()
+    const data = e.dataTransfer.getData(DRAG_TYPE)
+    if (!data) return
+    const newBoard = boardState.map((row) => [...row])
+    if (data.startsWith('sq:')) {
+      const [fr, fc] = data.slice(3).split(',').map(Number)
+      if (fr === r && fc === c) return
+      newBoard[r][c] = newBoard[fr][fc]
+      newBoard[fr][fc] = null
+    } else {
+      newBoard[r][c] = data
+    }
+    setBoardState(newBoard)
+  }
+  const removeDraggedOff = (e: React.DragEvent, r: number, c: number) => {
+    if (e.dataTransfer.dropEffect === 'none') {
+      const newBoard = boardState.map((row) => [...row])
+      newBoard[r][c] = null
+      setBoardState(newBoard)
+    }
+  }
+
+  const copyFen = () => {
+    void navigator.clipboard?.writeText(currentFen).then(() => {
+      setFenCopied(true)
+      window.setTimeout(() => setFenCopied(false), 1500)
+    })
+  }
+
   const handleClearBoard = () => {
     setBoardState(
       Array(8)
@@ -135,208 +171,228 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
   }
 
   return (
-    <div className="chess-modal-overlay">
-      <div className="chess-modal-container">
-        <div className="chess-modal-header">
-          <h3>♟️ Bàn Cờ Trực Quan & Trình Tạo Thế Cờ Typst</h3>
-          <button className="chess-modal-close" onClick={onClose}>
-            ✕
-          </button>
-        </div>
-
-        <div className="chess-modal-body">
-          {/* Left: 8x8 Board & Palette */}
-          <div className="chess-board-area">
-            <div className="chess-board-grid">
-              {(flipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7]).map((r) => (
-                <div key={r} className="chess-board-row">
-                  {(flipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7]).map((c) => {
-                    const isDark = (r + c) % 2 === 1
-                    const piece = boardState[r][c]
-                    return (
-                      <div
-                        key={`${r}-${c}`}
-                        className={`chess-square ${isDark ? 'dark' : 'light'}`}
-                        onClick={() => handleSquareClick(r, c)}
-                      >
-                        {piece && (
-                          <span className={`chess-piece ${piece === piece.toUpperCase() ? 'white' : 'black'}`}>
-                            {PIECE_SYMBOLS[piece]}
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
-
-            {/* Piece Selection Palette */}
-            <div className="chess-piece-palette">
-              <div className="palette-label">Chọn quân để đặt vào ô:</div>
-              <div className="palette-row">
-                {['K', 'Q', 'R', 'B', 'N', 'P'].map((p) => (
-                  <button
-                    key={p}
-                    className={`palette-btn ${selectedTool === p ? 'selected' : ''}`}
-                    onClick={() => setSelectedTool(p)}
-                  >
-                    {PIECE_SYMBOLS[p]}
-                  </button>
-                ))}
+    <Modal
+      title={
+        <>
+          <Icon name="board" /> Bàn cờ trực quan &amp; tạo thế cờ Typst
+        </>
+      }
+      onClose={onClose}
+    >
+      <div className="chess-modal-body">
+        {/* Left: 8x8 Board & Palette */}
+        <div className="chess-board-area">
+          <div className="chess-board-grid" role="grid" aria-label="Bàn cờ">
+            {(flipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7]).map((r, ri) => (
+              <div key={r} className="chess-board-row" role="row">
+                {(flipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7]).map((c, ci) => {
+                  const isDark = (r + c) % 2 === 1
+                  const piece = boardState[r][c]
+                  const square = `${'abcdefgh'[c]}${8 - r}`
+                  return (
+                    <div
+                      key={`${r}-${c}`}
+                      role="gridcell"
+                      aria-label={square}
+                      className={`chess-square ${isDark ? 'dark' : 'light'}`}
+                      onClick={() => handleSquareClick(r, c)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleDrop(e, r, c)}
+                    >
+                      {ci === 0 && <span className="board-coord rank">{8 - r}</span>}
+                      {ri === 7 && <span className="board-coord file">{'abcdefgh'[c]}</span>}
+                      {piece && (
+                        <span
+                          className={`chess-piece ${piece === piece.toUpperCase() ? 'white' : 'black'}`}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData(DRAG_TYPE, `sq:${r},${c}`)
+                            e.dataTransfer.effectAllowed = 'move'
+                          }}
+                          onDragEnd={(e) => removeDraggedOff(e, r, c)}
+                        >
+                          {PIECE_SYMBOLS[piece]}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-              <div className="palette-row">
-                {['k', 'q', 'r', 'b', 'n', 'p'].map((p) => (
-                  <button
-                    key={p}
-                    className={`palette-btn ${selectedTool === p ? 'selected' : ''}`}
-                    onClick={() => setSelectedTool(p)}
-                  >
-                    {PIECE_SYMBOLS[p]}
-                  </button>
-                ))}
-                <button
-                  className={`palette-btn trash ${selectedTool === 'trash' ? 'selected' : ''}`}
-                  title="Xóa quân cờ"
-                  onClick={() => setSelectedTool('trash')}
-                >
-                  🧹
-                </button>
-              </div>
-
-              <div className="board-actions-row">
-                <button className="small-action-btn" onClick={() => setFlipped(!flipped)}>
-                  🔄 Đảo góc nhìn
-                </button>
-                <button className="small-action-btn" onClick={handleResetBoard}>
-                  🏁 Ván cờ đầu
-                </button>
-                <button className="small-action-btn" onClick={handleClearBoard}>
-                  🗑️ Xóa trắng
-                </button>
-              </div>
-            </div>
+            ))}
           </div>
 
-          {/* Right: Parameters & Generated Typst Code */}
-          <div className="chess-config-area">
+          {/* Piece Selection Palette */}
+          <div className="chess-piece-palette">
+            <div className="palette-label">Chọn quân rồi bấm vào ô, hoặc kéo-thả quân lên bàn:</div>
+            <div className="palette-row">
+              {['K', 'Q', 'R', 'B', 'N', 'P'].map((p) => (
+                <button
+                  key={p}
+                  className={`palette-btn ${selectedTool === p ? 'selected' : ''}`}
+                  onClick={() => setSelectedTool(p)}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(DRAG_TYPE, p)
+                    e.dataTransfer.effectAllowed = 'copy'
+                  }}
+                >
+                  {PIECE_SYMBOLS[p]}
+                </button>
+              ))}
+            </div>
+            <div className="palette-row">
+              {['k', 'q', 'r', 'b', 'n', 'p'].map((p) => (
+                <button
+                  key={p}
+                  className={`palette-btn ${selectedTool === p ? 'selected' : ''}`}
+                  onClick={() => setSelectedTool(p)}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(DRAG_TYPE, p)
+                    e.dataTransfer.effectAllowed = 'copy'
+                  }}
+                >
+                  {PIECE_SYMBOLS[p]}
+                </button>
+              ))}
+              <button
+                className={`palette-btn trash ${selectedTool === 'trash' ? 'selected' : ''}`}
+                title="Xóa quân cờ"
+                onClick={() => setSelectedTool('trash')}
+              >
+                <Icon name="x" />
+              </button>
+            </div>
+
+            <div className="board-actions-row">
+              <button className="small-action-btn" onClick={() => setFlipped(!flipped)}>
+                <Icon name="refresh" size={13} /> Đảo góc nhìn
+              </button>
+              <button className="small-action-btn" onClick={handleResetBoard}>
+                <Icon name="board" size={13} /> Thế ban đầu
+              </button>
+              <button className="small-action-btn" onClick={handleClearBoard}>
+                <Icon name="x" size={13} /> Xóa bàn
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Parameters & Generated Typst Code */}
+        <div className="chess-config-area">
+          <div className="config-group">
+            <label>Định dạng Xuất bản:</label>
+            <select
+              value={formatType}
+              onChange={(e) => setFormatType(e.target.value as typeof formatType)}
+              className="chess-select"
+            >
+              <option value="puzzle">🧩 Dạng A: Sách Bài Tập (Puzzle Card)</option>
+              <option value="eco">📖 Dạng B: Bách Khoa Khai Cuộc (ECO Diagram)</option>
+              <option value="magazine">📰 Dạng C: Tạp Chí Cờ Vua (Column Diagram)</option>
+              <option value="courseware">🎓 Dạng D: Giáo Trình Bài Giảng (Teaching Diagram)</option>
+            </select>
+          </div>
+
+          <div className="config-grid-2">
             <div className="config-group">
-              <label>Định dạng Xuất bản:</label>
+              <label>Lượt đi:</label>
               <select
-                value={formatType}
-                onChange={(e) => setFormatType(e.target.value as any)}
+                value={turn}
+                onChange={(e) => setTurn(e.target.value as 'w' | 'b')}
                 className="chess-select"
               >
-                <option value="puzzle">🧩 Dạng A: Sách Bài Tập (Puzzle Card)</option>
-                <option value="eco">📖 Dạng B: Bách Khoa Khai Cuộc (ECO Diagram)</option>
-                <option value="magazine">📰 Dạng C: Tạp Chí Cờ Vua (Column Diagram)</option>
-                <option value="courseware">🎓 Dạng D: Giáo Trình Bài Giảng (Teaching Diagram)</option>
+                <option value="w">⬜ Trắng đi trước (w)</option>
+                <option value="b">⬛ Đen đi trước (b)</option>
               </select>
             </div>
-
-            <div className="config-grid-2">
-              <div className="config-group">
-                <label>Lượt đi:</label>
-                <select
-                  value={turn}
-                  onChange={(e) => setTurn(e.target.value as 'w' | 'b')}
-                  className="chess-select"
-                >
-                  <option value="w">⬜ Trắng đi trước (w)</option>
-                  <option value="b">⬛ Đen đi trước (b)</option>
-                </select>
-              </div>
-              {formatType === 'puzzle' && (
-                <div className="config-group">
-                  <label>Số thứ tự / Bài #:</label>
-                  <input
-                    type="number"
-                    value={puzzleNum}
-                    onChange={(e) => setPuzzleNum(Number(e.target.value))}
-                    className="chess-input"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="config-group">
-              <label>Tiêu đề thế cờ / Ghi chú:</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="chess-input"
-                placeholder="VD: Đòn chiếu bắt Hậu, Khai cuộc Ý..."
-              />
-            </div>
-
             {formatType === 'puzzle' && (
-              <>
-                <div className="config-grid-2">
-                  <div className="config-group">
-                    <label>Độ khó (sao):</label>
-                    <select
-                      value={difficulty}
-                      onChange={(e) => setDifficulty(Number(e.target.value))}
-                      className="chess-select"
-                    >
-                      <option value="1">★☆☆☆☆ (Dễ / 1 Sao)</option>
-                      <option value="2">★★☆☆☆ (Trung bình / 2 Sao)</option>
-                      <option value="3">★★★☆☆ (Khá / 3 Sao)</option>
-                      <option value="4">★★★★☆ (Khó / 4 Sao)</option>
-                      <option value="5">★★★★★ (Siêu khó / 5 Sao)</option>
-                    </select>
-                  </div>
-                  <div className="config-group">
-                    <label>Gợi ý:</label>
-                    <input
-                      type="text"
-                      value={hint}
-                      onChange={(e) => setHint(e.target.value)}
-                      className="chess-input"
-                      placeholder="VD: Chú ý quân Xe d1..."
-                    />
-                  </div>
-                </div>
+              <div className="config-group">
+                <label>Số thứ tự / Bài #:</label>
+                <input
+                  type="number"
+                  value={puzzleNum}
+                  onChange={(e) => setPuzzleNum(Number(e.target.value))}
+                  className="chess-input"
+                />
+              </div>
+            )}
+          </div>
 
+          <div className="config-group">
+            <label>Tiêu đề thế cờ / Ghi chú:</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="chess-input"
+              placeholder="VD: Đòn chiếu bắt Hậu, Khai cuộc Ý..."
+            />
+          </div>
+
+          {formatType === 'puzzle' && (
+            <>
+              <div className="config-grid-2">
                 <div className="config-group">
-                  <label>Lời giải bài tập (Solution):</label>
+                  <label>Độ khó (sao):</label>
+                  <select
+                    value={difficulty}
+                    onChange={(e) => setDifficulty(Number(e.target.value))}
+                    className="chess-select"
+                  >
+                    <option value="1">★☆☆☆☆ (Dễ / 1 Sao)</option>
+                    <option value="2">★★☆☆☆ (Trung bình / 2 Sao)</option>
+                    <option value="3">★★★☆☆ (Khá / 3 Sao)</option>
+                    <option value="4">★★★★☆ (Khó / 4 Sao)</option>
+                    <option value="5">★★★★★ (Siêu khó / 5 Sao)</option>
+                  </select>
+                </div>
+                <div className="config-group">
+                  <label>Gợi ý:</label>
                   <input
                     type="text"
-                    value={solution}
-                    onChange={(e) => setSolution(e.target.value)}
+                    value={hint}
+                    onChange={(e) => setHint(e.target.value)}
                     className="chess-input"
-                    placeholder="VD: 1. Qh7+ Kxh7 2. Rh5# (Chiếu hết)"
+                    placeholder="VD: Chú ý quân Xe d1..."
                   />
                 </div>
-              </>
-            )}
+              </div>
 
-            <div className="config-group">
-              <label>Mã Typst được tạo tự động:</label>
-              <pre className="chess-code-preview">{generatedTypstCode}</pre>
-            </div>
+              <div className="config-group">
+                <label>Lời giải bài tập (Solution):</label>
+                <input
+                  type="text"
+                  value={solution}
+                  onChange={(e) => setSolution(e.target.value)}
+                  className="chess-input"
+                  placeholder="VD: 1. Qh7+ Kxh7 2. Rh5# (Chiếu hết)"
+                />
+              </div>
+            </>
+          )}
 
-            <div className="chess-modal-footer">
-              <button
-                className="copy-fen-btn"
-                onClick={() => navigator.clipboard.writeText(currentFen)}
-              >
-                📋 Sao chép FEN
-              </button>
-              <button
-                className="insert-code-btn"
-                onClick={() => {
-                  onInsertCode(generatedTypstCode)
-                  onClose()
-                }}
-              >
-                ✨ Chèn vào Tài Liệu
-              </button>
-            </div>
+          <div className="config-group">
+            <label>Mã Typst được tạo tự động:</label>
+            <pre className="chess-code-preview">{generatedTypstCode}</pre>
+          </div>
+
+          <div className="chess-modal-footer">
+            <button className="copy-fen-btn" onClick={copyFen}>
+              <Icon name={fenCopied ? 'check' : 'file'} size={14} /> {fenCopied ? 'Đã chép FEN' : 'Sao chép FEN'}
+            </button>
+            <button
+              className="insert-code-btn btn-primary"
+              onClick={() => {
+                onInsertCode(generatedTypstCode)
+                onClose()
+              }}
+            >
+              <Icon name="download" size={14} /> Chèn vào tài liệu
+            </button>
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }
