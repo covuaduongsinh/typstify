@@ -27,6 +27,7 @@ const PATHS: Record<string, string> = {
   error: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9 9l6 6M15 9l-6 6',
   board: 'M4 4h16v16H4zM4 12h16M12 4v16M4 4h8v8H4zM12 12h8v8h-8z',
   scroll: 'M7 4h11a2 2 0 0 1 2 2v1h-4M7 4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7M7 4a2 2 0 0 1 2 2v12M12 10h4M12 14h4',
+  send: 'M4 12l16-8-6 16-2.5-6.5zM11.5 13.5L20 4',
   template: 'M4 4h16v5H4zM4 13h7v7H4zM15 13h5M15 17h5',
 }
 

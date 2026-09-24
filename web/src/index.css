@@ -31,6 +31,7 @@
   --accent: #2b3990;
   --brand-soft: rgba(43, 57, 144, 0.12);
   --gold-soft: rgba(201, 162, 39, 0.16);
+  --pattern: rgba(43, 57, 144, 0.045);
   --success: #2e7d32;
   --warning: #b7791f;
   --error: #c62828;
@@ -66,6 +67,7 @@
     --accent: #8f9cf0;
     --brand-soft: rgba(143, 156, 240, 0.16);
     --gold-soft: rgba(201, 162, 39, 0.2);
+    --pattern: rgba(143, 156, 240, 0.05);
     --success: #66bb6a;
     --warning: #e0b341;
     --error: #ef5350;
@@ -101,6 +103,7 @@
   --accent: #8f9cf0;
   --brand-soft: rgba(143, 156, 240, 0.16);
   --gold-soft: rgba(201, 162, 39, 0.2);
+  --pattern: rgba(143, 156, 240, 0.05);
   --success: #66bb6a;
   --warning: #e0b341;
   --error: #ef5350;

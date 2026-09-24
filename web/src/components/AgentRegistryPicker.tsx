@@ -20,7 +20,7 @@ export function AgentRegistryPicker({ onSelected }: { onSelected: (settings: Age
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Không tải được danh sách trợ lý AI'))
   }, [])
 
-  const entry: AgentRegistryEntry | undefined = registry?.agents.find((a) => a.id === selectedId)
+  const entry: AgentRegistryEntry | undefined = registry?.agents?.find((a) => a.id === selectedId)
 
   const use = async () => {
     if (!selectedId) return
@@ -37,8 +37,7 @@ export function AgentRegistryPicker({ onSelected }: { onSelected: (settings: Age
   }
 
   return (
-    <section className="settings-section agent-registry-picker">
-      <h2>Chọn trợ lý AI</h2>
+    <section className="agent-registry-picker">
       <p className="settings-hint">
         Chọn một trợ lý từ danh sách ACP chính thức. Bấm "Dùng" để ghi đè cấu hình thủ công
         bên dưới.
@@ -47,7 +46,7 @@ export function AgentRegistryPicker({ onSelected }: { onSelected: (settings: Age
       <div className="agent-registry-row">
         <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
           <option value="">Chọn trợ lý…</option>
-          {registry?.agents.map((a) => (
+          {registry?.agents?.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
             </option>
