@@ -35,7 +35,11 @@ function App() {
 
   switch (screen.kind) {
     case 'loading':
-      return <div className="app-loading">Loading…</div>
+      return (
+        <div className="app-loading" role="status" aria-label="Đang tải">
+          <span className="spinner spinner-lg" />
+        </div>
+      )
     case 'login':
       return <LoginPage onLoggedIn={checkCurrentProject} />
     case 'pickProject':

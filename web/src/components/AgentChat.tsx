@@ -12,6 +12,7 @@ import {
   type ToolCall,
 } from '../lib/acpTypes'
 import { AuthCard } from './AuthCard'
+import { Icon } from './Icon'
 import { QuickActions } from './QuickActions'
 
 // How close to the bottom (px) the user has to be for new messages to
@@ -30,6 +31,19 @@ function isTextEntry(e: ChatEntry): e is { kind: TextEntryKind; id: string; text
 }
 
 let nextEntryId = 1
+
+const TOOL_STATUS_LABEL: Record<string, string> = {
+  pending: 'Đang chờ',
+  in_progress: 'Đang chạy',
+  completed: 'Xong',
+  failed: 'Lỗi',
+}
+
+function ToolStatusIcon({ status }: { status: string }) {
+  if (status === 'completed') return <Icon name="check" size={13} />
+  if (status === 'failed') return <Icon name="error" size={13} />
+  return <span className="spinner" />
+}
 
 export function AgentChat({ projectPath }: { projectPath: string }) {
   const [entries, setEntries] = useState<ChatEntry[]>([])
@@ -134,7 +148,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
         }
         case 'plan':
           setWaiting(false)
-          append({ kind: 'plan', id: `e${nextEntryId++}`, text: 'Plan updated' })
+          append({ kind: 'plan', id: `e${nextEntryId++}`, text: 'Đã cập nhật kế hoạch' })
           break
         case 'permissionRequest':
           setWaiting(false)
@@ -147,7 +161,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
           break
         case 'error':
           setWaiting(false)
-          append({ kind: 'error', id: `e${nextEntryId++}`, text: msg.message ?? 'Unknown agent error' })
+          append({ kind: 'error', id: `e${nextEntryId++}`, text: msg.message ?? 'Lỗi không xác định từ trợ lý AI' })
           break
         case 'disconnected':
           setConnected(false)
@@ -165,7 +179,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
             append({
               kind: 'error',
               id: `e${nextEntryId++}`,
-              text: 'Connection to the agent was lost. Use "Retry connection" below to start a new session.',
+              text: 'Mất kết nối với trợ lý AI. Bấm "Kết nối lại" để mở phiên mới.',
             })
           }
           break
@@ -207,7 +221,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
     append({
       kind: 'user',
       id: `e${nextEntryId++}`,
-      text: trimmed || `[${images.length} image${images.length > 1 ? 's' : ''}]`,
+      text: trimmed || `[${images.length} ảnh]`,
     })
     setWaiting(true)
     clientRef.current.prompt(trimmed, images)
@@ -284,37 +298,40 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
   return (
     <div className="agent-chat">
       <div className="agent-chat-status">
-        {connected ? 'Agent connected' : 'Connecting to agent…'}
+        <span
+          className={`status-dot ${connected ? 'online' : hasDisconnectedOnce ? 'offline' : 'connecting'}`}
+          aria-hidden="true"
+        />
+        <span className="agent-chat-status-text">
+          {connected ? 'Trợ lý AI đã sẵn sàng' : hasDisconnectedOnce ? 'Mất kết nối' : 'Đang kết nối trợ lý AI…'}
+        </span>
         {!connected && hasDisconnectedOnce && (
-          <button className="chat-retry-btn" onClick={() => setRetryToken((n) => n + 1)}>
-            Retry connection
+          <button className="chat-retry-btn btn-primary" onClick={() => setRetryToken((n) => n + 1)}>
+            <Icon name="refresh" size={12} /> Kết nối lại
           </button>
         )}
-        {connected &&
-          configOptions
-            .filter((opt) => opt.type === 'select' && Array.isArray(opt.options))
-            .map((opt) => (
-              <select
-                key={opt.id}
-                className="chat-model-select"
-                title={opt.name}
-                value={typeof opt.currentValue === 'string' ? opt.currentValue : ''}
-                onChange={(e) => changeConfigOption(opt.id, e.target.value)}
-              >
-                {opt.options!.map((choice) => (
-                  <option key={choice.value} value={choice.value}>
-                    {choice.name}
-                  </option>
-                ))}
-              </select>
-            ))}
       </div>
       <div className="agent-chat-log" ref={scrollRef} role="log" aria-live="polite">
+        {entries.length === 0 && (
+          <div className="chat-empty">
+            <Icon name="sparkles" size={28} />
+            <p className="chat-empty-title">Trợ lý AI soạn sách cờ vua</p>
+            <p>
+              Nhờ trợ lý viết bài tập, soạn bài giảng, dịch tài liệu hoặc sửa lỗi Typst. Trợ lý đọc được file đang mở
+              và có thể sửa trực tiếp.
+            </p>
+            <p className="chat-empty-hint">Chọn một gợi ý bên dưới hoặc gõ yêu cầu của bạn.</p>
+          </div>
+        )}
         {entries.map((e) => (
           <div key={e.id} className={`chat-entry chat-entry-${e.kind}`}>
             {e.kind === 'tool' ? (
-              <div className="tool-card">
-                <span className="tool-status">{e.status}</span> {e.title}
+              <div className={`tool-card tool-${e.status}`}>
+                <span className="tool-status">
+                  <ToolStatusIcon status={e.status} />
+                  {TOOL_STATUS_LABEL[e.status] ?? e.status}
+                </span>
+                <span className="tool-title">{e.title}</span>
               </div>
             ) : e.kind === 'agent' || e.kind === 'thought' ? (
               <div className="chat-text chat-text-markdown">
@@ -328,12 +345,13 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
         {waiting && (
           <div className="chat-entry chat-entry-waiting">
             <div className="chat-text">
+              <span className="spinner" />{' '}
               {waitingLong
-                ? 'Still waiting — this is taking longer than usual. The agent may be working on something complex, or stuck.'
-                : 'Agent is thinking…'}
+                ? 'Vẫn đang chờ — lâu hơn bình thường. Trợ lý có thể đang xử lý việc phức tạp, hoặc bị treo.'
+                : 'Trợ lý đang suy nghĩ…'}
             </div>
             <button className="chat-cancel-btn" onClick={cancelTurn}>
-              Cancel
+              Dừng
             </button>
           </div>
         )}
@@ -358,10 +376,10 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
         <div className="chat-pending-images">
           {pendingImages.map((img, i) => (
             <div key={i} className="chat-pending-image">
-              <img src={`data:${img.mimeType};base64,${img.data}`} alt={`pasted ${i + 1}`} />
+              <img src={`data:${img.mimeType};base64,${img.data}`} alt={`ảnh dán ${i + 1}`} />
               <button
                 className="chat-pending-image-remove"
-                title="Remove"
+                title="Bỏ ảnh"
                 onClick={() => setPendingImages((prev) => prev.filter((_, idx) => idx !== i))}
               >
                 ×
@@ -372,21 +390,52 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
       )}
 
       <div className="agent-chat-input">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              if (connected && !waiting) submit()
-            }
-          }}
-          onPaste={handlePaste}
-          placeholder="Ask the AI agent… (paste an image to attach it)"
-        />
-        <button onClick={submit} disabled={!connected || waiting}>
-          Send
-        </button>
+        {connected && configOptions.some((opt) => opt.type === 'select' && Array.isArray(opt.options)) && (
+          <div className="chat-config-row">
+            {configOptions
+              .filter((opt) => opt.type === 'select' && Array.isArray(opt.options))
+              .map((opt) => (
+                <select
+                  key={opt.id}
+                  className="chat-model-select"
+                  title={opt.name}
+                  aria-label={opt.name}
+                  value={typeof opt.currentValue === 'string' ? opt.currentValue : ''}
+                  onChange={(e) => changeConfigOption(opt.id, e.target.value)}
+                >
+                  {opt.options!.map((choice) => (
+                    <option key={choice.value} value={choice.value}>
+                      {choice.name}
+                    </option>
+                  ))}
+                </select>
+              ))}
+          </div>
+        )}
+        <div className="chat-compose">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                if (connected && !waiting) submit()
+              }
+            }}
+            onPaste={handlePaste}
+            aria-label="Tin nhắn cho trợ lý AI"
+            placeholder="Hỏi trợ lý AI… (Enter gửi, Shift+Enter xuống dòng, dán ảnh để đính kèm)"
+          />
+          <button
+            className="btn-primary chat-send"
+            onClick={submit}
+            disabled={!connected || waiting}
+            aria-label="Gửi"
+            title="Gửi (Enter)"
+          >
+            <Icon name="send" size={16} />
+          </button>
+        </div>
       </div>
     </div>
   )

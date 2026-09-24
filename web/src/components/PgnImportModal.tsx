@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Icon } from './Icon'
+import { Modal } from './Modal'
 
 interface PgnImportModalProps {
   isOpen: boolean
@@ -128,21 +130,32 @@ export function PgnImportModal({ isOpen, onClose, onInsertCode }: PgnImportModal
   }
 
   return (
-    <div className="chess-modal-overlay">
-      <div className="chess-modal-container pgn-modal">
-        <div className="chess-modal-header">
-          <h3>📜 Nhập Ván Cờ Từ PGN & Chuyển Sang Typst</h3>
-          <button className="chess-modal-close" onClick={onClose}>
-            ✕
+    <Modal
+      className="pgn-modal"
+      title={
+        <>
+          <Icon name="scroll" /> Nhập ván cờ từ PGN
+        </>
+      }
+      onClose={onClose}
+      footer={
+        <>
+          <button className="small-action-btn" onClick={() => setPgnInput(SAMPLE_PGN)}>
+            <Icon name="refresh" size={13} /> Nạp ván mẫu
           </button>
-        </div>
+          <button className="insert-code-btn btn-primary" onClick={handleImport} disabled={!pgnInput.trim()}>
+            <Icon name="download" size={14} /> Chuyển đổi &amp; chèn vào tài liệu
+          </button>
+        </>
+      }
+    >
 
         <div className="chess-modal-body">
           <div className="pgn-input-section">
             <div className="pgn-input-header">
               <label>Dán nội dung PGN hoặc chọn file .pgn từ máy tính:</label>
               <label className="pgn-file-upload-btn">
-                📂 Tải file PGN
+                <Icon name="folder-open" size={13} /> Chọn file .pgn
                 <input
                   type="file"
                   accept=".pgn,.txt"
@@ -161,15 +174,6 @@ export function PgnImportModal({ isOpen, onClose, onInsertCode }: PgnImportModal
           </div>
         </div>
 
-        <div className="chess-modal-footer">
-          <button className="small-action-btn" onClick={() => setPgnInput(SAMPLE_PGN)}>
-            🔄 Nạp ván mẫu
-          </button>
-          <button className="insert-code-btn" onClick={handleImport}>
-            ✨ Chuyển đổi & Chèn vào Tài Liệu
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

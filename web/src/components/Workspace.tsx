@@ -1,124 +1,113 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
+import type { TreeEntry } from '../api/types'
 import { useTranslations } from '../lib/i18n'
+import { useTheme } from '../lib/theme'
 import { AgentChat } from './AgentChat'
+import { BrandMark } from './BrandMark'
+import { ChessBoardModal } from './ChessBoardModal'
+import { ChessToolbar } from './ChessToolbar'
 import { Editor, type EditorHandle } from './Editor'
 import { ExportButton } from './ExportButton'
 import { FileTree } from './FileTree'
+import { Icon, type IconName } from './Icon'
 import { PackageManager } from './PackageManager'
-import { PreviewPane } from './PreviewPane'
-import { SettingsPanel } from './SettingsPanel'
-import { ChessToolbar } from './ChessToolbar'
-import { ChessBoardModal } from './ChessBoardModal'
 import { PgnImportModal } from './PgnImportModal'
+import { PreviewPane } from './PreviewPane'
+import { PromptDialog } from './PromptDialog'
+import { Resizer } from './Resizer'
+import { SettingsPanel } from './SettingsPanel'
+import { StatusBar, type DiagnosticCounts } from './StatusBar'
 
 const I18N_KEYS = ['AI Assistant', 'Settings', 'Export']
 
 type SidePanel = 'agent' | 'packages' | 'settings' | null
 
+const FILETREE_DEFAULT = 230
+const FILETREE_MIN = 160
+const FILETREE_MAX = 500
+const SIDEPANEL_DEFAULT = 340
+const SIDEPANEL_MIN = 260
+const SIDEPANEL_MAX = 650
+const RATIO_MIN = 0.15
+const RATIO_MAX = 0.85
+
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
+
+// localStorage can throw (private mode, blocked site data); layout
+// preferences are a convenience, so failures just fall back to defaults.
+function loadPref(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+function savePref(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // ignore
+  }
+}
+
+const NEW_DOC_TEMPLATE = `// Tài Liệu Cờ Vua Mới\n#set text(font: ("Arial", "Segoe UI Symbol"), size: 9.5pt, lang: "vi")\n\n= Tiêu Đề Tài Liệu\n\n`
+
 export function Workspace({ projectPath, onCloseProject }: { projectPath: string; onCloseProject: () => void }) {
   const [activePath, setActivePath] = useState<string | null>(null)
   const [content, setContent] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [cursor, setCursor] = useState<{ line: number; col: number } | null>(null)
+  const [diagnostics, setDiagnostics] = useState<DiagnosticCounts>({ errors: 0, warnings: 0 })
   const [sidePanel, setSidePanel] = useState<SidePanel>('agent')
   const [previewVersion, setPreviewVersion] = useState(0)
   const [isBoardOpen, setIsBoardOpen] = useState(false)
   const [isPgnOpen, setIsPgnOpen] = useState(false)
+  const [isNewDocOpen, setIsNewDocOpen] = useState(false)
+  const [treeVersion, setTreeVersion] = useState(0)
+  const [rootFiles, setRootFiles] = useState<TreeEntry[]>([])
 
-  // Layout & Resizing States
-  const [showFileTree, setShowFileTree] = useState<boolean>(() => {
-    const saved = localStorage.getItem('typstify_show_filetree')
-    return saved !== null ? saved === 'true' : true
+  // Layout & resizing state
+  const [showFileTree, setShowFileTree] = useState(() => loadPref('typstify_show_filetree') !== 'false')
+  const [fileTreeWidth, setFileTreeWidth] = useState(() => {
+    const saved = parseInt(loadPref('typstify_filetree_width') ?? '', 10)
+    return Number.isFinite(saved) ? clamp(saved, FILETREE_MIN, FILETREE_MAX) : FILETREE_DEFAULT
   })
-  const [fileTreeWidth, setFileTreeWidth] = useState<number>(() => {
-    const saved = localStorage.getItem('typstify_filetree_width')
-    return saved ? Math.max(160, Math.min(500, parseInt(saved, 10))) : 230
+  const [showPreview, setShowPreview] = useState(() => loadPref('typstify_show_preview') !== 'false')
+  const [editorRatio, setEditorRatio] = useState(() => {
+    const saved = parseFloat(loadPref('typstify_editor_ratio') ?? '')
+    return Number.isFinite(saved) ? clamp(saved, RATIO_MIN, RATIO_MAX) : 0.5
   })
-
-  const [showPreview, setShowPreview] = useState<boolean>(() => {
-    const saved = localStorage.getItem('typstify_show_preview')
-    return saved !== null ? saved === 'true' : true
+  const [sidePanelWidth, setSidePanelWidth] = useState(() => {
+    const saved = parseInt(loadPref('typstify_sidepanel_width') ?? '', 10)
+    return Number.isFinite(saved) ? clamp(saved, SIDEPANEL_MIN, SIDEPANEL_MAX) : SIDEPANEL_DEFAULT
   })
-  const [editorRatio, setEditorRatio] = useState<number>(() => {
-    const saved = localStorage.getItem('typstify_editor_ratio')
-    return saved ? Math.max(0.15, Math.min(0.85, parseFloat(saved))) : 0.5
-  })
-
-  const [sidePanelWidth, setSidePanelWidth] = useState<number>(() => {
-    const saved = localStorage.getItem('typstify_sidepanel_width')
-    return saved ? Math.max(260, Math.min(650, parseInt(saved, 10))) : 340
-  })
-
-  const [resizing, setResizing] = useState<'filetree' | 'editor' | 'sidepanel' | null>(null)
+  const [resizing, setResizing] = useState(false)
 
   const bodyRef = useRef<HTMLDivElement>(null)
   const middleAreaRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<EditorHandle>(null)
   const t = useTranslations(I18N_KEYS)
+  const [theme, toggleTheme] = useTheme()
 
-  // Persist layout settings
+  useEffect(() => savePref('typstify_show_filetree', String(showFileTree)), [showFileTree])
+  useEffect(() => savePref('typstify_filetree_width', String(fileTreeWidth)), [fileTreeWidth])
+  useEffect(() => savePref('typstify_show_preview', String(showPreview)), [showPreview])
+  useEffect(() => savePref('typstify_editor_ratio', String(editorRatio)), [editorRatio])
+  useEffect(() => savePref('typstify_sidepanel_width', String(sidePanelWidth)), [sidePanelWidth])
+
+  // Root-level .typ files for the welcome screen's "open" shortcuts.
   useEffect(() => {
-    localStorage.setItem('typstify_show_filetree', String(showFileTree))
-  }, [showFileTree])
-
-  useEffect(() => {
-    localStorage.setItem('typstify_filetree_width', String(fileTreeWidth))
-  }, [fileTreeWidth])
-
-  useEffect(() => {
-    localStorage.setItem('typstify_show_preview', String(showPreview))
-  }, [showPreview])
-
-  useEffect(() => {
-    localStorage.setItem('typstify_editor_ratio', String(editorRatio))
-  }, [editorRatio])
-
-  useEffect(() => {
-    localStorage.setItem('typstify_sidepanel_width', String(sidePanelWidth))
-  }, [sidePanelWidth])
-
-  // Mouse move and up handlers for resizing
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!resizing) return
-
-      if (resizing === 'filetree' && bodyRef.current) {
-        const bodyRect = bodyRef.current.getBoundingClientRect()
-        const newWidth = Math.max(160, Math.min(500, e.clientX - bodyRect.left))
-        setFileTreeWidth(newWidth)
-      } else if (resizing === 'editor' && middleAreaRef.current) {
-        const middleRect = middleAreaRef.current.getBoundingClientRect()
-        const relativeX = e.clientX - middleRect.left
-        const ratio = Math.max(0.15, Math.min(0.85, relativeX / middleRect.width))
-        setEditorRatio(ratio)
-      } else if (resizing === 'sidepanel' && bodyRef.current) {
-        const bodyRect = bodyRef.current.getBoundingClientRect()
-        const newWidth = Math.max(260, Math.min(650, bodyRect.right - e.clientX))
-        setSidePanelWidth(newWidth)
-      }
-    },
-    [resizing]
-  )
-
-  const handleMouseUp = useCallback(() => {
-    if (resizing) {
-      setResizing(null)
-    }
-  }, [resizing])
-
-  useEffect(() => {
-    if (resizing) {
-      window.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove)
-        window.removeEventListener('mouseup', handleMouseUp)
-      }
-    }
-  }, [resizing, handleMouseMove, handleMouseUp])
+    api
+      .get<TreeEntry[]>('/api/workspace/tree?path=')
+      .then((list) => setRootFiles((list ?? []).filter((e) => !e.isDir && e.name.endsWith('.typ'))))
+      .catch(() => setRootFiles([]))
+  }, [treeVersion])
 
   useEffect(() => {
     setDirty(false)
+    setCursor(null)
     if (!activePath) {
       setContent(null)
       return
@@ -136,6 +125,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const saveActiveFile = async (newContent: string) => {
     if (!activePath) return
     await api.put(`/api/workspace/file?path=${encodeURIComponent(activePath)}`, newContent)
+    setLastSaved(new Date())
 
     if (activePath.endsWith('.typ')) {
       await api.post('/api/preview/restart', { entryFile: activePath })
@@ -147,102 +137,158 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     editorRef.current?.insertText(text)
   }
 
-  const handleCreateNewDoc = async () => {
-    const fileName = window.prompt('Nhập tên file Typst mới:', 'chess_document.typ')
-    if (!fileName || !fileName.trim()) return
-    let target = fileName.trim()
+  const createNewDoc = async (fileName: string) => {
+    setIsNewDocOpen(false)
+    let target = fileName
     if (!target.includes('.')) target += '.typ'
-    const initialCode = `// Tài Liệu Cờ Vua Mới\n#set text(font: ("Arial", "Segoe UI Symbol"), size: 9.5pt, lang: "vi")\n\n= Tiêu Đề Tài Liệu\n\n`
     try {
-      await api.post('/api/workspace/file/create', { path: target, isDir: false })
-      await api.put(`/api/workspace/file?path=${encodeURIComponent(target)}`, initialCode)
+      await api.post('/api/workspace/file', { path: target, isDir: false })
+      await api.put(`/api/workspace/file?path=${encodeURIComponent(target)}`, NEW_DOC_TEMPLATE)
     } catch {
-      // open anyway if exists
+      // already exists (the create is O_EXCL, so the template write is
+      // skipped and nothing gets overwritten): just open it
     }
+    setTreeVersion((v) => v + 1)
     setActivePath(target)
   }
 
+  const togglePanel = (panel: Exclude<SidePanel, null>) => setSidePanel(sidePanel === panel ? null : panel)
+
+  const projectName = projectPath.split('/').filter(Boolean).pop() ?? projectPath
+  const crumbs = activePath ? activePath.split('/') : []
+
+  const panelToggles: Array<{ id: Exclude<SidePanel, null>; icon: IconName; label: string }> = [
+    { id: 'agent', icon: 'sparkles', label: t('AI Assistant') },
+    { id: 'packages', icon: 'package', label: 'Gói Typst' },
+    { id: 'settings', icon: 'sliders', label: t('Settings') },
+  ]
+
   return (
     <div className="workspace">
-      {/* Invisible overlay while resizing to prevent iframes/embeds from swallowing mouse events */}
+      {/* Transparent overlay while resizing so the PDF <embed> can't swallow pointer events */}
       {resizing && <div className="resizing-overlay" />}
 
       <header className="workspace-header">
-        <button onClick={onCloseProject} title="Quay lại danh sách dự án">&larr; Projects</button>
-        <span className="project-path">{projectPath}</span>
-
-        {/* View Layout Toggles */}
-        <div className="workspace-header-layout-toggles">
-          <button
-            className={`toggle-panel-btn ${showFileTree ? 'active' : ''}`}
-            onClick={() => setShowFileTree(!showFileTree)}
-            title={showFileTree ? 'Ẩn Cây Thư Mục' : 'Hiện Cây Thư Mục'}
-          >
-            📁 Files
+        <div className="hdr-group hdr-left">
+          <BrandMark size={24} />
+          <button className="btn-ghost hdr-btn" onClick={onCloseProject} title="Quay lại danh sách dự án">
+            <Icon name="back" />
+            <span className="hdr-label">Dự án</span>
           </button>
-          <button
-            className={`toggle-panel-btn ${showPreview ? 'active' : ''}`}
-            onClick={() => setShowPreview(!showPreview)}
-            title={showPreview ? 'Ẩn Bản Xem Trước' : 'Hiện Bản Xem Trước'}
-          >
-            👁️ Preview
-          </button>
+          <span className="project-name" title={projectPath}>
+            {projectName}
+          </span>
         </div>
 
-        {activePath && (
+        <div className="hdr-group hdr-center">
+          {activePath && (
+            <>
+              <nav className="breadcrumb" aria-label="File đang mở">
+                {crumbs.map((c, i) => (
+                  <span key={i} className={i === crumbs.length - 1 ? 'crumb crumb-current' : 'crumb'}>
+                    {i > 0 && <Icon name="chevron-right" size={12} className="crumb-sep" />}
+                    {c}
+                  </span>
+                ))}
+                {dirty && <span className="dirty-dot" title="Có thay đổi chưa lưu" />}
+              </nav>
+              <button
+                className={`hdr-btn save-btn${dirty ? ' btn-accent' : ' btn-ghost'}`}
+                title="Lưu (Ctrl+S)"
+                disabled={!dirty}
+                onClick={() => editorRef.current?.save()}
+              >
+                <Icon name={dirty ? 'save' : 'check'} />
+                <span className="hdr-label">{dirty ? 'Lưu' : 'Đã lưu'}</span>
+              </button>
+            </>
+          )}
+        </div>
+
+        <div className="hdr-group hdr-right">
+          {activePath?.endsWith('.typ') && <ExportButton path={activePath} />}
+
+          <div className="hdr-toggle-group" role="group" aria-label="Bố cục">
+            <button
+              className={`hdr-btn icon-toggle${showFileTree ? ' active' : ''}`}
+              onClick={() => setShowFileTree(!showFileTree)}
+              aria-pressed={showFileTree}
+              title={showFileTree ? 'Ẩn cây thư mục' : 'Hiện cây thư mục'}
+            >
+              <Icon name="folder" />
+              <span className="hdr-label">Tệp</span>
+            </button>
+            <button
+              className={`hdr-btn icon-toggle${showPreview ? ' active' : ''}`}
+              onClick={() => setShowPreview(!showPreview)}
+              aria-pressed={showPreview}
+              title={showPreview ? 'Ẩn bản xem trước' : 'Hiện bản xem trước'}
+            >
+              <Icon name="eye" />
+              <span className="hdr-label">Xem trước</span>
+            </button>
+          </div>
+
+          <div className="hdr-toggle-group" role="group" aria-label="Bảng bên phải">
+            {panelToggles.map((p) => (
+              <button
+                key={p.id}
+                className={`hdr-btn icon-toggle${sidePanel === p.id ? ' active' : ''}`}
+                onClick={() => togglePanel(p.id)}
+                aria-pressed={sidePanel === p.id}
+                title={p.label}
+              >
+                <Icon name={p.icon} />
+                <span className="hdr-label">{p.label}</span>
+              </button>
+            ))}
+          </div>
+
           <button
-            className="save-btn"
-            title="Save (Ctrl+S)"
-            disabled={!dirty}
-            onClick={() => editorRef.current?.save()}
+            className="btn-ghost hdr-btn theme-toggle"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+            aria-label={theme === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
           >
-            {dirty ? 'Save*' : 'Saved'}
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
           </button>
-        )}
-        <div className="header-spacer" />
-        {activePath?.endsWith('.typ') && <ExportButton path={activePath} />}
-        <button
-          className={sidePanel === 'agent' ? 'active' : ''}
-          onClick={() => setSidePanel(sidePanel === 'agent' ? null : 'agent')}
-        >
-          {t('AI Assistant')}
-        </button>
-        <button
-          className={sidePanel === 'packages' ? 'active' : ''}
-          onClick={() => setSidePanel(sidePanel === 'packages' ? null : 'packages')}
-        >
-          Packages
-        </button>
-        <button
-          className={sidePanel === 'settings' ? 'active' : ''}
-          onClick={() => setSidePanel(sidePanel === 'settings' ? null : 'settings')}
-        >
-          {t('Settings')}
-        </button>
+        </div>
       </header>
 
       <div className="workspace-body" ref={bodyRef}>
-        {/* Left FileTree Panel */}
         {showFileTree && (
           <aside className="workspace-filetree" style={{ width: fileTreeWidth }}>
-            <FileTree activePath={activePath ?? ''} onOpenFile={setActivePath} />
+            <FileTree
+              key={treeVersion}
+              activePath={activePath ?? ''}
+              onOpenFile={setActivePath}
+              onPathRemoved={(p) => {
+                if (activePath && (activePath === p || activePath.startsWith(`${p}/`))) setActivePath(null)
+                setTreeVersion((v) => v + 1)
+              }}
+              onPathRenamed={(from, to) => {
+                if (activePath === from) setActivePath(to)
+                else if (activePath?.startsWith(`${from}/`)) setActivePath(to + activePath.slice(from.length))
+                setTreeVersion((v) => v + 1)
+              }}
+            />
           </aside>
         )}
 
-        {/* Resizer 1: FileTree <-> Middle Area */}
         {showFileTree && (
-          <div
-            className={`panel-resizer resizer-filetree ${resizing === 'filetree' ? 'active' : ''}`}
-            onMouseDown={(e) => {
-              e.preventDefault()
-              setResizing('filetree')
+          <Resizer
+            label="Cây thư mục"
+            className="resizer-filetree"
+            onActiveChange={setResizing}
+            onDrag={(x) => {
+              const left = bodyRef.current?.getBoundingClientRect().left ?? 0
+              setFileTreeWidth(clamp(x - left, FILETREE_MIN, FILETREE_MAX))
             }}
-            title="Kéo để chỉnh kích thước File Tree (Nhấp đúp về mặc định)"
-            onDoubleClick={() => setFileTreeWidth(230)}
+            onStep={(d) => setFileTreeWidth((w) => clamp(w + d * 16, FILETREE_MIN, FILETREE_MAX))}
+            onReset={() => setFileTreeWidth(FILETREE_DEFAULT)}
           />
         )}
 
-        {/* Middle Area: Editor + Preview */}
         <div className="workspace-middle-area" ref={middleAreaRef}>
           <main
             className="workspace-editor"
@@ -267,25 +313,37 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                   initialContent={content}
                   onDirtyChange={setDirty}
                   onSave={saveActiveFile}
+                  onCursorChange={setCursor}
+                  onDiagnosticsChange={setDiagnostics}
                 />
               </div>
             ) : (
               <div className="no-file-open-welcome">
                 <div className="welcome-chess-card">
-                  <h3>♟️ Typstify Chess Publishing Studio</h3>
-                  <p>Chọn một file <code>.typ</code> ở danh sách bên trái để bắt đầu soạn thảo, hoặc sử dụng các công cụ nhanh dưới đây:</p>
+                  <BrandMark size={44} />
+                  <h3>Dương Sinh Chess Studio</h3>
+                  <p>Soạn sách, giáo trình và bài tập cờ vua bằng Typst. Chọn một tài liệu để bắt đầu:</p>
+                  {rootFiles.length > 0 && (
+                    <ul className="welcome-file-list">
+                      {rootFiles.slice(0, 6).map((f) => (
+                        <li key={f.path}>
+                          <button className="welcome-file" onClick={() => setActivePath(f.path)}>
+                            <Icon name="file-text" />
+                            {f.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <div className="welcome-actions">
-                    <button className="welcome-btn primary" onClick={() => setActivePath('main.typ')}>
-                      📄 Mở main.typ
-                    </button>
-                    <button className="welcome-btn primary" onClick={handleCreateNewDoc}>
-                      ➕ Tạo File Mới
+                    <button className="welcome-btn btn-primary" onClick={() => setIsNewDocOpen(true)}>
+                      <Icon name="file-plus" /> Tạo tài liệu mới
                     </button>
                     <button className="welcome-btn" onClick={() => setIsBoardOpen(true)}>
-                      ♟️ Xếp Bàn Cờ
+                      <Icon name="board" /> Xếp bàn cờ
                     </button>
                     <button className="welcome-btn" onClick={() => setIsPgnOpen(true)}>
-                      📜 Nhập PGN
+                      <Icon name="scroll" /> Nhập PGN
                     </button>
                   </div>
                 </div>
@@ -293,16 +351,17 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
             )}
           </main>
 
-          {/* Resizer 2: Editor <-> Preview */}
           {showPreview && (
-            <div
-              className={`panel-resizer resizer-editor ${resizing === 'editor' ? 'active' : ''}`}
-              onMouseDown={(e) => {
-                e.preventDefault()
-                setResizing('editor')
+            <Resizer
+              label="Tỷ lệ soạn thảo / xem trước"
+              className="resizer-editor"
+              onActiveChange={setResizing}
+              onDrag={(x) => {
+                const rect = middleAreaRef.current?.getBoundingClientRect()
+                if (rect) setEditorRatio(clamp((x - rect.left) / rect.width, RATIO_MIN, RATIO_MAX))
               }}
-              title="Kéo để chỉnh tỷ lệ Editor / Preview (Nhấp đúp về 50/50)"
-              onDoubleClick={() => setEditorRatio(0.5)}
+              onStep={(d) => setEditorRatio((r) => clamp(r + d * 0.02, RATIO_MIN, RATIO_MAX))}
+              onReset={() => setEditorRatio(0.5)}
             />
           )}
 
@@ -314,25 +373,25 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 maxWidth: `${(1 - editorRatio) * 100}%`,
               }}
             >
-              <PreviewPane key={`${activePath}-${previewVersion}`} path={activePath} />
+              <PreviewPane path={activePath} version={previewVersion} />
             </section>
           )}
         </div>
 
-        {/* Resizer 3: Middle Area <-> Side Panel */}
         {sidePanel && (
-          <div
-            className={`panel-resizer resizer-sidepanel ${resizing === 'sidepanel' ? 'active' : ''}`}
-            onMouseDown={(e) => {
-              e.preventDefault()
-              setResizing('sidepanel')
+          <Resizer
+            label="Bảng bên phải"
+            className="resizer-sidepanel"
+            onActiveChange={setResizing}
+            onDrag={(x) => {
+              const right = bodyRef.current?.getBoundingClientRect().right ?? window.innerWidth
+              setSidePanelWidth(clamp(right - x, SIDEPANEL_MIN, SIDEPANEL_MAX))
             }}
-            title="Kéo để chỉnh kích thước bảng điều khiển phụ (Nhấp đúp về mặc định)"
-            onDoubleClick={() => setSidePanelWidth(340)}
+            onStep={(d) => setSidePanelWidth((w) => clamp(w - d * 16, SIDEPANEL_MIN, SIDEPANEL_MAX))}
+            onReset={() => setSidePanelWidth(SIDEPANEL_DEFAULT)}
           />
         )}
 
-        {/* Right Side Panel */}
         {sidePanel && (
           <aside className="workspace-side-panel" style={{ width: sidePanelWidth }}>
             {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
@@ -342,18 +401,27 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         )}
       </div>
 
-      {/* Chess Modals */}
-      <ChessBoardModal
-        isOpen={isBoardOpen}
-        onClose={() => setIsBoardOpen(false)}
-        onInsertCode={handleInsertText}
+      <StatusBar
+        activePath={activePath}
+        cursor={cursor}
+        diagnostics={diagnostics}
+        dirty={dirty}
+        lastSaved={lastSaved}
       />
-      <PgnImportModal
-        isOpen={isPgnOpen}
-        onClose={() => setIsPgnOpen(false)}
-        onInsertCode={handleInsertText}
-      />
+
+      <ChessBoardModal isOpen={isBoardOpen} onClose={() => setIsBoardOpen(false)} onInsertCode={handleInsertText} />
+      <PgnImportModal isOpen={isPgnOpen} onClose={() => setIsPgnOpen(false)} onInsertCode={handleInsertText} />
+      {isNewDocOpen && (
+        <PromptDialog
+          title="Tạo tài liệu mới"
+          label="Tên file"
+          defaultValue="chess_document.typ"
+          hint="Tự thêm đuôi .typ nếu bạn không ghi. Có thể dùng thư mục, ví dụ: chapters/chuong-1.typ"
+          confirmLabel="Tạo"
+          onConfirm={createNewDoc}
+          onCancel={() => setIsNewDocOpen(false)}
+        />
+      )}
     </div>
   )
 }
-

@@ -8,6 +8,7 @@ import { useState } from 'react'
 
 interface QuickAction {
   id: string
+  group: 'chess' | 'doc'
   label: string
   /** When set, a small text field is shown and its value is interpolated
    * into the prompt before sending; placeholder doubles as the field hint. */
@@ -18,64 +19,77 @@ interface QuickAction {
 const ACTIONS: QuickAction[] = [
   {
     id: 'fix-errors',
-    label: 'Fix compile errors',
+    group: 'doc',
+    label: 'Sửa lỗi biên dịch',
     buildPrompt: () =>
       'Check the currently active Typst document for compile/diagnostic errors ' +
       '(use the getActiveDocument and queryDiagnostics tools), then fix them directly in the file.',
   },
   {
     id: 'summarize',
-    label: 'Summarize document',
+    group: 'doc',
+    label: 'Tóm tắt tài liệu',
     buildPrompt: () =>
       'Summarize the currently active Typst document (use getActiveDocument to find it) ' +
       'in a few concise bullet points.',
   },
   {
     id: 'translate',
-    label: 'Translate document',
-    input: { placeholder: 'Target language, e.g. Vietnamese' },
+    group: 'doc',
+    label: 'Dịch tài liệu',
+    input: { placeholder: 'Ngôn ngữ đích, ví dụ: tiếng Anh' },
     buildPrompt: (lang) =>
       `Translate the currently active Typst document into ${lang || 'Vietnamese'}, ` +
       'preserving all Typst markup and commands unchanged, and write the translation to a new file next to the original.',
   },
   {
     id: 'suggest-package',
-    label: 'Suggest a Typst package',
-    input: { placeholder: 'What do you need? e.g. "a resume template"' },
+    group: 'doc',
+    label: 'Gợi ý gói Typst',
+    input: { placeholder: 'Bạn cần gì? Ví dụ: "mẫu bảng biểu"' },
     buildPrompt: (need) =>
       `Search the Typst package registry (use the searchPackages tool) for something matching this need: "${need}". ` +
       'Suggest the best matching package(s) and explain why.',
   },
   {
     id: 'add-citation',
-    label: 'Add bibliography citation',
-    input: { placeholder: 'Paste the source (title, author, URL, etc.)' },
+    group: 'doc',
+    label: 'Thêm trích dẫn',
+    input: { placeholder: 'Dán nguồn (tên sách, tác giả, URL…)' },
     buildPrompt: (source) =>
       'Add a bibliography citation for this source to the currently active document, ' +
       `using correct Typst citation syntax (a bibliography file plus a #cite/@key reference): \n\n${source}`,
   },
   {
     id: 'chess-puzzle',
-    label: '♟️ Thêm Bài Tập Cờ Vua',
+    group: 'chess',
+    label: 'Thêm bài tập',
     input: { placeholder: 'Mô tả thế cờ, FEN hoặc chủ đề chiến thuật' },
     buildPrompt: (desc) =>
       `Hãy viết mã Typst chèn một bài tập cờ vua hoàn chỉnh bằng hàm #puzzle-card(...) từ thư viện cờ vua theo yêu cầu sau: "${desc}". Bao gồm mã FEN, số thứ tự bài, tiêu đề, lượt đi (w/b), độ khó (1-5 sao), gợi ý và lời giải chi tiết.`,
   },
   {
     id: 'chess-eco',
-    label: '📖 Thêm Khai Cuộc ECO',
+    group: 'chess',
+    label: 'Khai cuộc ECO',
     input: { placeholder: 'Mã ECO và tên khai cuộc, ví dụ: C58 Phòng thủ hai mã' },
     buildPrompt: (eco) =>
       `Hãy soạn cấu trúc chuyên khảo khai cuộc cờ vua bằng các hàm #eco-header(...), #opening-diagram-box(...) và #eco-table(...) từ thư viện cờ vua cho khai cuộc sau: "${eco}".`,
   },
   {
     id: 'chess-lesson',
-    label: '🎓 Soạn Bài Giảng Cờ Vua',
+    group: 'chess',
+    label: 'Soạn bài giảng',
     input: { placeholder: 'Chủ đề bài giảng, ví dụ: Đòn đánh đôi, Đòn ghim...' },
     buildPrompt: (topic) =>
       `Hãy soạn một bài giảng huấn luyện cờ vua hoàn chỉnh bằng các hàm #lesson-header(...), #concept-box(...), #teaching-diagram(...) và #practice-question(...) cho chủ đề: "${topic}".`,
   },
 ]
+
+const GROUPS = [
+  { id: 'chess', label: 'Cờ vua' },
+  { id: 'doc', label: 'Tài liệu' },
+] as const
 
 export function QuickActions({ onPrompt, disabled = false }: { onPrompt: (text: string) => void; disabled?: boolean }) {
   const [openId, setOpenId] = useState<string | null>(null)
@@ -95,13 +109,21 @@ export function QuickActions({ onPrompt, disabled = false }: { onPrompt: (text: 
 
   return (
     <div className="quick-actions">
-      <div className="quick-actions-row">
-        {ACTIONS.map((a) => (
-          <button key={a.id} className="quick-action-btn" onClick={() => run(a)} disabled={disabled}>
-            {a.label}
-          </button>
-        ))}
-      </div>
+      {GROUPS.map((g) => (
+        <div key={g.id} className="quick-actions-row" role="group" aria-label={g.label}>
+          <span className="quick-actions-label">{g.label}</span>
+          {ACTIONS.filter((a) => a.group === g.id).map((a) => (
+            <button
+              key={a.id}
+              className={`quick-action-btn${openId === a.id ? ' active' : ''}${g.id === 'chess' ? ' chess' : ''}`}
+              onClick={() => run(a)}
+              disabled={disabled}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      ))}
       {openId && (
         <div className="quick-action-input">
           <input
@@ -115,10 +137,12 @@ export function QuickActions({ onPrompt, disabled = false }: { onPrompt: (text: 
               if (e.key === 'Escape') setOpenId(null)
             }}
           />
-          <button onClick={() => run(ACTIONS.find((a) => a.id === openId)!)} disabled={disabled}>
-            Send
+          <button className="btn-primary" onClick={() => run(ACTIONS.find((a) => a.id === openId)!)} disabled={disabled}>
+            Gửi
           </button>
-          <button onClick={() => setOpenId(null)}>Cancel</button>
+          <button className="btn-ghost" onClick={() => setOpenId(null)}>
+            Hủy
+          </button>
         </div>
       )}
     </div>

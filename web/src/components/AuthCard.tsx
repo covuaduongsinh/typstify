@@ -44,13 +44,13 @@ export function AuthCard({ data, onDone }: { data: AuthRequiredData; onDone: () 
     } catch (err) {
       window.clearInterval(pollRef.current)
       setRunningId(null)
-      setError(err instanceof Error ? err.message : 'Authentication failed')
+      setError(err instanceof Error ? err.message : 'Xác thực thất bại')
     }
   }
 
   return (
     <div className="auth-card">
-      <div className="auth-card-title">{data.agentName || 'AI Agent'} needs you to sign in</div>
+      <div className="auth-card-title">{data.agentName || 'Trợ lý AI'} cần bạn đăng nhập</div>
       <div className="auth-methods">
         {data.authMethods.map((m) => (
           <div key={m.id} className="auth-method">
@@ -58,16 +58,16 @@ export function AuthCard({ data, onDone }: { data: AuthRequiredData; onDone: () 
             {m.description && <div className="auth-method-desc">{m.description}</div>}
             {runningId === m.id ? (
               <div className="auth-in-progress">
-                <span>Waiting for you to complete sign-in…</span>
+                <span>Đang chờ bạn hoàn tất đăng nhập…</span>
                 {foundUrl && (
                   <a href={foundUrl} target="_blank" rel="noreferrer" className="auth-open-link">
-                    Open login link
+                    Mở liên kết đăng nhập
                   </a>
                 )}
               </div>
             ) : (
               <button disabled={runningId !== null} onClick={() => start(m)}>
-                Sign in
+                Đăng nhập
               </button>
             )}
           </div>

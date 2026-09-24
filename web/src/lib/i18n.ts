@@ -1,27 +1,30 @@
 // Minimal i18n bridge to the desktop app's translation catalog
 // (i18n/translations, generated from golang.org/x/text -- see
-// server/i18n_api.go). Only en-US/zh-CN/de are supported, matching
-// i18n/localizer.go's Locales list. Keys are the same English source
-// strings the desktop app's Translate() calls use; a key with no catalog
-// entry for the current locale falls back to itself.
+// server/i18n_api.go) for en-US/zh-CN/de, matching i18n/localizer.go's
+// Locales list, plus Vietnamese served from a static client-side table
+// (lib/vi.ts). Vietnamese is the default; a zh/de browser gets its catalog.
+// Keys are the same English source strings the desktop app's Translate()
+// calls use; a key with no entry for the current locale falls back to itself.
 import { useEffect, useState } from 'react'
+import { vi } from './vi'
 
-const SUPPORTED_LOCALES = ['en-US', 'zh-CN', 'de'] as const
+const SUPPORTED_LOCALES = ['vi', 'en-US', 'zh-CN', 'de'] as const
 type Locale = (typeof SUPPORTED_LOCALES)[number]
 
 function detectLocale(): Locale {
   const nav = navigator.language.toLowerCase()
-  const match = SUPPORTED_LOCALES.find((l) => nav.startsWith(l.split('-')[0].toLowerCase()))
-  return match ?? 'en-US'
+  if (nav.startsWith('zh')) return 'zh-CN'
+  if (nav.startsWith('de')) return 'de'
+  return 'vi'
 }
 
 export const locale: Locale = detectLocale()
 
-const dictionary: Record<string, string> = {}
+const dictionary: Record<string, string> = locale === 'vi' ? { ...vi } : {}
 const listeners = new Set<() => void>()
 
 async function loadTranslations(keys: string[]) {
-  if (locale === 'en-US') return // catalog fallback for en-US is the key itself anyway
+  if (locale === 'en-US' || locale === 'vi') return // en-US falls back to the key; vi is preloaded
   const missing = keys.filter((k) => !(k in dictionary))
   if (missing.length === 0) return
 

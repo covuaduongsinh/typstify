@@ -1,15 +1,136 @@
+/* Design tokens -- Dương Sinh brand (navy #2B3990 + gold).
+ * Two palettes: dark (default when the OS prefers dark) and light. An
+ * explicit choice from the header toggle sets <html data-theme="..."> and
+ * wins over the OS preference (see lib/theme.ts).
+ *
+ * Legacy names (--bg-panel, --bg-elevated, --accent) are kept as aliases so
+ * older rules keep working; new rules should use the semantic names. */
 :root {
-  color-scheme: light dark;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --bg: #1e1e1e;
-  --bg-panel: #252526;
-  --bg-elevated: #2d2d30;
-  --border: #3c3c3c;
-  --text: #d4d4d4;
-  --text-dim: #9d9d9d;
-  --accent: #0e7fd6;
-  --error: #f14c4c;
-  --warning: #cca700;
+  --brand: #2b3990;
+  --brand-strong: #1f2a6e;
+  --on-brand: #ffffff;
+  --gold: #c9a227;
+  --gold-strong: #a8861a;
+  --on-gold: #1a1a1a;
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --font-sans: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Light palette */
+  color-scheme: light;
+  --bg: #f4f5fa;
+  --surface: #ffffff;
+  --surface-2: #eceef6;
+  --hover: rgba(43, 57, 144, 0.08);
+  --border: #d5d9ea;
+  --text: #1c2140;
+  --text-dim: #5d6384;
+  --accent: #2b3990;
+  --brand-soft: rgba(43, 57, 144, 0.12);
+  --gold-soft: rgba(201, 162, 39, 0.16);
+  --pattern: rgba(43, 57, 144, 0.045);
+  --success: #2e7d32;
+  --warning: #b7791f;
+  --error: #c62828;
+  --shadow: 0 4px 14px rgba(28, 33, 64, 0.1);
+  --shadow-lg: 0 12px 32px rgba(28, 33, 64, 0.18);
+  --overlay: rgba(20, 24, 50, 0.45);
+  --board-light: #efe3c2;
+  --board-dark: #6c78b5;
+  --syn-keyword: #2b3990;
+  --syn-heading: #1f2a6e;
+  --syn-function: #7a3fb0;
+  --syn-string: #2e7d32;
+  --syn-number: #b35c00;
+  --syn-comment: #8a90ad;
+  --syn-escape: #a8861a;
+  --syn-property: #3a6ea5;
+  --syn-raw: #b0306a;
+  --syn-operator: #5d6384;
+  --editor-selection: rgba(43, 57, 144, 0.18);
+  --editor-active-line: rgba(43, 57, 144, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #12152a;
+    --surface: #1a1e38;
+    --surface-2: #242a4a;
+    --hover: rgba(255, 255, 255, 0.07);
+    --border: #323a62;
+    --text: #e3e6f3;
+    --text-dim: #9aa0c0;
+    --accent: #8f9cf0;
+    --brand-soft: rgba(143, 156, 240, 0.16);
+    --gold-soft: rgba(201, 162, 39, 0.2);
+    --pattern: rgba(143, 156, 240, 0.05);
+    --success: #66bb6a;
+    --warning: #e0b341;
+    --error: #ef5350;
+    --shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+    --overlay: rgba(0, 0, 0, 0.6);
+    --board-light: #e6d8b2;
+    --board-dark: #5a67a8;
+    --syn-keyword: #8f9cf0;
+    --syn-heading: #e8c65a;
+    --syn-function: #c792ea;
+    --syn-string: #9ccc65;
+    --syn-number: #f0a860;
+    --syn-comment: #6c7399;
+    --syn-escape: #e0b341;
+    --syn-property: #82b1ff;
+    --syn-raw: #f48fb1;
+    --syn-operator: #9aa0c0;
+    --editor-selection: rgba(143, 156, 240, 0.25);
+    --editor-active-line: rgba(255, 255, 255, 0.04);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #12152a;
+  --surface: #1a1e38;
+  --surface-2: #242a4a;
+  --hover: rgba(255, 255, 255, 0.07);
+  --border: #323a62;
+  --text: #e3e6f3;
+  --text-dim: #9aa0c0;
+  --accent: #8f9cf0;
+  --brand-soft: rgba(143, 156, 240, 0.16);
+  --gold-soft: rgba(201, 162, 39, 0.2);
+  --pattern: rgba(143, 156, 240, 0.05);
+  --success: #66bb6a;
+  --warning: #e0b341;
+  --error: #ef5350;
+  --shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --overlay: rgba(0, 0, 0, 0.6);
+  --board-light: #e6d8b2;
+  --board-dark: #5a67a8;
+  --syn-keyword: #8f9cf0;
+  --syn-heading: #e8c65a;
+  --syn-function: #c792ea;
+  --syn-string: #9ccc65;
+  --syn-number: #f0a860;
+  --syn-comment: #6c7399;
+  --syn-escape: #e0b341;
+  --syn-property: #82b1ff;
+  --syn-raw: #f48fb1;
+  --syn-operator: #9aa0c0;
+  --editor-selection: rgba(143, 156, 240, 0.25);
+  --editor-active-line: rgba(255, 255, 255, 0.04);
+}
+
+/* Legacy aliases */
+:root {
+  --bg-panel: var(--surface);
+  --bg-elevated: var(--surface-2);
+  --bg-hover: var(--hover);
 }
 
 * {
@@ -26,34 +147,96 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 button {
-  background: var(--bg-elevated);
+  background: var(--surface-2);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 6px 12px;
   cursor: pointer;
   font-size: 13px;
+  font-family: inherit;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
 }
 
-button:hover {
+button:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 button.active {
   border-color: var(--accent);
   color: var(--accent);
+  background: var(--brand-soft);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
 }
 
 input,
-textarea {
-  background: var(--bg-elevated);
+textarea,
+select {
+  background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
   font-size: 13px;
   font-family: inherit;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+}
+
+/* Shared button variants */
+.btn-primary,
+button.btn-primary {
+  background: var(--brand);
+  color: var(--on-brand);
+  border-color: var(--brand-strong);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-strong);
+  border-color: var(--gold);
+}
+.btn-accent,
+button.btn-accent {
+  background: var(--gold);
+  color: var(--on-gold);
+  border-color: var(--gold-strong);
+  font-weight: 600;
+}
+.btn-accent:hover:not(:disabled) {
+  background: var(--gold-strong);
+}
+.btn-ghost,
+button.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+  border-color: transparent;
 }
