@@ -21,6 +21,11 @@ func TestAllowedCallbackTarget(t *testing.T) {
 	if u, err := allowedCallbackTarget(loginConsole, "http://localhost:44479/?code=1"); err != nil || u.Host != "127.0.0.1:44479" {
 		t.Fatalf("localhost callback: %v %v", u, err)
 	}
+	// An agent listening on IPv6 loopback is reached there, not on 127.0.0.1.
+	v6 := "visit https://accounts.google.com/auth?redirect_uri=http%3A%2F%2F%5B%3A%3A1%5D%3A5555&x=1"
+	if u, err := allowedCallbackTarget(v6, "http://[::1]:5555/?code=1"); err != nil || u.Host != "[::1]:5555" {
+		t.Fatalf("IPv6 callback: %v %v", u, err)
+	}
 
 	cases := []struct {
 		name, console, raw string

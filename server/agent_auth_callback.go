@@ -44,10 +44,12 @@ func isLoopbackHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// loginRedirectTargets returns the loopback host:port pairs named by
-// redirect_uri parameters in the agent's console output (its login URL).
-func loginRedirectTargets(consoleText string) map[string]bool {
-	targets := map[string]bool{}
+// loginRedirectTargets maps port -> host for the loopback redirect_uri
+// parameters in the agent's console output (its login URL). The host is
+// kept as the agent wrote it (127.0.0.1, ::1 or localhost): that is the
+// address it listens on.
+func loginRedirectTargets(consoleText string) map[string]string {
+	targets := map[string]string{}
 	for _, m := range redirectURIParam.FindAllStringSubmatch(consoleText, -1) {
 		raw, err := url.QueryUnescape(m[1])
 		if err != nil {
@@ -57,7 +59,7 @@ func loginRedirectTargets(consoleText string) map[string]bool {
 		if err != nil || u.Port() == "" || !isLoopbackHost(u.Hostname()) {
 			continue
 		}
-		targets[u.Port()] = true
+		targets[u.Port()] = u.Hostname()
 	}
 	return targets
 }
@@ -79,11 +81,14 @@ func allowedCallbackTarget(consoleText, raw string) (*url.URL, error) {
 	if len(targets) == 0 {
 		return nil, errCallbackNoLogin
 	}
-	if !targets[u.Port()] {
+	host, ok := targets[u.Port()]
+	if !ok {
 		return nil, errCallbackPort
 	}
-	// Always talk to the IPv4 loopback the agent listens on.
-	u.Host = net.JoinHostPort("127.0.0.1", u.Port())
+	// Connect where the agent's redirect_uri says it listens, whatever
+	// loopback spelling the pasted address uses ("localhost" dials both
+	// IPv4 and IPv6).
+	u.Host = net.JoinHostPort(host, u.Port())
 	u.User = nil
 	u.Fragment = ""
 	return u, nil
