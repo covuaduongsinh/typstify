@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Icon } from './Icon'
 import { Modal } from './Modal'
 import { typstString } from '../lib/typst'
-import { boardToFen, EMPTY_BOARD, INITIAL_BOARD, PIECE_SYMBOLS, type Piece } from '../lib/chess'
+import { boardToFen, EMPTY_BOARD, INITIAL_BOARD, PIECE_NAMES, PIECE_SYMBOLS, type Piece } from '../lib/chess'
 
 interface ChessBoardModalProps {
   isOpen: boolean
@@ -140,9 +140,16 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
                     <div
                       key={`${r}-${c}`}
                       role="gridcell"
-                      aria-label={square}
+                      tabIndex={0}
+                      aria-label={piece ? `${square}: ${PIECE_NAMES[piece]}` : `${square}: trống`}
                       className={`chess-square ${isDark ? 'dark' : 'light'}`}
                       onClick={() => handleSquareClick(r, c)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleSquareClick(r, c)
+                        }
+                      }}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleDrop(e, r, c)}
                     >
@@ -176,6 +183,8 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
                 <button
                   key={p}
                   className={`palette-btn ${selectedTool === p ? 'selected' : ''}`}
+                  aria-label={PIECE_NAMES[p]}
+                  aria-pressed={selectedTool === p}
                   onClick={() => setSelectedTool(p)}
                   draggable
                   onDragStart={(e) => {
@@ -192,6 +201,8 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
                 <button
                   key={p}
                   className={`palette-btn ${selectedTool === p ? 'selected' : ''}`}
+                  aria-label={PIECE_NAMES[p]}
+                  aria-pressed={selectedTool === p}
                   onClick={() => setSelectedTool(p)}
                   draggable
                   onDragStart={(e) => {

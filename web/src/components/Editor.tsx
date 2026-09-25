@@ -222,6 +222,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     onDiagnosticsChange?.({ errors: 0, warnings: 0 })
 
     lsp.didOpen(path, initialContent)
+    // After a dropped /ws/lsp reconnects, the server-side session is new:
+    // open the document again with what the user currently has.
+    const unsubscribeReconnect = lsp.onReconnect(() => lsp.didOpen(path, view.state.doc.toString()))
     const unsubscribe = lsp.onDiagnostics((diagPath, diags) => {
       if (diagPath !== path) return
       view.dispatch(setDiagnostics(view.state, toCmDiagnostics(view.state.doc, diags)))
@@ -234,6 +237,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     return () => {
       window.clearTimeout(changeTimerRef.current)
       unsubscribe()
+      unsubscribeReconnect()
       lsp.didClose(path)
       lsp.close()
       view.destroy()

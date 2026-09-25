@@ -49,7 +49,11 @@ export class AgentClient {
     // "Agent is thinking...". Surface it as a message like any other server
     // event so AgentChat.tsx can react (stop waiting, show reconnect UI)
     // instead of every caller needing its own ws.onclose listener.
+    // 'error' is always followed by 'close'; report the disconnect once.
+    let notified = false
     const notifyDisconnected = () => {
+      if (notified) return
+      notified = true
       for (const l of this.listeners) l({ type: 'disconnected', message: this.lastErrorMessage })
     }
     this.ws.addEventListener('close', notifyDisconnected)

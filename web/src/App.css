@@ -1850,6 +1850,12 @@ button.btn-danger {
   user-select: none;
 }
 
+.chess-square:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: -3px;
+  z-index: 1;
+}
+
 .chess-square.light {
   background-color: var(--board-light);
 }

@@ -1,25 +1,37 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { TreeEntry } from '../api/types'
 import { useTranslations } from '../lib/i18n'
 import { useTheme } from '../lib/theme'
 import { CHESSBOOK_IMPORT, hasChessbookImport } from '../lib/typst'
-import { AgentChat } from './AgentChat'
 import { BrandMark } from './BrandMark'
-import { ChessBoardModal } from './ChessBoardModal'
 import { ChessToolbar } from './ChessToolbar'
-import { Editor, type EditorHandle } from './Editor'
+import type { EditorHandle } from './Editor'
 import { ExportButton } from './ExportButton'
 import { FileTree } from './FileTree'
 import { Icon, type IconName } from './Icon'
 import { Modal } from './Modal'
-import { PackageManager } from './PackageManager'
-import { PgnImportModal } from './PgnImportModal'
 import { PreviewPane } from './PreviewPane'
 import { PromptDialog } from './PromptDialog'
 import { Resizer } from './Resizer'
-import { SettingsPanel } from './SettingsPanel'
 import { StatusBar, type DiagnosticCounts } from './StatusBar'
+
+// Heavy parts load on demand, so the login/project screens don't pull in
+// CodeMirror, react-markdown or the chess dialogs.
+const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })))
+const AgentChat = lazy(() => import('./AgentChat').then((m) => ({ default: m.AgentChat })))
+const PackageManager = lazy(() => import('./PackageManager').then((m) => ({ default: m.PackageManager })))
+const SettingsPanel = lazy(() => import('./SettingsPanel').then((m) => ({ default: m.SettingsPanel })))
+const ChessBoardModal = lazy(() => import('./ChessBoardModal').then((m) => ({ default: m.ChessBoardModal })))
+const PgnImportModal = lazy(() => import('./PgnImportModal').then((m) => ({ default: m.PgnImportModal })))
+
+function PanelLoading() {
+  return (
+    <div className="editor-state">
+      <span className="spinner" /> Đang tải…
+    </div>
+  )
+}
 
 const I18N_KEYS = ['AI Assistant', 'Settings', 'Export']
 
@@ -85,6 +97,18 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const [previewVersion, setPreviewVersion] = useState(0)
   const [isBoardOpen, setIsBoardOpen] = useState(false)
   const [isPgnOpen, setIsPgnOpen] = useState(false)
+  // Once opened, the chess dialogs stay mounted (hidden) so the position
+  // being set up survives closing and reopening.
+  const [boardUsed, setBoardUsed] = useState(false)
+  const [pgnUsed, setPgnUsed] = useState(false)
+  const openBoard = () => {
+    setBoardUsed(true)
+    setIsBoardOpen(true)
+  }
+  const openPgn = () => {
+    setPgnUsed(true)
+    setIsPgnOpen(true)
+  }
   const [isNewDocOpen, setIsNewDocOpen] = useState(false)
   const [treeVersion, setTreeVersion] = useState(0)
   const [rootFiles, setRootFiles] = useState<TreeEntry[]>([])
@@ -381,21 +405,23 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 {activePath.endsWith('.typ') && (
                   <ChessToolbar
                     onInsertText={handleInsertText}
-                    onOpenBoard={() => setIsBoardOpen(true)}
-                    onOpenPgn={() => setIsPgnOpen(true)}
+                    onOpenBoard={openBoard}
+                    onOpenPgn={openPgn}
                   />
                 )}
-                <Editor
-                  key={activePath}
-                  ref={editorRef}
-                  path={activePath}
-                  initialContent={content}
-                  onDirtyChange={setDirty}
-                  onSave={saveActiveFile}
-                  onSaveError={setSaveError}
-                  onCursorChange={setCursor}
-                  onDiagnosticsChange={setDiagnostics}
-                />
+                <Suspense fallback={<PanelLoading />}>
+                  <Editor
+                    key={activePath}
+                    ref={editorRef}
+                    path={activePath}
+                    initialContent={content}
+                    onDirtyChange={setDirty}
+                    onSave={saveActiveFile}
+                    onSaveError={setSaveError}
+                    onCursorChange={setCursor}
+                    onDiagnosticsChange={setDiagnostics}
+                  />
+                </Suspense>
               </div>
             ) : activePath ? (
               <div className="editor-state">
@@ -437,10 +463,10 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     <button className="welcome-btn btn-primary" onClick={() => setIsNewDocOpen(true)}>
                       <Icon name="file-plus" /> Tạo tài liệu mới
                     </button>
-                    <button className="welcome-btn" onClick={() => setIsBoardOpen(true)}>
+                    <button className="welcome-btn" onClick={openBoard}>
                       <Icon name="board" /> Xếp bàn cờ
                     </button>
-                    <button className="welcome-btn" onClick={() => setIsPgnOpen(true)}>
+                    <button className="welcome-btn" onClick={openPgn}>
                       <Icon name="scroll" /> Nhập PGN
                     </button>
                   </div>
@@ -492,9 +518,11 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
 
         {sidePanel && (
           <aside className="workspace-side-panel" style={{ width: sidePanelWidth }}>
-            {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
-            {sidePanel === 'packages' && <PackageManager />}
-            {sidePanel === 'settings' && <SettingsPanel />}
+            <Suspense fallback={<PanelLoading />}>
+              {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
+              {sidePanel === 'packages' && <PackageManager />}
+              {sidePanel === 'settings' && <SettingsPanel />}
+            </Suspense>
           </aside>
         )}
       </div>
@@ -508,8 +536,14 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         lastSaved={lastSaved}
       />
 
-      <ChessBoardModal isOpen={isBoardOpen} onClose={() => setIsBoardOpen(false)} onInsertCode={handleInsertText} />
-      <PgnImportModal isOpen={isPgnOpen} onClose={() => setIsPgnOpen(false)} onInsertCode={handleInsertText} />
+      <Suspense fallback={null}>
+        {boardUsed && (
+          <ChessBoardModal isOpen={isBoardOpen} onClose={() => setIsBoardOpen(false)} onInsertCode={handleInsertText} />
+        )}
+        {pgnUsed && (
+          <PgnImportModal isOpen={isPgnOpen} onClose={() => setIsPgnOpen(false)} onInsertCode={handleInsertText} />
+        )}
+      </Suspense>
       {pendingNav && (
         <Modal
           title="Có thay đổi chưa lưu"

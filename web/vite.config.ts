@@ -10,6 +10,11 @@ const backend = process.env.TYPSTIFY_BACKEND ?? 'http://127.0.0.1:8080'
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // The lazily loaded Editor chunk is CodeMirror plus the Typst grammar
+    // (~515 kB, ~160 kB gzipped); the initial bundle is far smaller.
+    chunkSizeWarningLimit: 600,
+  },
   server: {
     proxy: {
       '/api': { target: backend, changeOrigin: true },

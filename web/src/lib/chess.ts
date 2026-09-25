@@ -65,3 +65,19 @@ export function boardToFen(board: Piece[][], turn: 'w' | 'b'): string {
   })
   return `${rows.join('/')} ${turn} ${castlingRights(board)} - 0 1`
 }
+
+/** Vietnamese piece names, for accessible labels. */
+export const PIECE_NAMES: Record<string, string> = {
+  K: 'Vua trắng',
+  Q: 'Hậu trắng',
+  R: 'Xe trắng',
+  B: 'Tượng trắng',
+  N: 'Mã trắng',
+  P: 'Tốt trắng',
+  k: 'Vua đen',
+  q: 'Hậu đen',
+  r: 'Xe đen',
+  b: 'Tượng đen',
+  n: 'Mã đen',
+  p: 'Tốt đen',
+}
