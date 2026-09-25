@@ -1,62 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Icon } from './Icon'
 import { Modal } from './Modal'
+import { typstString } from '../lib/typst'
+import { boardToFen, EMPTY_BOARD, INITIAL_BOARD, PIECE_NAMES, PIECE_SYMBOLS, type Piece } from '../lib/chess'
 
 interface ChessBoardModalProps {
   isOpen: boolean
   onClose: () => void
   onInsertCode: (code: string) => void
-}
-
-type Piece = string | null // 'P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k', null
-
-const INITIAL_BOARD: Piece[][] = [
-  ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
-  ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
-  ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'],
-]
-
-const PIECE_SYMBOLS: Record<string, string> = {
-  K: '♔',
-  Q: '♕',
-  R: '♖',
-  B: '♗',
-  N: '♘',
-  P: '♙',
-  k: '♚',
-  q: '♛',
-  r: '♜',
-  b: '♝',
-  n: '♞',
-  p: '♟',
-}
-
-function boardToFen(board: Piece[][], turn: 'w' | 'b'): string {
-  const rows: string[] = []
-  for (let r = 0; r < 8; r++) {
-    let empty = 0
-    let rowStr = ''
-    for (let c = 0; c < 8; c++) {
-      const p = board[r][c]
-      if (!p) {
-        empty++
-      } else {
-        if (empty > 0) {
-          rowStr += empty
-          empty = 0
-        }
-        rowStr += p
-      }
-    }
-    if (empty > 0) rowStr += empty
-    rows.push(rowStr)
-  }
-  return `${rows.join('/')} ${turn} KQkq - 0 1`
 }
 
 export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardModalProps) {
@@ -80,16 +31,16 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
         return `#puzzle-card(
   "${currentFen}",
   number: ${puzzleNum},
-  title: "${title}",
-  to-move: "${turn}",
+  title: ${typstString(title)},
+  turn: "${turn}",
   difficulty: ${difficulty},
-  hint: "${hint}",
-  solution: "${solution}"
+  hint: ${hint.trim() ? typstString(hint) : 'none'},
+  solution: ${solution.trim() ? typstString(solution) : 'none'}
 )\n`
       case 'eco':
         return `#opening-diagram-box(
   "${currentFen}",
-  title: "${title}",
+  title: ${typstString(title)},
   turn: "${turn}",
   eval-text: "± (Trắng ưu thế)",
   caption: "Thế cờ then chốt sau biến thể chính."
@@ -97,14 +48,14 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
       case 'magazine':
         return `#column-diagram(
   "${currentFen}",
-  move-num: "${title}",
+  move-num: ${typstString(title)},
   turn: "${turn}",
   caption: "Nước đi tạo ra sự đột biến của thế trận."
 )\n`
       case 'courseware':
         return `#teaching-diagram(
   "${currentFen}",
-  title: "${title}",
+  title: ${typstString(title)},
   turn: "${turn}",
   size: 16pt,
   caption: "Thế cờ minh họa cho bài học chiến thuật."
@@ -158,11 +109,7 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
   }
 
   const handleClearBoard = () => {
-    setBoardState(
-      Array(8)
-        .fill(null)
-        .map(() => Array(8).fill(null)),
-    )
+    setBoardState(EMPTY_BOARD.map((row) => [...row]))
   }
 
   const handleResetBoard = () => {
@@ -193,9 +140,16 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
                     <div
                       key={`${r}-${c}`}
                       role="gridcell"
-                      aria-label={square}
+                      tabIndex={0}
+                      aria-label={piece ? `${square}: ${PIECE_NAMES[piece]}` : `${square}: trống`}
                       className={`chess-square ${isDark ? 'dark' : 'light'}`}
                       onClick={() => handleSquareClick(r, c)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleSquareClick(r, c)
+                        }
+                      }}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleDrop(e, r, c)}
                     >
@@ -229,6 +183,8 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
                 <button
                   key={p}
                   className={`palette-btn ${selectedTool === p ? 'selected' : ''}`}
+                  aria-label={PIECE_NAMES[p]}
+                  aria-pressed={selectedTool === p}
                   onClick={() => setSelectedTool(p)}
                   draggable
                   onDragStart={(e) => {
@@ -245,6 +201,8 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
                 <button
                   key={p}
                   className={`palette-btn ${selectedTool === p ? 'selected' : ''}`}
+                  aria-label={PIECE_NAMES[p]}
+                  aria-pressed={selectedTool === p}
                   onClick={() => setSelectedTool(p)}
                   draggable
                   onDragStart={(e) => {

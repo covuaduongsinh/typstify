@@ -1,23 +1,37 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { TreeEntry } from '../api/types'
 import { useTranslations } from '../lib/i18n'
 import { useTheme } from '../lib/theme'
-import { AgentChat } from './AgentChat'
+import { CHESSBOOK_IMPORT, hasChessbookImport } from '../lib/typst'
 import { BrandMark } from './BrandMark'
-import { ChessBoardModal } from './ChessBoardModal'
 import { ChessToolbar } from './ChessToolbar'
-import { Editor, type EditorHandle } from './Editor'
+import type { EditorHandle } from './Editor'
 import { ExportButton } from './ExportButton'
 import { FileTree } from './FileTree'
 import { Icon, type IconName } from './Icon'
-import { PackageManager } from './PackageManager'
-import { PgnImportModal } from './PgnImportModal'
+import { Modal } from './Modal'
 import { PreviewPane } from './PreviewPane'
 import { PromptDialog } from './PromptDialog'
 import { Resizer } from './Resizer'
-import { SettingsPanel } from './SettingsPanel'
 import { StatusBar, type DiagnosticCounts } from './StatusBar'
+
+// Heavy parts load on demand, so the login/project screens don't pull in
+// CodeMirror, react-markdown or the chess dialogs.
+const Editor = lazy(() => import('./Editor').then((m) => ({ default: m.Editor })))
+const AgentChat = lazy(() => import('./AgentChat').then((m) => ({ default: m.AgentChat })))
+const PackageManager = lazy(() => import('./PackageManager').then((m) => ({ default: m.PackageManager })))
+const SettingsPanel = lazy(() => import('./SettingsPanel').then((m) => ({ default: m.SettingsPanel })))
+const ChessBoardModal = lazy(() => import('./ChessBoardModal').then((m) => ({ default: m.ChessBoardModal })))
+const PgnImportModal = lazy(() => import('./PgnImportModal').then((m) => ({ default: m.PgnImportModal })))
+
+function PanelLoading() {
+  return (
+    <div className="editor-state">
+      <span className="spinner" /> Đang tải…
+    </div>
+  )
+}
 
 const I18N_KEYS = ['AI Assistant', 'Settings', 'Export']
 
@@ -51,11 +65,30 @@ function savePref(key: string, value: string) {
   }
 }
 
-const NEW_DOC_TEMPLATE = `// Tài Liệu Cờ Vua Mới\n#set text(font: ("Arial", "Segoe UI Symbol"), size: 9.5pt, lang: "vi")\n\n= Tiêu Đề Tài Liệu\n\n`
+const NEW_DOC_TEMPLATE = `${CHESSBOOK_IMPORT}
+
+#show: chess-book-init.with(
+  title: "TÊN TÀI LIỆU",
+  subtitle: "",
+  author: "CLB Cờ vua Dương Sinh",
+  paper-size: "a5",
+)
+
+= Tiêu đề chương
+
+Nội dung bài viết…
+`
 
 export function Workspace({ projectPath, onCloseProject }: { projectPath: string; onCloseProject: () => void }) {
   const [activePath, setActivePath] = useState<string | null>(null)
   const [content, setContent] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  // A navigation (open another file / close the project) waiting on the
+  // unsaved-changes dialog.
+  const [pendingNav, setPendingNav] = useState<{ kind: 'open'; path: string } | { kind: 'close' } | null>(null)
+  const [savingForNav, setSavingForNav] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [cursor, setCursor] = useState<{ line: number; col: number } | null>(null)
@@ -64,6 +97,18 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const [previewVersion, setPreviewVersion] = useState(0)
   const [isBoardOpen, setIsBoardOpen] = useState(false)
   const [isPgnOpen, setIsPgnOpen] = useState(false)
+  // Once opened, the chess dialogs stay mounted (hidden) so the position
+  // being set up survives closing and reopening.
+  const [boardUsed, setBoardUsed] = useState(false)
+  const [pgnUsed, setPgnUsed] = useState(false)
+  const openBoard = () => {
+    setBoardUsed(true)
+    setIsBoardOpen(true)
+  }
+  const openPgn = () => {
+    setPgnUsed(true)
+    setIsPgnOpen(true)
+  }
   const [isNewDocOpen, setIsNewDocOpen] = useState(false)
   const [treeVersion, setTreeVersion] = useState(0)
   const [rootFiles, setRootFiles] = useState<TreeEntry[]>([])
@@ -105,27 +150,81 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
       .catch(() => setRootFiles([]))
   }, [treeVersion])
 
+  // Load the active file. content is reset first so the Editor (keyed by
+  // path, and reading initialContent only on mount) can never mount the
+  // new path with the previous file's text -- saving that would overwrite
+  // the new file. A response for a path that is no longer active is
+  // dropped, and a failed load shows an error instead of an empty editor
+  // whose save would wipe the file.
   useEffect(() => {
+    let cancelled = false
     setDirty(false)
     setCursor(null)
-    if (!activePath) {
-      setContent(null)
-      return
-    }
+    setContent(null)
+    setLoadError(null)
+    setSaveError(null)
+    if (!activePath) return
+
     api
       .get<string>(`/api/workspace/file?path=${encodeURIComponent(activePath)}`)
-      .then(setContent)
-      .catch(() => setContent(''))
+      .then((text) => {
+        if (!cancelled) setContent(text)
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err))
+      })
 
     if (activePath.endsWith('.typ')) {
       void api.post('/api/preview/restart', { entryFile: activePath })
     }
-  }, [activePath])
+    return () => {
+      cancelled = true
+    }
+  }, [activePath, loadAttempt])
+
+  // Warn before the tab closes or reloads with unsaved edits.
+  useEffect(() => {
+    if (!dirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [dirty])
+
+  const openFile = (path: string) => {
+    if (path === activePath) return
+    if (dirty) setPendingNav({ kind: 'open', path })
+    else setActivePath(path)
+  }
+
+  const closeProject = () => {
+    if (dirty) setPendingNav({ kind: 'close' })
+    else onCloseProject()
+  }
+
+  const continueNav = (nav: NonNullable<typeof pendingNav>) => {
+    setPendingNav(null)
+    setDirty(false)
+    if (nav.kind === 'open') setActivePath(nav.path)
+    else onCloseProject()
+  }
+
+  const saveThenContinue = async () => {
+    if (!pendingNav) return
+    setSavingForNav(true)
+    const ok = (await editorRef.current?.save()) ?? false
+    setSavingForNav(false)
+    if (ok) continueNav(pendingNav)
+    // on failure the dialog stays open and the status bar shows the error
+  }
 
   const saveActiveFile = async (newContent: string) => {
     if (!activePath) return
     await api.put(`/api/workspace/file?path=${encodeURIComponent(activePath)}`, newContent)
     setLastSaved(new Date())
+    setSaveError(null)
 
     if (activePath.endsWith('.typ')) {
       await api.post('/api/preview/restart', { entryFile: activePath })
@@ -133,7 +232,11 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     }
   }
 
+  // Every toolbar/modal snippet calls chessbook functions, so make sure the
+  // document imports the library -- otherwise it fails with "unknown
+  // variable" as soon as it compiles.
   const handleInsertText = (text: string) => {
+    editorRef.current?.ensureLineAtTop(CHESSBOOK_IMPORT, hasChessbookImport)
     editorRef.current?.insertText(text)
   }
 
@@ -171,7 +274,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
       <header className="workspace-header">
         <div className="hdr-group hdr-left">
           <BrandMark size={24} />
-          <button className="btn-ghost hdr-btn" onClick={onCloseProject} title="Quay lại danh sách dự án">
+          <button className="btn-ghost hdr-btn" onClick={closeProject} title="Quay lại danh sách dự án">
             <Icon name="back" />
             <span className="hdr-label">Dự án</span>
           </button>
@@ -261,7 +364,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
             <FileTree
               key={treeVersion}
               activePath={activePath ?? ''}
-              onOpenFile={setActivePath}
+              onOpenFile={openFile}
               onPathRemoved={(p) => {
                 if (activePath && (activePath === p || activePath.startsWith(`${p}/`))) setActivePath(null)
                 setTreeVersion((v) => v + 1)
@@ -302,20 +405,41 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 {activePath.endsWith('.typ') && (
                   <ChessToolbar
                     onInsertText={handleInsertText}
-                    onOpenBoard={() => setIsBoardOpen(true)}
-                    onOpenPgn={() => setIsPgnOpen(true)}
+                    onOpenBoard={openBoard}
+                    onOpenPgn={openPgn}
                   />
                 )}
-                <Editor
-                  key={activePath}
-                  ref={editorRef}
-                  path={activePath}
-                  initialContent={content}
-                  onDirtyChange={setDirty}
-                  onSave={saveActiveFile}
-                  onCursorChange={setCursor}
-                  onDiagnosticsChange={setDiagnostics}
-                />
+                <Suspense fallback={<PanelLoading />}>
+                  <Editor
+                    key={activePath}
+                    ref={editorRef}
+                    path={activePath}
+                    initialContent={content}
+                    onDirtyChange={setDirty}
+                    onSave={saveActiveFile}
+                    onSaveError={setSaveError}
+                    onCursorChange={setCursor}
+                    onDiagnosticsChange={setDiagnostics}
+                  />
+                </Suspense>
+              </div>
+            ) : activePath ? (
+              <div className="editor-state">
+                {loadError ? (
+                  <div className="editor-state-error" role="alert">
+                    <Icon name="error" size={20} />
+                    <p>
+                      Không mở được <b>{activePath}</b>: {loadError}
+                    </p>
+                    <button className="btn-primary" onClick={() => setLoadAttempt((n) => n + 1)}>
+                      <Icon name="refresh" size={14} /> Thử lại
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="spinner spinner-lg" /> Đang mở {activePath}…
+                  </>
+                )}
               </div>
             ) : (
               <div className="no-file-open-welcome">
@@ -327,7 +451,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     <ul className="welcome-file-list">
                       {rootFiles.slice(0, 6).map((f) => (
                         <li key={f.path}>
-                          <button className="welcome-file" onClick={() => setActivePath(f.path)}>
+                          <button className="welcome-file" onClick={() => openFile(f.path)}>
                             <Icon name="file-text" />
                             {f.name}
                           </button>
@@ -339,10 +463,10 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     <button className="welcome-btn btn-primary" onClick={() => setIsNewDocOpen(true)}>
                       <Icon name="file-plus" /> Tạo tài liệu mới
                     </button>
-                    <button className="welcome-btn" onClick={() => setIsBoardOpen(true)}>
+                    <button className="welcome-btn" onClick={openBoard}>
                       <Icon name="board" /> Xếp bàn cờ
                     </button>
-                    <button className="welcome-btn" onClick={() => setIsPgnOpen(true)}>
+                    <button className="welcome-btn" onClick={openPgn}>
                       <Icon name="scroll" /> Nhập PGN
                     </button>
                   </div>
@@ -394,9 +518,11 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
 
         {sidePanel && (
           <aside className="workspace-side-panel" style={{ width: sidePanelWidth }}>
-            {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
-            {sidePanel === 'packages' && <PackageManager />}
-            {sidePanel === 'settings' && <SettingsPanel />}
+            <Suspense fallback={<PanelLoading />}>
+              {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
+              {sidePanel === 'packages' && <PackageManager />}
+              {sidePanel === 'settings' && <SettingsPanel />}
+            </Suspense>
           </aside>
         )}
       </div>
@@ -406,11 +532,44 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         cursor={cursor}
         diagnostics={diagnostics}
         dirty={dirty}
+        saveError={saveError}
         lastSaved={lastSaved}
       />
 
-      <ChessBoardModal isOpen={isBoardOpen} onClose={() => setIsBoardOpen(false)} onInsertCode={handleInsertText} />
-      <PgnImportModal isOpen={isPgnOpen} onClose={() => setIsPgnOpen(false)} onInsertCode={handleInsertText} />
+      <Suspense fallback={null}>
+        {boardUsed && (
+          <ChessBoardModal isOpen={isBoardOpen} onClose={() => setIsBoardOpen(false)} onInsertCode={handleInsertText} />
+        )}
+        {pgnUsed && (
+          <PgnImportModal isOpen={isPgnOpen} onClose={() => setIsPgnOpen(false)} onInsertCode={handleInsertText} />
+        )}
+      </Suspense>
+      {pendingNav && (
+        <Modal
+          title="Có thay đổi chưa lưu"
+          className="prompt-dialog"
+          onClose={() => setPendingNav(null)}
+          footer={
+            <>
+              <button className="btn-ghost" onClick={() => setPendingNav(null)} disabled={savingForNav}>
+                Hủy
+              </button>
+              <button className="btn-danger" onClick={() => continueNav(pendingNav)} disabled={savingForNav}>
+                Bỏ thay đổi
+              </button>
+              <button className="btn-primary" onClick={saveThenContinue} disabled={savingForNav}>
+                {savingForNav ? 'Đang lưu…' : 'Lưu rồi tiếp tục'}
+              </button>
+            </>
+          }
+        >
+          <p className="prompt-dialog-body">
+            <b>{activePath}</b> có thay đổi chưa lưu.{' '}
+            {pendingNav.kind === 'open' ? `Lưu trước khi mở ${pendingNav.path}?` : 'Lưu trước khi đóng dự án?'}
+            {saveError && <span className="error"> Lưu thất bại: {saveError}</span>}
+          </p>
+        </Modal>
+      )}
       {isNewDocOpen && (
         <PromptDialog
           title="Tạo tài liệu mới"

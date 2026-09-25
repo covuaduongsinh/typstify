@@ -85,7 +85,10 @@ func (s *McpServer) Run() error {
 		}
 		listener, err := net.Listen("tcp4", address)
 		if err != nil {
-			panic(err)
+			// e.g. the static MCP port is already taken. Run without the
+			// built-in tools rather than crashing the whole app/server.
+			s.started.Store(false)
+			return fmt.Errorf("mcp server: listen on %s: %w", address, err)
 		}
 
 		if s.port <= 0 {
@@ -120,6 +123,9 @@ func (s *McpServer) Addr() (string, int) {
 }
 
 func (s *McpServer) Shutdown(ctx context.Context) error {
+	if s.httpServer == nil { // never started (e.g. Run failed to listen)
+		return nil
+	}
 	return s.httpServer.Shutdown(ctx)
 }
 

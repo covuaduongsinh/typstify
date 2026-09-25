@@ -92,21 +92,25 @@ func (d *PublishPkgDialog) OnConfirm() error {
 		return errors.New("No namespace is selected")
 	}
 
-	// TODO: should call this asynchronously.
-	err := d.srv.PkgService().Push(d.bundlePath, selectedNamespace)
-	if err != nil {
+	// Uploading the bundle can take a while: do it off the UI goroutine
+	// and report the outcome through the status bar.
+	bundlePath := d.bundlePath
+	go func() {
+		err := d.srv.PkgService().Push(bundlePath, selectedNamespace)
+		if err != nil {
+			d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+				Content:  i18n.Translate("publish package error: %s", err.Error()),
+				Level:    2,
+				Duration: time.Second * 8,
+			})
+			return
+		}
 		d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
-			Content:  i18n.Translate("publish package error: %s", err.Error()),
-			Level:    2,
-			Duration: time.Second * 8,
+			Content: i18n.Translate("publish package succeeded: %s", bundlePath),
 		})
-	} else {
-		d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
-			Content: i18n.Translate("publish package succeeded: %s", d.bundlePath),
-		})
-	}
+	}()
 
-	return err
+	return nil
 }
 
 func (d *PublishPkgDialog) LayoutBody(gtx C, th *theme.Theme) D {

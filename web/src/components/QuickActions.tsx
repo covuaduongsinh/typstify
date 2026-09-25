@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CHESSBOOK_IMPORT } from '../lib/typst'
 
 /** Pre-canned prompts for common Typst-editing tasks, sent through the same
  * agent.prompt() the free-form chat box uses (AgentChat.tsx). Each action
@@ -15,6 +16,12 @@ interface QuickAction {
   input?: { placeholder: string }
   buildPrompt: (value: string) => string
 }
+
+// Chess prompts: make sure the agent's output actually compiles, i.e. the
+// file imports the library the functions come from.
+const CHESS_PROMPT_PREFIX =
+  `Làm việc trên file đang mở (dùng getActiveDocument). Nếu file chưa có dòng \`${CHESSBOOK_IMPORT}\` ` +
+  'thì thêm dòng đó lên đầu file. '
 
 const ACTIONS: QuickAction[] = [
   {
@@ -66,6 +73,7 @@ const ACTIONS: QuickAction[] = [
     label: 'Thêm bài tập',
     input: { placeholder: 'Mô tả thế cờ, FEN hoặc chủ đề chiến thuật' },
     buildPrompt: (desc) =>
+      CHESS_PROMPT_PREFIX +
       `Hãy viết mã Typst chèn một bài tập cờ vua hoàn chỉnh bằng hàm #puzzle-card(...) từ thư viện cờ vua theo yêu cầu sau: "${desc}". Bao gồm mã FEN, số thứ tự bài, tiêu đề, lượt đi (w/b), độ khó (1-5 sao), gợi ý và lời giải chi tiết.`,
   },
   {
@@ -74,6 +82,7 @@ const ACTIONS: QuickAction[] = [
     label: 'Khai cuộc ECO',
     input: { placeholder: 'Mã ECO và tên khai cuộc, ví dụ: C58 Phòng thủ hai mã' },
     buildPrompt: (eco) =>
+      CHESS_PROMPT_PREFIX +
       `Hãy soạn cấu trúc chuyên khảo khai cuộc cờ vua bằng các hàm #eco-header(...), #opening-diagram-box(...) và #eco-table(...) từ thư viện cờ vua cho khai cuộc sau: "${eco}".`,
   },
   {
@@ -82,6 +91,7 @@ const ACTIONS: QuickAction[] = [
     label: 'Soạn bài giảng',
     input: { placeholder: 'Chủ đề bài giảng, ví dụ: Đòn đánh đôi, Đòn ghim...' },
     buildPrompt: (topic) =>
+      CHESS_PROMPT_PREFIX +
       `Hãy soạn một bài giảng huấn luyện cờ vua hoàn chỉnh bằng các hàm #lesson-header(...), #concept-box(...), #teaching-diagram(...) và #practice-question(...) cho chủ đề: "${topic}".`,
   },
 ]

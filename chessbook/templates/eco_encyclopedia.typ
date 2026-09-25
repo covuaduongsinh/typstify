@@ -19,7 +19,7 @@
   ]
 )
 
-#set text(font: ("Times New Roman", "Segoe UI Symbol"), size: 8.5pt, lang: "vi")
+#set text(font: font-serif, size: 8.5pt, lang: "vi")
 #set par(justify: true, leading: 0.5em)
 
 // Tiêu đề Khai cuộc

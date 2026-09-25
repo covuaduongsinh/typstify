@@ -18,15 +18,15 @@
 
 | Thư mục / File | Vai trò & Chức năng chính |
 | :--- | :--- |
-| [`app.go`](file:///D:/code/typstify/app.go) | Entry point của ứng dụng. Khởi tạo `ServiceFacade`, cấu hình Logger, khởi chạy vòng lặp GUI `ui.Loop(ctx)`. |
-| [`editor/`](file:///D:/code/typstify/editor) | Bộ lõi trình soạn thảo văn bản dựa trên `gvcode`: hỗ trợ tô màu cú pháp (Chroma), đánh số dòng (ruler), tự động lưu (autosaver), tìm kiếm (search), hiển thị diff. |
-| [`lsp/`](file:///D:/code/typstify/lsp) | Giao tiếp Language Server Protocol với `tinymist`: quản lý tiến trình nền, luồng chẩn đoán lỗi, completion provider, preview service. |
-| [`typst/`](file:///D:/code/typstify/typst) | Trình bọc lệnh gọi thực thi `typst` CLI: biên dịch tài liệu, định cấu hình compiler options, xuất file PDF/SVG/PNG. |
-| [`service/`](file:///D:/code/typstify/service) | Tầng kiến trúc Service Facade kết nối UI với các dịch vụ lõi: Event Bus, Workspace Manager, Settings Manager (dùng `bbolt` DB), Window Manager. |
-| [`ui/`](file:///D:/code/typstify/ui) | Toàn bộ giao diện người dùng viết bằng Gio UI: thanh điều hướng (`navpanel`), cây thư mục (`filetree`), trình xem ảnh/preview (`viewer`), hộp thoại (`dialog`), quản lý gói (`pkgmgmt`), trợ lý AI (`assistant`). |
-| [`agent/`](file:///D:/code/typstify/agent) | Hệ thống máy chủ MCP nhúng (Built-in MCP Server) và quản lý phiên ACP (Agent Client Protocol) kết nối với các AI agent bên ngoài. |
-| [`i18n/`](file:///D:/code/typstify/i18n) | Bộ dịch đa ngôn ngữ cho giao diện (Tiếng Anh, Tiếng Trung, Tiếng Việt, v.v.). |
-| [`fonts/`](file:///D:/code/typstify/fonts) | Bộ phông chữ nhúng sẵn: Hack, RobotoMono, NotoSansSC, NotoSansMath, NotoColorEmoji. |
+| [`app.go`](../app.go) | Entry point của ứng dụng. Khởi tạo `ServiceFacade`, cấu hình Logger, khởi chạy vòng lặp GUI `ui.Loop(ctx)`. |
+| [`editor/`](../editor) | Bộ lõi trình soạn thảo văn bản dựa trên `gvcode`: hỗ trợ tô màu cú pháp (Chroma), đánh số dòng (ruler), tự động lưu (autosaver), tìm kiếm (search), hiển thị diff. |
+| [`lsp/`](../lsp) | Giao tiếp Language Server Protocol với `tinymist`: quản lý tiến trình nền, luồng chẩn đoán lỗi, completion provider, preview service. |
+| [`typst/`](../typst) | Trình bọc lệnh gọi thực thi `typst` CLI: biên dịch tài liệu, định cấu hình compiler options, xuất file PDF/SVG/PNG. |
+| [`service/`](../service) | Tầng kiến trúc Service Facade kết nối UI với các dịch vụ lõi: Event Bus, Workspace Manager, Settings Manager (dùng `bbolt` DB), Window Manager. |
+| [`ui/`](../ui) | Toàn bộ giao diện người dùng viết bằng Gio UI: thanh điều hướng (`navpanel`), cây thư mục (`filetree`), trình xem ảnh/preview (`viewer`), hộp thoại (`dialog`), quản lý gói (`pkgmgmt`), trợ lý AI (`assistant`). |
+| [`agent/`](../agent) | Hệ thống máy chủ MCP nhúng (Built-in MCP Server) và quản lý phiên ACP (Agent Client Protocol) kết nối với các AI agent bên ngoài. |
+| [`i18n/`](../i18n) | Bộ dịch đa ngôn ngữ cho giao diện (Tiếng Anh, Tiếng Trung, Tiếng Việt, v.v.). |
+| [`fonts/`](../fonts) | Phông chữ nhúng vào ứng dụng desktop (`fonts/fonts.go`): Hack, RobotoMono, NotoSansMath, NotoEmoji. |
 
 ---
 

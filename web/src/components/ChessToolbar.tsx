@@ -47,7 +47,7 @@ const TEMPLATES = [
   "r1bqk2r/pppp1ppp/2n5/4p3/1bB1n3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6",
   number: 1,
   title: "Đòn đánh đôi",
-  to-move: "w",
+  turn: "w",
   difficulty: 2,
   hint: "Gỡ ghim và phản công",
   solution: "1. dxe4 Bxc3+ 2. bxc3 Trắng hơn quân."

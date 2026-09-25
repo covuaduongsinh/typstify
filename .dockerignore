@@ -2,7 +2,10 @@
 .omc
 bin/
 scratch/
-chessbook/
+# Only the chess library ships in the image (as the @local/chessbook package).
+chessbook/*
+!chessbook/lib
+.env
 demo/
 docs/
 *.exe
@@ -10,3 +13,7 @@ docs/
 *.log
 web/node_modules
 web/dist
+# Not needed to build the server image (desktop-only assets / dev files).
+**/*.test.ts
+.github
+scripts/check-chessbook.sh

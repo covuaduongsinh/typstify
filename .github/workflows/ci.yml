@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: Go (server + desktop)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install Gio (desktop UI) build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwayland-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libx11-xcb-dev libxcursor-dev libvulkan-dev libegl-dev \
+            libgles-dev libxfixes-dev libx11-dev
+      - name: Build server (CGO off, as in the Docker image)
+        run: CGO_ENABLED=0 go build ./cmd/typstify-server
+      - name: Build desktop app
+        run: go build .
+      - name: Vet
+        run: go vet ./...
+      - name: Test (race detector)
+        run: go test -race ./...
+
+  web:
+    name: Web frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  chessbook:
+    name: Chess library (Typst)
+    runs-on: ubuntu-latest
+    env:
+      TYPST_VERSION: v0.15.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install typst and print fonts
+        run: |
+          curl -fsSL "https://github.com/typst/typst/releases/download/${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz" | tar -xJ -C /tmp
+          sudo mv /tmp/typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-roboto-unhinted fonts-noto-core
+      - name: Compile demos, templates and a new document
+        run: scripts/check-chessbook.sh
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: docker build -t typstify:ci .

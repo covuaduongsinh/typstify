@@ -124,32 +124,37 @@ func (d *SyncBibDialog) OnConfirm() error {
 		format = "hayagriva"
 	}
 
-	// TODO: should call this asynchronously.
-	exportID, err := d.srv.TpixClient().CreateZoteroExport(filename, namespaceID, scope, int64(libraryID), selectedCollectionKey, format)
-	if err != nil {
+	// The export is a network round trip to the Tpix service: run it off
+	// the UI goroutine so the window doesn't freeze. The outcome is
+	// reported through the status bar either way.
+	parentDir := d.parentDir
+	go func() {
+		exportID, err := d.srv.TpixClient().CreateZoteroExport(filename, namespaceID, scope, int64(libraryID), selectedCollectionKey, format)
+		if err != nil {
+			d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+				Content: i18n.Translate("Creating managed bibliography error: %s", err.Error()),
+				Level:   2,
+			})
+			return
+		}
+
+		bibFile := service.ManagedBibliography{
+			ExportID: exportID,
+			File:     filepath.Join(parentDir, filename),
+			Meta: service.BibliographyExportMeta{
+				Namespace:  namespaceName,
+				Library:    libraryName,
+				Collection: collectionName,
+				Format:     format,
+			},
+		}
+		d.srv.Workspace().SaveManagedBibliography(bibFile)
 		d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
-			Content: i18n.Translate("Creating managed bibliography error: %s", err.Error()),
-			Level:   2,
+			Content: i18n.Translate("Creating managed bibliography succeeded: %s", filename),
 		})
-		return err
-	}
+	}()
 
-	bibFile := service.ManagedBibliography{
-		ExportID: exportID,
-		File:     filepath.Join(d.parentDir, filename),
-		Meta: service.BibliographyExportMeta{
-			Namespace:  namespaceName,
-			Library:    libraryName,
-			Collection: collectionName,
-			Format:     format,
-		},
-	}
-	d.srv.Workspace().SaveManagedBibliography(bibFile)
-	d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
-		Content: i18n.Translate("Creating managed bibliography succeeded: %s", filename),
-	})
-
-	return err
+	return nil
 }
 
 func (d *SyncBibDialog) LayoutBody(gtx C, th *theme.Theme) D {

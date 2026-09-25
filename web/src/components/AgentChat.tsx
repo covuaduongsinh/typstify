@@ -32,6 +32,16 @@ function isTextEntry(e: ChatEntry): e is { kind: TextEntryKind; id: string; text
 
 let nextEntryId = 1
 
+// Links in agent replies open in a new tab: following one in place would
+// navigate away from the editor (and any unsaved edits).
+const MARKDOWN_COMPONENTS = {
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ),
+}
+
 const TOOL_STATUS_LABEL: Record<string, string> = {
   pending: 'Đang chờ',
   in_progress: 'Đang chạy',
@@ -335,7 +345,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
               </div>
             ) : e.kind === 'agent' || e.kind === 'thought' ? (
               <div className="chat-text chat-text-markdown">
-                <ReactMarkdown>{e.text}</ReactMarkdown>
+                <ReactMarkdown components={MARKDOWN_COMPONENTS}>{e.text}</ReactMarkdown>
               </div>
             ) : (
               <div className="chat-text">{e.text}</div>

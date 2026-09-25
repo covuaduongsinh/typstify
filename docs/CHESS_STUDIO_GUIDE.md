@@ -26,6 +26,25 @@
 - **Chất lượng in ấn chuẩn Vector**: Bàn cờ, quân cờ và ký hiệu quốc tế sắc nét tuyệt đối ở mọi độ phân giải (chuẩn in offset, nhà xuất bản, Amazon KDP).
 - **Bộ công cụ trực quan**: Không cần nhớ mã FEN, có bàn cờ kéo thả xếp quân và trình nhập PGN tự động sinh mã.
 
+### Dùng thư viện trong tài liệu của bạn
+
+Thư viện nằm ở `chessbook/lib` và được cài thành gói Typst cục bộ **`@local/chessbook:0.1.0`**. Mọi tài liệu chỉ cần một dòng ở đầu file:
+
+```typst
+#import "@local/chessbook:0.1.0": *
+
+#show: chess-book-init.with(title: "TÊN SÁCH", author: "CLB Cờ vua Dương Sinh", paper-size: "a5")
+```
+
+- **Bản web (typst.dsc.edu.vn):** gói, `@preview/board-n-pieces` và font in (Roboto, Noto Serif) đã có sẵn trong image, nên biên dịch được ngay, không cần mạng. Tài liệu mới tạo từ web đã có sẵn dòng `#import`; khi chèn bất kỳ mẫu cờ nào mà file chưa import, editor tự thêm dòng này lên đầu.
+- **Bản desktop:** chạy một lần `scripts/install-chessbook.ps1` (Windows) hoặc `scripts/install-chessbook.sh` (macOS/Linux), và chạy lại mỗi khi cập nhật thư viện. Cài thêm hai font miễn phí **Roboto** và **Noto Serif** (Google Fonts) để bản in đúng nhận diện; nếu thiếu, Typst dùng font dự phòng và báo cảnh báo.
+- **Màu và font** của mọi module lấy từ `chessbook/lib/theme.typ` (navy `#2B3990` + gold). Đổi nhận diện chỉ cần sửa file này. Có thể truyền `font:` riêng cho `chess-book-init` / `chess-magazine-init`.
+- **Lượt đi:** mọi hàm dùng chung tham số `turn` (`"w"`/`"b"`, hoặc `"Đen"`, `"black"`). `puzzle-card` vẫn nhận tên cũ `to-move`; nếu bỏ trống thì đọc lượt đi từ FEN.
+- **FEN sai** (thiếu hàng, sai ký tự) được hiện thành khung báo lỗi đỏ ngay tại vị trí bàn cờ, không làm hỏng cả tài liệu.
+- Kiểm tra thư viện trước khi commit: `scripts/check-chessbook.sh` (biên dịch mọi demo/template và một tài liệu mẫu, báo lỗi cả khi chỉ có cảnh báo).
+
+> Các ví dụ bên dưới nằm trong thư mục `chessbook/` nên dùng đường dẫn tương đối `#import "lib/lib.typ": *`; trong dự án của bạn hãy dùng `#import "@local/chessbook:0.1.0": *`.
+
 ---
 
 ## 2. Hướng Dẫn 4 Dạng Ấn Phẩm Cờ Vua Chuẩn
@@ -229,30 +248,33 @@ Chuyên dùng cho trung tâm, trường học cờ vua, câu lạc bộ và bài
 Giao diện Web của Typstify được tích hợp bộ công cụ cờ vua thông minh xuất hiện tự động trên đỉnh trình soạn thảo khi bạn mở file `.typ`:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│ [♟️ Xếp Bàn Cờ] [📜 Nhập PGN] | ♔ ♕ ♖ ♗ ♘ ♙ ♚ ♛ ♜ ♝ ♞ ♟ | ! ? !! ?? !? ?! ± ∓ ⩲ ⩱ = ∞ □ | [📐 Chèn Mẫu ▾] │
-└─────────────────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ [Xếp bàn cờ] [Nhập PGN] | [♞ Quân cờ ▾] [!? Ký hiệu ▾]  ! ? !! ?? !? ?! | [Chèn mẫu ▾] │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Thanh Công Cụ Ký Hiệu Cờ Vua (Chess Toolbar)
-- **Palette Quân cờ**: Bấm vào biểu tượng quân cờ để chèn trực tiếp mã ký hiệu hình tượng (`#wK`, `#wQ`, `#bN`, `#bP`...) vào vị trí con trỏ.
-- **Palette NAG**: Bấm vào các ký hiệu `!`, `?`, `±`, `∓`, `⩲`, `⩱`, `=`, `∞`, `□` để chèn đánh giá thế trận chuẩn quốc tế.
-- **Menu Chèn Mẫu (📐)**: Chèn nhanh khung mẫu hoàn chỉnh của 4 dạng A, B, C, D chỉ với 1 click chuột.
+- **Quân cờ ▾**: bảng 12 quân (Trắng/Đen) có tên tiếng Việt; bấm để chèn mã hình tượng (`#wK`, `#wQ`, `#bN`, `#bP`...) vào vị trí con trỏ.
+- **Ký hiệu ▾**: toàn bộ bộ ký hiệu NAG kèm giải nghĩa (`±` Trắng ưu thế, `∞` Không rõ ràng, `□` Nước duy nhất...). Sáu ký hiệu hay dùng nhất (`! ? !! ?? !? ?!`) nằm sẵn trên thanh khi đủ chỗ.
+- **Chèn mẫu ▾**: khung mẫu hoàn chỉnh của 4 dạng A, B, C, D, có mô tả ngắn.
+- Các menu đóng khi bấm ra ngoài hoặc nhấn **Esc**. Khi cột soạn thảo hẹp, nhãn chữ thu gọn thành biểu tượng (di chuột để xem tên).
+- Mọi mẫu chèn vào đều tự thêm `#import "@local/chessbook:0.1.0": *` nếu file chưa có.
 
 ### Bàn Cờ Trực Quan Xếp Thế Cờ (Visual Chessboard)
 1. Bấm nút **"♟️ Xếp Bàn Cờ"** trên thanh công cụ.
 2. Cửa sổ bàn cờ 8x8 trực quan xuất hiện:
-   - Chọn quân cờ trên thanh công cụ palette (Vua, Hậu, Xe, Tượng, Mã, Tốt).
-   - Click vào ô cờ để đặt quân; chọn 🧹 để xóa quân cờ.
-   - Bấm **"🔄 Đảo góc nhìn"** để xoay bàn cờ theo hướng quân Đen.
-   - Bấm **"🏁 Ván cờ đầu"** để xếp lại vị trí xuất phát hoặc **"🗑️ Xóa trắng"** để xóa toàn bộ bàn cờ.
-3. Chọn định dạng xuất bản mong muốn (**Dạng A, B, C hoặc D**), nhập tiêu đề, độ khó, lời giải.
-4. Bấm **"✨ Chèn vào Tài Liệu"**: Hệ thống sẽ tự động sinh mã Typst và chèn thẳng vào vị trí con trỏ trong Editor!
+   - Chọn quân trong bảng rồi bấm vào ô để đặt, **hoặc kéo-thả** quân từ bảng lên bàn; kéo quân giữa các ô để di chuyển, kéo ra ngoài bàn để xóa. Chọn ✕ để xóa từng quân.
+   - Dùng bàn phím: **Tab** tới ô, **Enter/Space** để đặt quân đang chọn.
+   - **Đảo góc nhìn**, **Thế ban đầu**, **Xóa bàn**. Bàn cờ có tọa độ a–h / 1–8.
+   - Quyền nhập thành trong FEN được tính theo vị trí thật của Vua và Xe.
+3. Chọn định dạng xuất bản (**Dạng A, B, C hoặc D**), nhập tiêu đề, độ khó, gợi ý, lời giải (bỏ trống thì không in).
+4. Bấm **"Chèn vào tài liệu"**. Thế cờ đang xếp được giữ lại nếu đóng rồi mở lại bàn cờ.
 
 ### Trình Nhập & Chuyển Đổi Ván Cờ PGN (PGN Importer)
 1. Bấm nút **"📜 Nhập PGN"** trên thanh công cụ.
-2. Dán nội dung ván cờ PGN từ Chess.com / Lichess hoặc bấm **"📂 Tải file PGN"** từ máy tính.
-3. Bấm **"✨ Chuyển đổi & Chèn vào Tài Liệu"**: Hệ thống tự động bóc tách tên kỳ thủ, Elo, ngày đấu, mã ECO và định dạng danh sách nước đi thành code Typst hoàn chỉnh.
+2. Dán nội dung PGN từ Chess.com / Lichess hoặc bấm **"Chọn file .pgn"**. File có **nhiều ván** được tách thành nhiều thẻ ván đấu.
+3. Bấm **"Chèn … vào tài liệu"**. Hệ thống đọc tên kỳ thủ, Elo, danh hiệu, giải, ngày (bỏ phần `??`), vòng, kết quả, mã ECO; chú thích `{...}` được in nghiêng, nhánh biến `(...)` giữ nguyên, mã `$n` đổi thành ký hiệu NAG.
+4. Thông tin PGN không có sẽ **để trống** (không tự điền Elo, danh hiệu hay kết quả giả). Ký tự đặc biệt trong tên và nước đi được xử lý an toàn nên không làm hỏng mã Typst.
 
 ---
 
@@ -283,6 +305,9 @@ Giao diện Web của Typstify được tích hợp bộ công cụ cờ vua th�
 
 ### 1. Biên Dịch Trực Tiếp File PDF Qua Dòng Lệnh
 ```bash
+# Kiểm tra toàn bộ thư viện (mọi demo/template + tài liệu mẫu dùng @local/chessbook)
+scripts/check-chessbook.sh
+
 # Biên dịch Sách bài tập A5
 typst compile --root chessbook chessbook/templates/puzzle_book.typ chessbook/output/puzzle_book.pdf
 
@@ -317,4 +342,4 @@ npm run build
 # Chạy server với Docker
 docker-compose up -d --build
 ```
-Hệ thống sẽ chạy container backend kèm Caddy reverse proxy sẵn sàng cho môi trường production / VPS Dokploy.
+Hệ thống sẽ chạy container backend kèm Caddy reverse proxy sẵn sàng cho môi trường production / VPS Dokploy. Image đã gồm sẵn thư viện `@local/chessbook`, gói `board-n-pieces` và font in; chi tiết cấu hình xem `docs/web-server.md`.

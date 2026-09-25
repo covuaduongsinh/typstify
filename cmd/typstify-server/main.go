@@ -34,6 +34,9 @@ func main() {
 	staticDirFlag := flag.String("static-dir", envOr("TYPSTIFY_STATIC_DIR", "web/dist"), "Directory containing the built web frontend to serve; ignored if it doesn't exist")
 	projectRootFlag := flag.String("project-root", os.Getenv("TYPSTIFY_PROJECT_ROOT"), "If set, confine Open/Create Project to this directory (e.g. a persistent volume mount) -- anywhere else is rejected. Empty means unrestricted")
 	flag.Parse()
+	// Child processes (AI agents and the shell commands they run, typst,
+	// tinymist) must not inherit the server password.
+	_ = os.Unsetenv("TYPSTIFY_SERVER_PASSWORD")
 
 	projectDir, err := resolveProjectDir(*projectDirFlag)
 	if err != nil {
@@ -62,6 +65,12 @@ func main() {
 
 	httpSrv := &http.Server{
 		Addr: *addrFlag,
+		// Bound how long a client may take to send headers and how long an
+		// idle keep-alive connection lingers (slowloris). No overall
+		// Read/WriteTimeout: /ws/* connections and PDF compiles are
+		// legitimately long-lived; request bodies are size-capped instead.
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
 		Handler: server.New(appSrv, server.Options{
 			Password:    *passwordFlag,
 			StaticDir:   staticDir,

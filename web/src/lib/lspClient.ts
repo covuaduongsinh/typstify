@@ -43,22 +43,60 @@ type DiagnosticsListener = (path: string, diagnostics: LspDiagnostic[]) => void
 
 let nextId = 1
 
-/** LspClient bridges one CodeMirror editor session to /ws/lsp. */
+const REQUEST_TIMEOUT_MS = 10_000
+const RECONNECT_MIN_MS = 1_000
+const RECONNECT_MAX_MS = 15_000
+
+/** LspClient bridges one CodeMirror editor session to /ws/lsp. If the
+ * socket drops (server restart, proxy idle timeout, network), it
+ * reconnects with backoff and notifies onReconnect listeners so the editor
+ * can re-open its document on the new server-side session. */
 export class LspClient {
   private ws: WebSocket | null = null
-  private pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
+  private pending = new Map<
+    string,
+    { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: number }
+  >()
   private diagnosticsListeners = new Set<DiagnosticsListener>()
-  private openPromise: Promise<void>
+  private reconnectListeners = new Set<() => void>()
+  private openPromise!: Promise<void>
+  private closed = false
+  private everOpened = false
+  private reconnectDelay = RECONNECT_MIN_MS
+  private reconnectTimer: number | undefined
 
   constructor() {
-    this.openPromise = new Promise((resolve, reject) => {
+    this.connect()
+  }
+
+  private connect() {
+    this.openPromise = new Promise<void>((resolve, reject) => {
       const ws = new WebSocket(wsUrl('/ws/lsp'))
       this.ws = ws
-      ws.addEventListener('open', () => resolve())
+      ws.addEventListener('open', () => {
+        const isReconnect = this.everOpened
+        this.everOpened = true
+        this.reconnectDelay = RECONNECT_MIN_MS
+        resolve()
+        if (isReconnect) for (const l of this.reconnectListeners) l()
+      })
       ws.addEventListener('error', () => reject(new Error('LSP WebSocket connection failed')))
       ws.addEventListener('message', (ev) => this.onMessage(ev))
-      ws.addEventListener('close', () => this.rejectAllPending('LSP connection closed'))
+      ws.addEventListener('close', () => {
+        reject(new Error('LSP connection closed'))
+        this.rejectAllPending('LSP connection closed')
+        this.scheduleReconnect()
+      })
     })
+    // Failures surface through request()/send(); never as an unhandled rejection.
+    this.openPromise.catch(() => {})
+  }
+
+  private scheduleReconnect() {
+    if (this.closed) return
+    window.clearTimeout(this.reconnectTimer)
+    this.reconnectTimer = window.setTimeout(() => this.connect(), this.reconnectDelay)
+    this.reconnectDelay = Math.min(this.reconnectDelay * 2, RECONNECT_MAX_MS)
   }
 
   private onMessage(ev: MessageEvent) {
@@ -83,6 +121,7 @@ export class LspClient {
     const pending = this.pending.get(msg.id)
     if (!pending) return
     this.pending.delete(msg.id)
+    window.clearTimeout(pending.timer)
 
     if (msg.type === 'error') {
       pending.reject(new Error(msg.message ?? 'LSP request failed'))
@@ -92,26 +131,47 @@ export class LspClient {
   }
 
   private rejectAllPending(reason: string) {
-    for (const p of this.pending.values()) p.reject(new Error(reason))
+    for (const p of this.pending.values()) {
+      window.clearTimeout(p.timer)
+      p.reject(new Error(reason))
+    }
     this.pending.clear()
   }
 
-  private async send(msg: OutgoingMessage) {
-    await this.openPromise
-    this.ws?.send(JSON.stringify(msg))
+  /** Sends once the socket is open. Notifications sent while disconnected
+   * are dropped: on reconnect the editor re-sends the full document. */
+  private async send(msg: OutgoingMessage): Promise<boolean> {
+    try {
+      await this.openPromise
+    } catch {
+      return false
+    }
+    if (this.ws?.readyState !== WebSocket.OPEN) return false
+    this.ws.send(JSON.stringify(msg))
+    return true
   }
 
   private async request<T>(msg: OutgoingMessage): Promise<T> {
     const id = String(nextId++)
-    await this.send({ ...msg, id })
+    if (!(await this.send({ ...msg, id }))) throw new Error('LSP not connected')
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject })
+      const timer = window.setTimeout(() => {
+        this.pending.delete(id)
+        reject(new Error('LSP request timed out'))
+      }, REQUEST_TIMEOUT_MS)
+      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer })
     })
   }
 
   onDiagnostics(listener: DiagnosticsListener): () => void {
     this.diagnosticsListeners.add(listener)
     return () => this.diagnosticsListeners.delete(listener)
+  }
+
+  /** Called after the socket reconnects (not on the first connect). */
+  onReconnect(listener: () => void): () => void {
+    this.reconnectListeners.add(listener)
+    return () => this.reconnectListeners.delete(listener)
   }
 
   didOpen(path: string, content: string) {
@@ -142,6 +202,9 @@ export class LspClient {
   }
 
   close() {
+    this.closed = true
+    window.clearTimeout(this.reconnectTimer)
+    this.rejectAllPending('LSP client closed')
     this.ws?.close()
   }
 }

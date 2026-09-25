@@ -397,6 +397,13 @@
 .status-warning {
   color: #ffe08a;
 }
+.status-save-error {
+  color: #fff;
+  background: var(--error);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
 .status-dirty {
   color: var(--gold);
   font-weight: 600;
@@ -1843,6 +1850,12 @@ button.btn-danger {
   user-select: none;
 }
 
+.chess-square:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: -3px;
+  z-index: 1;
+}
+
 .chess-square.light {
   background-color: var(--board-light);
 }
@@ -2053,3 +2066,33 @@ button.btn-danger {
   resize: vertical;
 }
 
+
+/* Editor loading / load-error state */
+.editor-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 24px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.editor-state-error {
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--error);
+}
+.editor-state-error p {
+  margin: 0;
+  color: var(--text);
+}
+.editor-state-error button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

@@ -73,6 +73,18 @@ type TypstSettings struct {
 	OutputDir           string `key:"outputDir" json:"outputDir"`
 }
 
+// EffectivePackageDir is the directory typst/tinymist search for
+// packages: the configured localPkgDir, or $TYPST_PACKAGE_PATH when that is
+// empty. The Docker image points TYPST_PACKAGE_PATH at the bundled
+// packages (@local/chessbook and its @preview dependency), so documents
+// compile without network access and without per-user setup.
+func (t *TypstSettings) EffectivePackageDir() string {
+	if t.PackageDir != "" {
+		return t.PackageDir
+	}
+	return os.Getenv("TYPST_PACKAGE_PATH")
+}
+
 type LspSettings struct {
 	baseModel
 

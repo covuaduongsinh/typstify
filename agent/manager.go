@@ -107,6 +107,8 @@ func (sm *SessionManager) mcpServersForConn(conn *AgentConn) []acp.McpServer {
 }
 
 func (sm *SessionManager) AgentConn() *AgentConn {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 	return sm.conn
 }
 
@@ -446,28 +448,27 @@ func (sm *SessionManager) CloseSession(ctx context.Context, sessionID string) er
 	}
 	sm.mu.Unlock()
 
-	// If the agent does not support close active sessions, return without error.
-	closeCap := session.Conn().AgentCapabilities.SessionCapabilities.Close
-	if closeCap == nil {
-		return nil
+	// Always release the session locally (subscriber goroutine, blocked
+	// senders, terminals): previously an agent without session/close
+	// support leaked all of that on every browser disconnect.
+	defer func() {
+		session.Close()
+		sm.mu.Lock()
+		sm.activeSessions = slices.DeleteFunc(sm.activeSessions, func(sn *ACPSession) bool {
+			return sn.SessionID == sessionID
+		})
+		sm.mu.Unlock()
+	}()
+
+	// Tell the agent too, if it supports closing sessions.
+	if conn := session.Conn(); conn != nil && conn.AgentCapabilities.SessionCapabilities.Close != nil {
+		_, err := conn.Conn.CloseSession(ctx, acp.CloseSessionRequest{
+			SessionId: acp.SessionId(sessionID),
+		})
+		if err := checkACPErr(err); err != nil {
+			return err
+		}
 	}
-
-	_, err := session.Conn().Conn.CloseSession(ctx, acp.CloseSessionRequest{
-		SessionId: acp.SessionId(sessionID),
-	})
-
-	err = checkACPErr(err)
-	if err != nil {
-		return err
-	}
-
-	session.Close()
-
-	sm.mu.Lock()
-	sm.activeSessions = slices.DeleteFunc(sm.activeSessions, func(sn *ACPSession) bool {
-		return sn.SessionID == sessionID
-	})
-	sm.mu.Unlock()
 
 	return nil
 }

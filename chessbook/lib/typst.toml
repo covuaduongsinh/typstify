@@ -1,0 +1,8 @@
+[package]
+name = "chessbook"
+version = "0.1.0"
+entrypoint = "lib.typ"
+authors = ["Công ty CP Cờ vua Dương Sinh"]
+license = "Apache-2.0"
+description = "Thư viện xuất bản sách, giáo trình và tạp chí cờ vua (Dương Sinh Chess Studio)."
+compiler = "0.13.0"

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { parsePgn, pgnToTypst } from '../lib/pgn'
 import { Icon } from './Icon'
 import { Modal } from './Modal'
 
@@ -6,89 +7,6 @@ interface PgnImportModalProps {
   isOpen: boolean
   onClose: () => void
   onInsertCode: (code: string) => void
-}
-
-interface PgnParsed {
-  headers: Record<string, string>
-  moves: string
-}
-
-function parsePgn(pgnText: string): PgnParsed {
-  const headers: Record<string, string> = {}
-  const lines = pgnText.split('\n')
-  const moveLines: string[] = []
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed) {
-      continue
-    }
-
-    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      const match = trimmed.match(/\[([A-Za-z0-9_]+)\s+"(.*)"\]/)
-      if (match) {
-        headers[match[1]] = match[2]
-      }
-    } else {
-      moveLines.push(trimmed)
-    }
-  }
-
-  return {
-    headers,
-    moves: moveLines.join(' '),
-  }
-}
-
-function convertPgnToTypst(parsed: PgnParsed): string {
-  const h = parsed.headers
-  const white = h['White'] || 'Trắng'
-  const black = h['Black'] || 'Đen'
-  const whiteElo = h['WhiteElo'] || '2700'
-  const blackElo = h['BlackElo'] || '2700'
-  const whiteFed = h['WhiteFed'] || ''
-  const blackFed = h['BlackFed'] || ''
-  const whiteTitle = h['WhiteTitle'] || 'GM'
-  const blackTitle = h['BlackTitle'] || 'GM'
-  const event = h['Event'] || 'Giải Đấu Cờ Vua'
-  const site = h['Site'] || 'Hà Nội'
-  const date = h['Date'] || new Date().toISOString().slice(0, 10)
-  const round = h['Round'] || '1'
-  const result = h['Result'] || '1 - 0'
-  const eco = h['ECO'] || 'B90'
-  const opening = h['Opening'] || 'Khai Cuộc'
-
-  // Clean moves and replace some notation
-  let moves = parsed.moves
-    .replace(/\r?\n/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  return `// ============================================================================
-// VÁN ĐẤU: ${white} vs ${black} (${event})
-// ============================================================================
-
-#game-header(
-  white: "${white}",
-  white-title: "${whiteTitle}",
-  white-elo: "${whiteElo}",
-  white-fed: "${whiteFed}",
-  black: "${black}",
-  black-title: "${blackTitle}",
-  black-elo: "${blackElo}",
-  black-fed: "${blackFed}",
-  event: "${event}",
-  site: "${site}",
-  date: "${date}",
-  round: "${round}",
-  result: "${result}",
-  eco: "${eco}",
-  opening: "${opening}"
-)
-
-#v(6pt)
-
-${moves}
-\n`
 }
 
 const SAMPLE_PGN = `[Event "FIDE World Championship 2024"]
@@ -107,13 +25,12 @@ const SAMPLE_PGN = `[Event "FIDE World Championship 2024"]
 
 export function PgnImportModal({ isOpen, onClose, onInsertCode }: PgnImportModalProps) {
   const [pgnInput, setPgnInput] = useState(SAMPLE_PGN)
+  const gameCount = useMemo(() => parsePgn(pgnInput).length, [pgnInput])
 
   if (!isOpen) return null
 
   const handleImport = () => {
-    const parsed = parsePgn(pgnInput)
-    const typstCode = convertPgnToTypst(parsed)
-    onInsertCode(typstCode)
+    onInsertCode(pgnToTypst(pgnInput))
     onClose()
   }
 
@@ -143,8 +60,8 @@ export function PgnImportModal({ isOpen, onClose, onInsertCode }: PgnImportModal
           <button className="small-action-btn" onClick={() => setPgnInput(SAMPLE_PGN)}>
             <Icon name="refresh" size={13} /> Nạp ván mẫu
           </button>
-          <button className="insert-code-btn btn-primary" onClick={handleImport} disabled={!pgnInput.trim()}>
-            <Icon name="download" size={14} /> Chuyển đổi &amp; chèn vào tài liệu
+          <button className="insert-code-btn btn-primary" onClick={handleImport} disabled={gameCount === 0}>
+            <Icon name="download" size={14} /> Chèn {gameCount > 1 ? `${gameCount} ván` : 'ván cờ'} vào tài liệu
           </button>
         </>
       }
