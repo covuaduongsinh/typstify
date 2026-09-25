@@ -13,12 +13,14 @@ export function StatusBar({
   diagnostics,
   dirty,
   lastSaved,
+  saveError,
 }: {
   activePath: string | null
   cursor: { line: number; col: number } | null
   diagnostics: DiagnosticCounts
   dirty: boolean
   lastSaved: Date | null
+  saveError?: string | null
 }) {
   const isTyp = activePath?.endsWith('.typ')
   return (
@@ -48,6 +50,11 @@ export function StatusBar({
         </span>
       )}
       {activePath && <span className="status-item">{isTyp ? 'Typst' : 'Văn bản'} · UTF-8</span>}
+      {activePath && saveError && (
+        <span className="status-item status-save-error" role="alert" title={saveError}>
+          <Icon name="error" size={13} /> Lưu thất bại
+        </span>
+      )}
       {activePath && (
         <span className={`status-item ${dirty ? 'status-dirty' : ''}`}>
           {dirty

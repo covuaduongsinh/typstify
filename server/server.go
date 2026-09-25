@@ -55,7 +55,7 @@ func New(appSrv *service.ServiceFacade, opts Options) *Server {
 
 // Handler returns the root http.Handler to pass to http.Server.
 func (s *Server) Handler() http.Handler {
-	return withLogging(s.mux)
+	return withLogging(withBodyLimit(s.mux))
 }
 
 func (s *Server) routes() {

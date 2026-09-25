@@ -8,6 +8,8 @@ import (
 	"looz.ws/typstify/i18n"
 )
 
+const maxI18nKeys = 500
+
 type i18nRequest struct {
 	Locale string   `json:"locale"`
 	Keys   []string `json:"keys"`
@@ -23,7 +25,12 @@ type i18nRequest struct {
 func (s *Server) handleI18n(w http.ResponseWriter, r *http.Request) {
 	var req i18nRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeBodyError(w, err)
+		return
+	}
+	// Unauthenticated endpoint: bound the work one request can ask for.
+	if len(req.Keys) > maxI18nKeys {
+		writeError(w, http.StatusBadRequest, "too many keys")
 		return
 	}
 

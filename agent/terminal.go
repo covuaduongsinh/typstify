@@ -57,7 +57,7 @@ func newTerminal(cwd string, req acp.CreateTerminalRequest) (*ACPTerminal, error
 	for _, env := range req.Env {
 		envs = append(envs, fmt.Sprintf("%s=%s", env.Name, env.Value))
 	}
-	cmd.Env = append(envs, cmd.Environ()...)
+	cmd.Env = utils.ScrubSecretEnv(append(envs, cmd.Environ()...))
 
 	if req.Cwd != nil && *req.Cwd != "" {
 		resolvedCwd, err := resolvePath(t.SessionCwd, nil, *req.Cwd)

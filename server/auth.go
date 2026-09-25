@@ -5,6 +5,8 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -12,8 +14,19 @@ import (
 
 const (
 	sessionCookieName = "typstify_session"
-	sessionTTL        = 30 * 24 * time.Hour
+	// sessionTTL is the sliding idle expiry; sessionMaxAge caps a session's
+	// total lifetime so a stolen cookie can't be kept alive forever by use.
+	sessionTTL    = 30 * 24 * time.Hour
+	sessionMaxAge = 90 * 24 * time.Hour
+	// failedLoginDelay slows every wrong-password response a little on top
+	// of the per-IP lockout in loginLimiter.
+	failedLoginDelay = 500 * time.Millisecond
 )
+
+type session struct {
+	expires time.Time
+	created time.Time
+}
 
 // authManager gates the server with a single shared password, matching the
 // self-hosted single-user deployment model in docs/plans/plan_web_version.md.
@@ -23,13 +36,15 @@ type authManager struct {
 	password string
 
 	mu       sync.Mutex
-	sessions map[string]time.Time
+	sessions map[string]session
+	limiter  *loginLimiter
 }
 
 func newAuthManager(password string) *authManager {
 	return &authManager{
 		password: password,
-		sessions: make(map[string]time.Time),
+		sessions: make(map[string]session),
+		limiter:  newLoginLimiter(),
 	}
 }
 
@@ -65,14 +80,25 @@ func (a *authManager) validSession(token string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	exp, ok := a.sessions[token]
-	if !ok || time.Now().After(exp) {
+	now := time.Now()
+	sess, ok := a.sessions[token]
+	if !ok || now.After(sess.expires) || now.Sub(sess.created) > sessionMaxAge {
 		delete(a.sessions, token)
 		return false
 	}
 
-	a.sessions[token] = time.Now().Add(sessionTTL) // sliding expiry
+	sess.expires = now.Add(sessionTTL) // sliding expiry
+	a.sessions[token] = sess
 	return true
+}
+
+// sweepExpired drops expired sessions. Caller holds a.mu.
+func (a *authManager) sweepExpired(now time.Time) {
+	for token, sess := range a.sessions {
+		if now.After(sess.expires) || now.Sub(sess.created) > sessionMaxAge {
+			delete(a.sessions, token)
+		}
+	}
 }
 
 func newSessionToken() (string, error) {
@@ -93,16 +119,28 @@ func (a *authManager) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ip := clientIP(r)
+	if ok, wait := a.limiter.allowed(ip); !ok {
+		minutes := int(math.Ceil(wait.Minutes()))
+		w.Header().Set("Retry-After", fmt.Sprint(int(math.Ceil(wait.Seconds()))))
+		writeError(w, http.StatusTooManyRequests,
+			fmt.Sprintf("Sai mật khẩu quá nhiều lần. Thử lại sau %d phút.", minutes))
+		return
+	}
+
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeBodyError(w, err)
 		return
 	}
 
 	if subtle.ConstantTimeCompare([]byte(req.Password), []byte(a.password)) != 1 {
-		writeError(w, http.StatusUnauthorized, "incorrect password")
+		a.limiter.recordFailure(ip)
+		time.Sleep(failedLoginDelay)
+		writeError(w, http.StatusUnauthorized, "Mật khẩu không đúng")
 		return
 	}
+	a.limiter.recordSuccess(ip)
 
 	token, err := newSessionToken()
 	if err != nil {
@@ -110,8 +148,10 @@ func (a *authManager) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	now := time.Now()
 	a.mu.Lock()
-	a.sessions[token] = time.Now().Add(sessionTTL)
+	a.sweepExpired(now)
+	a.sessions[token] = session{expires: now.Add(sessionTTL), created: now}
 	a.mu.Unlock()
 
 	http.SetCookie(w, &http.Cookie{
@@ -120,7 +160,7 @@ func (a *authManager) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   r.TLS != nil,
+		Secure:   isHTTPS(r),
 		MaxAge:   int(sessionTTL.Seconds()),
 	})
 
@@ -139,6 +179,8 @@ func (a *authManager) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   isHTTPS(r),
 		MaxAge:   -1,
 	})
 

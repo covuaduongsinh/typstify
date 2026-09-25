@@ -91,6 +91,9 @@ func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.CloseNow()
+	// didOpen/didChange carry the whole document, so the library's 32 KiB
+	// default read limit dropped the connection for any larger .typ file.
+	conn.SetReadLimit(lspReadLimit)
 
 	sessCtx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -209,6 +212,9 @@ func (s *Server) pumpDiagnostics(ctx context.Context, conn *websocket.Conn, clie
 // frontend is always served from the same origin as this API in the
 // self-hosted deployment model, so this is a safe default; a reverse proxy
 // that rewrites Host may need this revisited.
+// lspReadLimit bounds one LSP WebSocket message (a full-document sync).
+const lspReadLimit = 20 << 20
+
 func (s *Server) wsOriginPatterns(r *http.Request) []string {
 	return []string{r.Host}
 }

@@ -13,7 +13,8 @@ import { LspClient, type LspDiagnostic } from '../lib/lspClient'
 // discoverable (observed: a user who pasted content in couldn't find any
 // way to save it).
 export interface EditorHandle {
-  save: () => void
+  /** Saves the document; resolves true once the server confirmed it. */
+  save: () => Promise<boolean>
   insertText: (text: string) => void
   getContent: () => string
 }
@@ -22,7 +23,10 @@ interface EditorProps {
   path: string
   initialContent: string
   onDirtyChange?: (dirty: boolean) => void
-  onSave?: (content: string) => void
+  /** Persists the content; a rejected promise keeps the file dirty. */
+  onSave?: (content: string) => Promise<void> | void
+  /** Reports a failed save (message) or a later successful one (null). */
+  onSaveError?: (message: string | null) => void
   /** 1-based line/column of the main cursor, for the status bar. */
   onCursorChange?: (pos: { line: number; col: number }) => void
   /** Error/warning counts of the latest LSP diagnostics for this file. */
@@ -67,7 +71,7 @@ function toCmDiagnostics(doc: Text, diags: LspDiagnostic[]): CmDiagnostic[] {
  * completion/hover/diagnostics sourced from the tinymist LSP over
  * /ws/lsp (see server/lsp_ws.go and lib/lspClient.ts). */
 export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
-  { path, initialContent, onDirtyChange, onSave, onCursorChange, onDiagnosticsChange },
+  { path, initialContent, onDirtyChange, onSave, onSaveError, onCursorChange, onDiagnosticsChange },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -80,17 +84,29 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   // the debounce timer doesn't fire afterwards and re-mark the file dirty
   // right after this just cleared it. Shared by the Ctrl+S keymap below and
   // the imperative handle a toolbar Save button drives.
-  const saveRef = useRef<() => void>(() => {})
-  saveRef.current = () => {
+  //
+  // The file only counts as saved once onSave resolves: a failed PUT keeps
+  // it dirty and is reported through onSaveError instead of the UI claiming
+  // "Đã lưu" for content that never reached the server.
+  const saveRef = useRef<() => Promise<boolean>>(async () => false)
+  saveRef.current = async () => {
     const view = viewRef.current
     const lsp = lspRef.current
-    if (!view || !lsp) return
+    if (!view || !lsp) return false
     window.clearTimeout(changeTimerRef.current)
     const text = view.state.doc.toString()
     lsp.didChange(path, text)
-    onSave?.(text)
+    try {
+      await onSave?.(text)
+    } catch (err) {
+      onSaveError?.(err instanceof Error ? err.message : String(err))
+      return false
+    }
     lsp.didSave(path)
-    onDirtyChange?.(false)
+    onSaveError?.(null)
+    // Keystrokes typed while the request was in flight are not saved yet.
+    onDirtyChange?.(viewRef.current !== null && viewRef.current.state.doc.toString() !== text)
+    return true
   }
 
   const insertTextRef = useRef<(textToInsert: string) => void>(() => {})
@@ -181,7 +197,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           key: 'Mod-s',
           preventDefault: true,
           run: () => {
-            saveRef.current()
+            void saveRef.current()
             return true
           },
         },

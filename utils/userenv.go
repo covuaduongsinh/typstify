@@ -93,7 +93,32 @@ func MergeEnv(base []string, overlays ...map[string]string) []string {
 
 	merged := make([]string, 0, len(env))
 	for k, v := range env {
+		if isSecretEnv(k) {
+			continue
+		}
 		merged = append(merged, k+"="+v)
 	}
 	return merged
+}
+
+// secretEnvKeys are variables that configure this server itself and must
+// never reach child processes (AI agents, the shell commands they run).
+// The login-shell snapshot is taken before main() can unset them, so they
+// are filtered here as well.
+var secretEnvKeys = map[string]bool{
+	"TYPSTIFY_SERVER_PASSWORD": true,
+}
+
+func isSecretEnv(key string) bool { return secretEnvKeys[key] }
+
+// ScrubSecretEnv returns env ("KEY=value" entries) without secretEnvKeys.
+func ScrubSecretEnv(env []string) []string {
+	out := env[:0:0]
+	for _, kv := range env {
+		k, _, _ := strings.Cut(kv, "=")
+		if !isSecretEnv(k) {
+			out = append(out, kv)
+		}
+	}
+	return out
 }

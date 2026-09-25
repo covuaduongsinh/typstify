@@ -135,9 +135,11 @@ func (s *Server) handleFilePut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := io.ReadAll(io.LimitReader(r.Body, 64<<20))
+	// withBodyLimit caps this route at fileBodyLimit; going over it fails
+	// the read (413) instead of silently saving a truncated file.
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeBodyError(w, err)
 		return
 	}
 

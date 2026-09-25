@@ -79,6 +79,19 @@ func (s *Server) handlePreviewRootWebSocket(w http.ResponseWriter, r *http.Reque
 		return false
 	}
 
+	// This path is mounted outside s.handle (it shares "/" with the static
+	// frontend), so it must do its own auth: without it anyone could open
+	// the live preview socket and read the open document. The Origin check
+	// stops other sites from riding the user's cookie.
+	if s.auth.enabled() && !s.auth.validRequest(r) {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return true
+	}
+	if !sameOrigin(r) {
+		writeError(w, http.StatusForbidden, "cross-origin websocket rejected")
+		return true
+	}
+
 	proxy, err := s.previewReverseProxy()
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
