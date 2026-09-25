@@ -24,8 +24,21 @@ describe('hasChessbookImport', () => {
     expect(hasChessbookImport('#import "@local/chessbook:0.1.0": *')).toBe(true)
     expect(hasChessbookImport('#import "lib/lib.typ": *')).toBe(true)
     expect(hasChessbookImport('#import "chess_template.typ": *')).toBe(true)
-    expect(hasChessbookImport('#let game-header() = {}')).toBe(true)
+    expect(hasChessbookImport('#let game-header() = {}')).toBe(false)
     expect(hasChessbookImport('= Just a document')).toBe(false)
+  })
+})
+
+describe('requiresChessImport', () => {
+  it('identifies chessbook functions and helpers', () => {
+    expect(requiresChessImport('#concept-box[Important]')).toBe(true)
+    expect(requiresChessImport('#chess-quote(author: "GK")[Great move]')).toBe(true)
+    expect(requiresChessImport('#instructor-note[Attention]')).toBe(true)
+    expect(requiresChessImport('#practice-question(number: 1)')).toBe(true)
+    expect(requiresChessImport('#eco-header(code: "C58")')).toBe(true)
+    expect(requiresChessImport('#puzzle-card("fen", turn: "w")')).toBe(true)
+    expect(requiresChessImport('1. e4 e5 2. #wN f3')).toBe(true)
+    expect(requiresChessImport('= Regular document heading')).toBe(false)
   })
 })
 
@@ -36,6 +49,13 @@ describe('repairChessImports', () => {
     const repaired = repairChessImports(doc)
     expect(repaired.startsWith(CHESSBOOK_IMPORT)).toBe(true)
     expect(repaired).toContain('#game-header(')
+  })
+
+  it('prepends import when document uses newly added courseware or quote helpers', () => {
+    const doc = '= Lesson\n\n#lesson-header(lesson-num: 1)\n#concept-box[Key]'
+    expect(requiresChessImport(doc)).toBe(true)
+    const repaired = repairChessImports(doc)
+    expect(repaired.startsWith(CHESSBOOK_IMPORT)).toBe(true)
   })
 
   it('does nothing when import already exists', () => {

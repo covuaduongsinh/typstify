@@ -91,9 +91,11 @@
   move-num: "",
   caption: "",
   turn: "w",
+  to-move: auto,
   size: 13.5pt,
   arrows: ()
 ) = {
+  let side = if to-move != auto { to-move } else { turn }
   align(center)[
     #block(width: size * 8, breakable: false)[
       #set par(justify: false)
@@ -102,11 +104,11 @@
           columns: (1fr, auto),
           align: (left + horizon, right + horizon),
           [#text(7.5pt, weight: "bold", fill: ds-muted)[#move-num]],
-          [#turn-indicator(turn, size: 7.5pt)]
+          [#turn-indicator(side, size: 7.5pt)]
         )
         #v(2pt)
       ]
-      #chess-board(fen-str, size: size, reverse: is-black-turn(turn), arrows: arrows, frame: 0.8pt + ds-text)
+      #chess-board(fen-str, size: size, reverse: is-black-turn(side), arrows: arrows, frame: 0.8pt + ds-text)
       #if caption != "" [
         #v(2pt)
         #text(7pt, style: "italic", fill: ds-muted)[#caption]
@@ -116,7 +118,12 @@
 }
 
 // Hộp trích dẫn danh ngôn / bình luận nổi bật (Callout Box)
-#let chess-quote(author: "", text-content) = {
+#let chess-quote(
+  author: "",
+  content: none,
+  ..args
+) = {
+  let body = if content != none { content } else if args.pos().len() > 0 { args.pos().first() } else [Không có trích dẫn]
   rect(
     width: 100%,
     stroke: (left: 3pt + ds-brand),
@@ -124,7 +131,7 @@
     radius: (right: 4pt),
     inset: (x: 10pt, y: 7pt)
   )[
-    #text(8.5pt, style: "italic", fill: ds-brand-dark)[“#text-content”]
+    #text(8.5pt, style: "italic", fill: ds-brand-dark)[“#body”]
     #if author != "" [
       #v(2pt)
       #align(right)[

@@ -58,19 +58,21 @@
   fen-str,
   title: "",
   turn: "w",
+  to-move: auto,
   eval-text: "",
   caption: "",
   size: 14pt,
   arrows: ()
 ) = {
+  let side = if to-move != auto { to-move } else { turn }
   grid(
     columns: (auto, 1fr),
     gutter: 10pt,
     align: (top, top),
-    chess-board(fen-str, size: size, reverse: is-black-turn(turn), arrows: arrows, frame: 0.8pt + ds-muted),
+    chess-board(fen-str, size: size, reverse: is-black-turn(side), arrows: arrows, frame: 0.8pt + ds-muted),
     [
       #if title != "" [
-        #turn-indicator(turn, size: 8pt) #h(2pt)
+        #turn-indicator(side, size: 8pt) #h(2pt)
         #text(9pt, weight: "bold", fill: ds-text)[#title] \
       ]
       #if eval-text != "" [

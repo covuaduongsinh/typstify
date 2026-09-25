@@ -51,8 +51,10 @@
 // Khung Khái niệm Lý thuyết (Key Concept Box)
 #let concept-box(
   title: "Khái niệm Then chốt",
-  content
+  content: none,
+  ..args
 ) = {
+  let body = if content != none { content } else if args.pos().len() > 0 { args.pos().first() } else [Không có nội dung]
   rect(
     width: 100%,
     fill: ds-brand-soft,
@@ -62,7 +64,7 @@
   )[
     #text(9pt, weight: "bold", fill: ds-brand)[✦ #title]
     #v(4pt)
-    #content
+    #body
   ]
 }
 
@@ -71,10 +73,12 @@
   fen-str,
   title: "",
   turn: "w",
+  to-move: auto,
   size: 18pt,
   arrows: (),
   caption: ""
 ) = {
+  let side = if to-move != auto { to-move } else { turn }
   align(center)[
     #block(width: size * 8, breakable: false)[
       #set par(justify: false)
@@ -83,11 +87,11 @@
           columns: (1fr, auto),
           align: (left + horizon, right + horizon),
           [#text(8.5pt, weight: "bold", fill: ds-text)[#title]],
-          [#turn-indicator(turn, size: 8.5pt)]
+          [#turn-indicator(side, size: 8.5pt)]
         )
         #v(2pt)
       ]
-      #chess-board(fen-str, size: size, reverse: is-black-turn(turn), numbers: true, arrows: arrows, frame: 1pt + ds-text)
+      #chess-board(fen-str, size: size, reverse: is-black-turn(side), numbers: true, arrows: arrows, frame: 1pt + ds-text)
       #if caption != "" [
         #v(3pt)
         #text(7.5pt, style: "italic", fill: ds-muted)[#caption]
@@ -101,7 +105,8 @@
   number: 1,
   question: "",
   choices: (),
-  answer: none
+  answer: none,
+  ..args
 ) = {
   block(
     width: 100%,
@@ -128,7 +133,11 @@
 }
 
 // Ghi chú Dành riêng cho Huấn luyện viên (Teacher / Instructor Note)
-#let instructor-note(note) = {
+#let instructor-note(
+  note: none,
+  ..args
+) = {
+  let body = if note != none { note } else if args.pos().len() > 0 { args.pos().first() } else [Không có nội dung]
   rect(
     width: 100%,
     stroke: (left: 3pt + ds-warn),
@@ -137,6 +146,6 @@
     inset: (x: 8pt, y: 5pt)
   )[
     #text(8pt, weight: "bold", fill: ds-warn)[✎ Lưu ý cho HLV: ]
-    #text(8pt, fill: ds-text)[#note]
+    #text(8pt, fill: ds-text)[#body]
   ]
 }
