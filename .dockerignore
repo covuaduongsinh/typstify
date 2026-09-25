@@ -13,3 +13,7 @@ docs/
 *.log
 web/node_modules
 web/dist
+# Not needed to build the server image (desktop-only assets / dev files).
+**/*.test.ts
+.github
+scripts/check-chessbook.sh

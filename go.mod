@@ -8,6 +8,7 @@ require (
 	github.com/alecthomas/chroma/v2 v2.15.0
 	github.com/apstndb/go-lsp-export v0.0.0-20250111110713-da502b65ef68
 	github.com/coder/acp-go-sdk v0.13.5
+	github.com/coder/websocket v1.8.15
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fsnotify/fsnotify v1.7.0
@@ -27,6 +28,7 @@ require (
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d
 	github.com/typstify/tpix-cli v0.12.0
 	go.etcd.io/bbolt v1.3.11
+	golang.design/x/clipboard v0.9.0
 	golang.org/x/exp/jsonrpc2 v0.0.0-20250911091902-df9299821621
 	golang.org/x/exp/shiny v0.0.0-20250606033433-dcc06ee1d476
 	golang.org/x/image v0.44.0
@@ -41,7 +43,6 @@ require (
 	github.com/andybalholm/stroke v0.0.0-20251027184313-5126dd7227a1 // indirect
 	github.com/apstndb/gotoolsdiff v0.29.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
-	github.com/coder/websocket v1.8.15 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -57,7 +58,6 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yuin/goldmark v1.4.13 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	golang.design/x/clipboard v0.9.0 // indirect
 	golang.design/x/x11 v0.2.0 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/exp v0.0.0-20260709172345-9ea1abe57597 // indirect

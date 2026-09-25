@@ -1,6 +1,7 @@
 package dialog
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -61,12 +62,12 @@ func NewExportDialog(srv *service.ServiceFacade) view.View {
 }
 
 func (d *ExportDialog) OnInit(intent view.Intent) error {
-	targetFile := intent.Params["targetFile"]
-	if targetFile == nil {
-		panic("no targetFile provided!")
+	targetFile, ok := intent.Params["targetFile"].(string)
+	if !ok || targetFile == "" {
+		return errors.New("export: no target file provided")
 	}
 
-	d.targetFile = targetFile.(string)
+	d.targetFile = targetFile
 	d.formatEnum.Value = string(typst.PDF)
 	d.pdfVersion.Value = string(typst.PDF1_7)
 

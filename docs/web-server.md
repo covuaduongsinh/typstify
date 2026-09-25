@@ -17,10 +17,28 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Mặc định container chỉ bind vào `127.0.0.1:8080` trên máy chủ (xem `docker-compose.yml`) —
-**không** tự có TLS. Nếu muốn truy cập từ Internet, đặt một reverse proxy có TLS (Caddy,
-nginx, Traefik...) phía trước, trỏ vào cổng đó. Không public thẳng cổng 8080 ra Internet mà
-không có TLS, vì mật khẩu đăng nhập và session cookie sẽ đi ở dạng plaintext.
+`docker-compose.yml` đã kèm **Caddy** làm reverse proxy có TLS tự động (Let's Encrypt, đặt
+`TYPSTIFY_DOMAIN` trong `.env`); container `typstify` chỉ bind vào `127.0.0.1:8080`. Khi deploy
+bằng **Dokploy**, Traefik của Dokploy đóng vai trò này. Không public thẳng cổng 8080 ra Internet
+mà không có TLS, vì mật khẩu đăng nhập và session cookie sẽ đi ở dạng plaintext.
+
+### Bảo mật có sẵn
+
+- Mọi API và WebSocket (kể cả kênh preview ở `/`) đều yêu cầu đăng nhập; WebSocket kiểm tra
+  `Origin` cùng tên miền.
+- Sai mật khẩu 5 lần trong 15 phút từ cùng một IP thì IP đó bị khóa 15 phút (HTTP 429).
+- Cookie phiên `HttpOnly`, `SameSite=Lax`, bật `Secure` khi truy cập qua HTTPS (kể cả sau proxy
+  báo `X-Forwarded-Proto: https`); phiên hết hạn sau 30 ngày không dùng, tối đa 90 ngày.
+- Header `X-Forwarded-For/Proto/Host` chỉ được tin khi kết nối đến từ địa chỉ loopback/mạng
+  riêng (proxy trong Docker), nên client ngoài Internet không giả mạo được.
+- Giới hạn kích thước body (2 MiB; lưu file 64 MiB, vượt quá trả 413 thay vì cắt file), timeout
+  đọc header, tối đa 2 lượt biên dịch PDF cùng lúc, mỗi lượt tối đa 90 giây.
+- Đường dẫn file bị chặn khi thoát khỏi thư mục dự án, kể cả qua symlink; không xóa/đổi tên
+  được `.git`, `.typstify`; đổi tên không ghi đè file đã có.
+- `TYPSTIFY_SERVER_PASSWORD` bị xóa khỏi môi trường của các tiến trình con (AI agent, terminal).
+- Người đăng nhập được coi là quản trị viên: trang Cài đặt cho phép cấu hình lệnh chạy AI agent
+  và đường dẫn `typst`/`tinymist`, tức là chạy lệnh trên máy chủ. Chỉ cấp mật khẩu cho người
+  được phép quản trị máy chủ.
 
 Dữ liệu (project files, cấu hình, cache package Typst) được lưu trong Docker volume
 `typstify-data`, mount vào `/data` trong container. Xoá volume này sẽ mất toàn bộ project và
@@ -66,13 +84,14 @@ hai, trừ `-password` không có biến môi trường đọc mặc định qua
 | `TYPSTIFY_STATIC_DIR` | `-static-dir` | `web/dist` | Thư mục frontend đã build; nếu không tồn tại, server chỉ phục vụ API (không có UI). |
 | `XDG_CONFIG_HOME` | — | theo OS | Nơi lưu `settings.json` (dùng `os.UserConfigDir()`), nên trỏ vào một thư mục ghi được/bền vững trong container. |
 | `XDG_CACHE_HOME` | — | theo OS | Nơi cache package Typst đã tải (`os.UserCacheDir()`). |
+| `TYPST_PACKAGE_PATH` | — | image: `/opt/typst-packages` | Thư mục gói Typst cục bộ dùng khi Cài đặt → "Thư mục gói cục bộ" để trống. Image đặt sẵn `@local/chessbook` và `@preview/board-n-pieces` ở đây. |
+| `TYPSTIFY_PROJECT_ROOT` | `-project-root` | image: `/data` | Chỉ cho mở/tạo dự án bên trong thư mục này (volume bền vững). |
 
 ## AI Agent: chọn qua registry + đăng nhập gói thuê bao
 
 Trang Settings của bản web có mục "Agent Registry" (gọi API bên dưới) để chọn agent AI theo
 gói thuê bao hàng tháng của chính nhà cung cấp (Claude Pro/Max, ChatGPT Plus/Pro qua Codex...)
-thay vì trả tiền theo API — xem `~/.claude/skills/ai-subscription-bridge` (nội bộ) cho căn cứ
-kỹ thuật đầy đủ. Nguyên tắc cốt lõi: server chỉ **spawn thẳng binary CLI chính chủ** của agent
+thay vì trả tiền theo API. Nguyên tắc cốt lõi: server chỉ **spawn thẳng binary CLI chính chủ** của agent
 (qua `npx`/binary như registry ACP mô tả) và không tự đọc/giải mã token OAuth của nó.
 
 | Endpoint | Ý nghĩa |
@@ -182,3 +201,14 @@ trực tiếp tới vận hành:
 - Server dùng **một mật khẩu chung** cho toàn instance (không có khái niệm nhiều tài khoản) —
   đúng với mô hình self-hosted một người dùng đã chốt, không phù hợp để chia sẻ cho nhiều
   người dùng không tin cậy lẫn nhau.
+
+## Build image
+
+```sh
+docker build -t typstify .                                   # amd64, kèm Antigravity
+docker buildx build --platform linux/arm64 -t typstify .     # arm64
+docker build --build-arg WITH_ANTIGRAVITY=false -t typstify . # bỏ agent Antigravity (image nhỏ hơn)
+```
+
+`typst` và `tinymist` được tải đúng kiến trúc và kiểm tra SHA-256; khi nâng phiên bản
+(`TYPST_VERSION`, `TINYMIST_VERSION`) phải cập nhật checksum tương ứng trong `Dockerfile`.

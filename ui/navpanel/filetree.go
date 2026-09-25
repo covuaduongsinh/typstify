@@ -66,7 +66,8 @@ func NewFileTreeNav(title string, srv *service.ServiceFacade, vm view.ViewManage
 	srv.EventBus().Subscribe(ftn, "filetree", `project\.(switched|create)$`, func(topic string, data interface{}) {
 		path, ok := data.(string)
 		if !ok {
-			panic("not a path")
+			log.Printf("filetree: ignoring %s event with non-path payload %T", topic, data)
+			return
 		}
 
 		if ftn.tree != nil && path == ftn.tree.Root() {

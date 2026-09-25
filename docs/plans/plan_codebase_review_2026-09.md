@@ -112,3 +112,23 @@ So sánh mật khẩu constant-time, token 32 byte crypto/rand, cookie HttpOnly+
 - Kiểm bảo mật: `curl` WebSocket upgrade tới `/` không cookie → 401; 20 lần login sai → bị chặn; cookie có `Secure` qua HTTPS; body 2 MiB tới `/api/auth/login` → 413.
 - Desktop: `go build .` trên máy có Gio, mở dialog export/bibliography không treo.
 - Sau mỗi PR: merge vào `main`, deploy qua Dokploy (Thầy bấm Deploy hoặc mở whitelist `dokploy.dsc.edu.vn` cho môi trường này), kiểm tra typst.dsc.edu.vn.
+
+## 6. Kết quả triển khai (25/09/2026)
+
+Cả 6 giai đoạn đã triển khai trên nhánh `claude/magical-rubin-ks9zy5`, mỗi giai đoạn một commit.
+
+| GĐ | Trạng thái | Kiểm chứng |
+|---|---|---|
+| 1. Vá khẩn | Xong | Test Go cho auth/giới hạn/cookie/preview WS; Playwright: chuyển file khi mạng chậm, hộp thoại chưa lưu, lưu lỗi |
+| 2. Thư viện cờ trên server | Xong | Biên dịch mọi demo/template + tài liệu mới sinh từ code web bằng typst 0.15.1 và font thật: 0 lỗi, 0 cảnh báo |
+| 3. Ổn định lõi | Xong | Test `-race` vòng đời phiên agent; test symlink/traversal |
+| 4. Test & CI | Xong | `.github/workflows/ci.yml`; 18 test Vitest; `scripts/check-chessbook.sh` |
+| 5. Web | Xong | Bundle đầu 922 kB → 256 kB; Playwright hồi quy toàn bộ |
+| 6. Desktop, Docker, docs | Xong | `go build .`, `go vet ./...`, `go test -race ./...` toàn repo |
+
+Hoãn có chủ đích:
+- **Thay `github.com/pkg/errors`**: `errors.Wrapf(nil, …)` trả `nil` còn `fmt.Errorf` thì không; hai chỗ trong `lsp/client.go` gán vô điều kiện nên thay máy móc sẽ đổi hành vi. Rủi ro lớn hơn lợi ích.
+- **Giao diện tiếng Anh**: bản web ưu tiên tiếng Việt cho Dương Sinh; chuỗi UI viết trực tiếp tiếng Việt.
+- **Giữ lịch sử hoàn tác khi chuyển file**: cần tách vòng đời LSP khỏi EditorView; để đợt sau.
+- **Checksum `board-n-pieces`**: môi trường phát triển không truy cập được packages.typst.org để tính; phiên bản đã được ghim.
+- **`docker build` chưa chạy thử cục bộ** (môi trường không có Docker); job `docker` trong CI sẽ kiểm tra.

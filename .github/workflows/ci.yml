@@ -14,25 +14,27 @@ concurrency:
 
 jobs:
   go:
-    name: Go (server, agent, services)
+    name: Go (server + desktop)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      # The Gio desktop UI packages need X11/Wayland dev headers; the
-      # headless packages (everything the web server builds) don't.
-      - name: List headless packages
+      - name: Install Gio (desktop UI) build dependencies
         run: |
-          go list ./... | grep -v -E 'typstify$|/ui($|/)|/editor($|/)|/widgets($|/)' > pkgs.txt
-          cat pkgs.txt
-      - name: Build server
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwayland-dev libxkbcommon-dev \
+            libxkbcommon-x11-dev libx11-xcb-dev libxcursor-dev libvulkan-dev libegl-dev \
+            libgles-dev libxfixes-dev libx11-dev
+      - name: Build server (CGO off, as in the Docker image)
         run: CGO_ENABLED=0 go build ./cmd/typstify-server
+      - name: Build desktop app
+        run: go build .
       - name: Vet
-        run: CGO_ENABLED=0 go vet $(cat pkgs.txt)
+        run: go vet ./...
       - name: Test (race detector)
-        run: go test -race $(cat pkgs.txt)
+        run: go test -race ./...
 
   web:
     name: Web frontend
