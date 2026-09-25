@@ -123,6 +123,9 @@ func (s *McpServer) Addr() (string, int) {
 }
 
 func (s *McpServer) Shutdown(ctx context.Context) error {
+	if s.httpServer == nil { // never started (e.g. Run failed to listen)
+		return nil
+	}
 	return s.httpServer.Shutdown(ctx)
 }
 

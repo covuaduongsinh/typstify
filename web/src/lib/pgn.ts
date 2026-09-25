@@ -38,11 +38,29 @@ export function parsePgn(text: string): PgnGame[] {
       if (moveLines.length > 0) flush()
       headers[tag[1]] = tag[2].replace(/\\(["\\])/g, '$1')
     } else {
-      moveLines.push(line)
+      moveLines.push(lineCommentToBraces(line))
     }
   }
   flush()
   return games
+}
+
+/** A `;` comment runs to the end of its line. Lines are joined into one
+ * move text below, so turn it into a `{...}` comment first -- otherwise it
+ * would swallow every later move. A `;` inside an open `{...}` comment is
+ * plain text. */
+export function lineCommentToBraces(line: string): string {
+  let inBrace = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '{') inBrace = true
+    else if (ch === '}') inBrace = false
+    else if (ch === ';' && !inBrace) {
+      const comment = line.slice(i + 1).replace(/[{}]/g, '').trim()
+      return `${line.slice(0, i)}${comment ? ` {${comment}}` : ''}`
+    }
+  }
+  return line
 }
 
 function finishGame(headers: Record<string, string>, movetext: string): PgnGame {

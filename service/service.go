@@ -363,13 +363,18 @@ func (s *ServiceFacade) initMcpServer(ctx context.Context) {
 
 	if err := s.mcpServer.Run(); err != nil {
 		// Run without the built-in tools rather than crashing (the static
-		// MCP port may be taken, e.g. by a second instance).
+		// MCP port may be taken, e.g. by a second instance). Drop the
+		// server so it is neither advertised to agents nor shut down.
 		log.Printf("built-in MCP tools disabled: %v", err)
+		s.mcpServer = nil
 	}
 }
 
 func (s *ServiceFacade) listMcpServer() []acp.McpServer {
 	mcpServers := make([]acp.McpServer, 0)
+	if s.mcpServer == nil { // failed to start: don't advertise it
+		return mcpServers
+	}
 
 	// built-in mcp server
 	ip, port := s.mcpServer.Addr()

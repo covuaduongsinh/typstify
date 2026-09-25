@@ -72,3 +72,15 @@ describe('gameToTypst', () => {
     expect(pgnToTypst(TWO_GAMES).match(/#game-header\(/g)).toHaveLength(2)
   })
 })
+
+describe('semicolon comments', () => {
+  it('end at the line break instead of swallowing later moves', () => {
+    const [g] = parsePgn('1. e4 e5 ; mở đầu quen thuộc\n2. Nf3 Nc6 1-0')
+    expect(g.movetext).toBe('1. e4 e5 {mở đầu quen thuộc} 2. Nf3 Nc6')
+    expect(movetextToTypst(g.movetext)).toContain('2. Nf3 Nc6')
+  })
+  it('leave a semicolon inside a brace comment alone', () => {
+    const [g] = parsePgn('1. e4 {a; b} e5')
+    expect(g.movetext).toBe('1. e4 {a; b} e5')
+  })
+})
