@@ -38,6 +38,26 @@ RUN curl -fsSL -o /usr/local/bin/tinymist \
       "https://github.com/Myriad-Dreamin/tinymist/releases/download/${TINYMIST_VERSION}/tinymist-linux-x64" \
     && chmod +x /usr/local/bin/tinymist
 
+# ---- chess library dependencies: board-n-pieces + print fonts ----
+# @local/chessbook (chessbook/lib) imports @preview/board-n-pieces; bundling
+# it means documents compile offline and on first use. Fonts: the library's
+# theme.typ asks for Roboto (sans) and Noto Serif (serif); Noto Sans Symbols 2
+# covers the chess figurines. Only the needed faces are copied to the final
+# image, not the whole ~50 MB Noto package.
+FROM debian:bookworm-slim AS chesslib
+ARG BOARD_N_PIECES_VERSION=0.9.0
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl ca-certificates fonts-roboto-unhinted fonts-noto-core \
+    && rm -rf /var/lib/apt/lists/*
+RUN mkdir -p /out/packages/preview/board-n-pieces/${BOARD_N_PIECES_VERSION} \
+    && curl -fsSL "https://packages.typst.org/preview/board-n-pieces-${BOARD_N_PIECES_VERSION}.tar.gz" \
+       | tar -xz -C /out/packages/preview/board-n-pieces/${BOARD_N_PIECES_VERSION} \
+    && test -f /out/packages/preview/board-n-pieces/${BOARD_N_PIECES_VERSION}/typst.toml
+RUN mkdir -p /out/fonts && cd /usr/share/fonts/truetype \
+    && for f in Regular Bold Italic BoldItalic Medium; do cp roboto/unhinted/RobotoTTF/Roboto-$f.ttf /out/fonts/; done \
+    && for f in Regular Bold Italic BoldItalic; do cp noto/NotoSerif-$f.ttf noto/NotoSans-$f.ttf /out/fonts/; done \
+    && cp noto/NotoSansSymbols2-Regular.ttf /out/fonts/
+
 # ---- antigravity (Google's own agy_acp_server, no localharness.exe needed --
 # verified live against the real ACP registry, see docs/web-server.md) ----
 FROM debian:bookworm-slim AS antigravity
@@ -106,6 +126,10 @@ COPY --from=tools /usr/local/bin/tinymist /usr/local/bin/tinymist
 COPY --from=antigravity /usr/local/bin/agy_acp_server.par /usr/local/bin/agy_acp_server.par
 COPY --from=backend /out/typstify-server /usr/local/bin/typstify-server
 COPY --from=frontend /src/web/dist /app/web/dist
+# Typst finds system fonts under /usr/share/fonts without extra flags.
+COPY --from=chesslib /out/fonts /usr/share/fonts/truetype/chessbook
+COPY --from=chesslib /out/packages /opt/typst-packages
+COPY chessbook/lib /opt/typst-packages/local/chessbook/0.1.0
 
 RUN useradd --create-home --home-dir /data --shell /usr/sbin/nologin typstify \
     && mkdir -p /data/project /data/config /data/cache \
@@ -122,7 +146,8 @@ ENV TYPSTIFY_STATIC_DIR=/app/web/dist \
     TYPSTIFY_SERVER_ADDR=:8080 \
     HOME=/data \
     XDG_CONFIG_HOME=/data/config \
-    XDG_CACHE_HOME=/data/cache
+    XDG_CACHE_HOME=/data/cache \
+    TYPST_PACKAGE_PATH=/opt/typst-packages
 
 VOLUME ["/data"]
 EXPOSE 8080

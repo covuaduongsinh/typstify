@@ -4,7 +4,8 @@
 // đánh giá quốc tế (NAG - Numeric Annotation Glyphs) chuẩn FIDE & Informant.
 // ============================================================================
 
-#import "@preview/board-n-pieces:0.9.0": chess-sym
+#import "@preview/board-n-pieces:0.9.0": chess-sym, board, fen
+#import "theme.typ": *
 
 // --- 1. Ký hiệu Hình tượng Quân cờ (Figurine Pieces) ---
 // Định nghĩa sẵn các biến quân cờ để chèn trực tiếp vào văn bản
@@ -48,39 +49,57 @@
 #let nag-novelty = [N]                          // Nước cờ mới (Theoretic Novelty)
 
 // --- 3. Hàm chuyển đổi mã NAG ($1 -> Symbol) ---
+#let nag-symbols = (
+  "1": nag-good,
+  "2": nag-mistake,
+  "3": nag-brilliant,
+  "4": nag-blunder,
+  "5": nag-interesting,
+  "6": nag-dubious,
+  "7": nag-only-move,
+  "10": nag-equal,
+  "13": nag-unclear,
+  "14": nag-white-slight,
+  "15": nag-black-slight,
+  "16": nag-white-advantage,
+  "17": nag-black-advantage,
+  "18": nag-white-winning,
+  "19": nag-black-winning,
+  "22": nag-zugzwang,
+  "36": nag-initiative,
+  "40": nag-attack,
+  "44": nag-compensation,
+  "138": nag-time-trouble,
+)
+
+// Không thêm khoảng trắng quanh ký hiệu: "Nf3!" phải dính liền nước đi.
 #let nag(code) = {
   let c = str(code).trim("$")
-  if c == "1" [ #nag-good ]
-  else if c == "2" [ #nag-mistake ]
-  else if c == "3" [ #nag-brilliant ]
-  else if c == "4" [ #nag-blunder ]
-  else if c == "5" [ #nag-interesting ]
-  else if c == "6" [ #nag-dubious ]
-  else if c == "7" [ #nag-only-move ]
-  else if c == "10" [ #nag-equal ]
-  else if c == "13" [ #nag-unclear ]
-  else if c == "14" [ #nag-white-slight ]
-  else if c == "15" [ #nag-black-slight ]
-  else if c == "16" [ #nag-white-advantage ]
-  else if c == "17" [ #nag-black-advantage ]
-  else if c == "18" [ #nag-white-winning ]
-  else if c == "19" [ #nag-black-winning ]
-  else if c == "22" [ #nag-zugzwang ]
-  else if c == "36" [ #nag-initiative ]
-  else if c == "40" [ #nag-attack ]
-  else if c == "44" [ #nag-compensation ]
-  else if c == "138" [ #nag-time-trouble ]
-  else [ \$#c ]
+  nag-symbols.at(c, default: [\$#c])
 }
 
-// --- 4. Ký hiệu Lượt đi (Turn Indicator Box) ---
+// --- 4. Lượt đi ---
+// Một cách hiểu duy nhất cho tham số `turn` của mọi hàm: "b", "black",
+// "Đen", "den" (không phân biệt hoa thường) là Đen; còn lại là Trắng.
+#let is-black-turn(turn) = {
+  if turn == none or turn == auto { return false }
+  lower(str(turn)) in ("b", "black", "đen", "den")
+}
+
+// Lượt đi đọc từ trường thứ 2 của FEN ("w"/"b"); mặc định Trắng.
+#let fen-turn(fen-str) = {
+  let fields = str(fen-str).trim().split(" ")
+  if fields.len() > 1 and fields.at(1) == "b" { "b" } else { "w" }
+}
+
+// Ký hiệu Lượt đi (Turn Indicator Box)
 #let turn-indicator(turn, size: 8pt) = {
-  let is-black = (turn == "b" or turn == "black" or turn == "Đen" or turn == "den")
+  let is-black = is-black-turn(turn)
   if is-black {
     box(
       width: size,
       height: size,
-      fill: rgb("#1a202c"),
+      fill: ds-ink,
       radius: 1pt,
       baseline: 10%
     )
@@ -88,8 +107,8 @@
     box(
       width: size,
       height: size,
-      stroke: 0.9pt + rgb("#1a202c"),
-      fill: rgb("#ffffff"),
+      stroke: 0.9pt + ds-ink,
+      fill: ds-paper,
       radius: 1pt,
       baseline: 10%
     )
@@ -101,11 +120,78 @@
   width: 12pt,
   height: 12pt,
   baseline: 1.5pt,
-  stroke: 0.5pt + rgb("#2d3748"),
+  stroke: 0.5pt + ds-text,
   radius: 50%,
-  fill: rgb("#edf2f7")
+  fill: ds-brand-soft
 )[
   #align(center + horizon)[
-    #text(6.5pt, weight: "bold", fill: rgb("#2d3748"))[#n]
+    #text(6.5pt, weight: "bold", fill: ds-text)[#n]
   ]
 ]
+
+// --- 6. Kiểm tra FEN & vẽ bàn cờ dùng chung ---
+// Trả về none nếu phần xếp quân của FEN hợp lệ, ngược lại là câu mô tả lỗi.
+#let fen-error(fen-str) = {
+  let placement = str(fen-str).trim().split(" ").first()
+  let ranks = placement.split("/")
+  if ranks.len() != 8 {
+    return "cần 8 hàng, có " + str(ranks.len())
+  }
+  for (i, rank) in ranks.enumerate() {
+    let n = 0
+    for c in rank.clusters() {
+      if c in ("1", "2", "3", "4", "5", "6", "7", "8") {
+        n += int(c)
+      } else if c in ("p", "n", "b", "r", "q", "k", "P", "N", "B", "R", "Q", "K") {
+        n += 1
+      } else {
+        return "ký tự không hợp lệ \"" + c + "\" ở hàng " + str(8 - i)
+      }
+    }
+    if n != 8 {
+      return "hàng " + str(8 - i) + " có " + str(n) + " ô (cần 8)"
+    }
+  }
+  none
+}
+
+// Bàn cờ in sách. FEN sai hiện khung báo lỗi thay vì làm hỏng cả tài liệu.
+#let chess-board(
+  fen-str,
+  size: 16pt,
+  reverse: false,
+  numbers: false,
+  arrows: (),
+  marked: (:),
+  dark-fill: ds-board-dark,
+  frame: 0.9pt + ds-text,
+) = {
+  let err = fen-error(fen-str)
+  if err != none {
+    return box(
+      width: size * 8,
+      height: size * 8,
+      fill: rgb("#FFF5F5"),
+      stroke: 0.8pt + rgb("#C62828"),
+      inset: 6pt,
+    )[
+      #align(center + horizon)[
+        #text(7.5pt, fill: rgb("#C62828"))[*FEN không hợp lệ:* #err]
+        #v(3pt)
+        #text(6.5pt, fill: ds-muted)[#raw(str(fen-str))]
+      ]
+    ]
+  }
+  box(stroke: frame, fill: ds-paper, inset: 0pt)[
+    #board(
+      fen(fen-str),
+      square-size: size,
+      reverse: reverse,
+      display-numbers: numbers,
+      white-square-fill: ds-board-light,
+      black-square-fill: dark-fill,
+      arrows: arrows,
+      marked-squares: marked,
+    )
+  ]
+}

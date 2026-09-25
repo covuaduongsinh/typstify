@@ -68,7 +68,7 @@ func (ch *CompileHelper) BuildParams(targetFile string, outFilename string) (*ty
 		}
 	}
 
-	params.Options.PackagePath = ch.settings.PackageDir
+	params.Options.PackagePath = ch.settings.EffectivePackageDir()
 	params.Options.PackageCachePath = ch.settings.PackageCacheDir
 	params.Options.FontPaths = ch.fontPaths()
 	params.Options.IgnoreSystemFonts = ch.settings.IgnoreSystemFonts == 1

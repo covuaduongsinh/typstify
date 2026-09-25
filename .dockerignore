@@ -2,7 +2,10 @@
 .omc
 bin/
 scratch/
-chessbook/
+# Only the chess library ships in the image (as the @local/chessbook package).
+chessbook/*
+!chessbook/lib
+.env
 demo/
 docs/
 *.exe

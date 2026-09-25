@@ -17,6 +17,8 @@ export interface EditorHandle {
   save: () => Promise<boolean>
   insertText: (text: string) => void
   getContent: () => string
+  /** Inserts `line` at the top of the document unless `present(doc)`. */
+  ensureLineAtTop: (line: string, present: (doc: string) => boolean) => void
 }
 
 interface EditorProps {
@@ -125,6 +127,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     save: () => saveRef.current(),
     insertText: (text: string) => insertTextRef.current(text),
     getContent: () => viewRef.current?.state.doc.toString() ?? '',
+    ensureLineAtTop: (line: string, present: (doc: string) => boolean) => {
+      const view = viewRef.current
+      if (!view || present(view.state.doc.toString())) return
+      view.dispatch({ changes: { from: 0, to: 0, insert: `${line}\n` } })
+    },
   }))
 
   useEffect(() => {

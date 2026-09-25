@@ -4,8 +4,8 @@
 // Hỗ trợ khung mục tiêu bài giảng, diagram mũi tên chiến thuật, câu hỏi trắc nghiệm.
 // ============================================================================
 
-#import "@preview/board-n-pieces:0.9.0": board, fen
-#import "symbols.typ": turn-indicator, nag
+#import "theme.typ": *
+#import "symbols.typ": turn-indicator, nag, is-black-turn, chess-board
 
 // Tiêu đề Bài học Giáo trình (Lesson Header)
 #let lesson-header(
@@ -17,8 +17,8 @@
 ) = {
   block(
     width: 100%,
-    fill: rgb("#ebf8ff"),
-    stroke: (left: 4pt + rgb("#3182ce"), rest: 0.5pt + rgb("#bee3f8")),
+    fill: ds-brand-soft,
+    stroke: (left: 4pt + ds-brand, rest: 0.5pt + ds-brand-border),
     radius: (right: 4pt),
     inset: (x: 12pt, y: 10pt)
   )[
@@ -26,24 +26,24 @@
       columns: (1fr, auto),
       align: (left + horizon, right + horizon),
       [
-        #text(9pt, weight: "bold", fill: rgb("#2b6cb0"))[BÀI HỌC SỐ #lesson-num] \
+        #text(9pt, weight: "bold", fill: ds-brand)[BÀI HỌC SỐ #lesson-num] \
         #v(1pt)
-        #text(13pt, weight: "bold", fill: rgb("#1a365d"))[#title]
+        #text(13pt, weight: "bold", fill: ds-brand-dark)[#title]
       ],
       [
-        #box(fill: rgb("#3182ce"), radius: 3pt, inset: (x: 6pt, y: 3pt))[
-          #text(8pt, weight: "bold", fill: rgb("#ffffff"))[#level]
+        #box(fill: ds-brand, radius: 3pt, inset: (x: 6pt, y: 3pt))[
+          #text(8pt, weight: "bold", fill: ds-paper)[#level]
         ] \
         #v(2pt)
-        #text(7.5pt, fill: rgb("#718096"))[#duration]
+        #text(7.5pt, fill: ds-muted)[#duration]
       ]
     )
     #if objective != "" [
       #v(6pt)
-      #line(length: 100%, stroke: 0.4pt + rgb("#cbd5e0"))
+      #line(length: 100%, stroke: 0.4pt + ds-line)
       #v(4pt)
-      #text(8pt, weight: "bold", fill: rgb("#2c5282"))[🎯 Mục tiêu bài học: ]
-      #text(8pt, fill: rgb("#2d3748"))[#objective]
+      #text(8pt, weight: "bold", fill: ds-brand-dark)[◎ Mục tiêu bài học: ]
+      #text(8pt, fill: ds-text)[#objective]
     ]
   ]
 }
@@ -55,12 +55,12 @@
 ) = {
   rect(
     width: 100%,
-    fill: rgb("#f7fafc"),
-    stroke: 0.8pt + rgb("#cbd5e0"),
+    fill: ds-brand-soft,
+    stroke: 0.8pt + ds-line,
     radius: 4pt,
     inset: (x: 10pt, y: 8pt)
   )[
-    #text(9pt, weight: "bold", fill: rgb("#2b6cb0"))[💡 #title]
+    #text(9pt, weight: "bold", fill: ds-brand)[✦ #title]
     #v(4pt)
     #content
   ]
@@ -77,29 +77,20 @@
 ) = {
   align(center)[
     #block(width: size * 8, breakable: false)[
+      #set par(justify: false)
       #if title != "" [
         #grid(
           columns: (1fr, auto),
           align: (left + horizon, right + horizon),
-          [#text(8.5pt, weight: "bold", fill: rgb("#2d3748"))[#title]],
+          [#text(8.5pt, weight: "bold", fill: ds-text)[#title]],
           [#turn-indicator(turn, size: 8.5pt)]
         )
         #v(2pt)
       ]
-      #box(stroke: 1pt + rgb("#2d3748"), fill: rgb("#ffffff"), inset: 0pt)[
-        #board(
-          fen(fen-str),
-          square-size: size,
-          reverse: (turn == "b" or turn == "black"),
-          display-numbers: true,
-          white-square-fill: rgb("#ffffff"),
-          black-square-fill: rgb("#cbd5e0"),
-          arrows: arrows
-        )
-      ]
+      #chess-board(fen-str, size: size, reverse: is-black-turn(turn), numbers: true, arrows: arrows, frame: 1pt + ds-text)
       #if caption != "" [
         #v(3pt)
-        #text(7.5pt, style: "italic", fill: rgb("#4a5568"))[#caption]
+        #text(7.5pt, style: "italic", fill: ds-muted)[#caption]
       ]
     ]
   ]
@@ -114,24 +105,24 @@
 ) = {
   block(
     width: 100%,
-    fill: rgb("#ffffff"),
-    stroke: 0.5pt + rgb("#e2e8f0"),
+    fill: ds-paper,
+    stroke: 0.5pt + ds-line,
     radius: 3pt,
     inset: (x: 8pt, y: 6pt)
   )[
-    #text(8.5pt, weight: "bold", fill: rgb("#2b6cb0"))[Câu hỏi #number: ]
-    #text(8.5pt, fill: rgb("#1a202c"))[#question]
+    #text(8.5pt, weight: "bold", fill: ds-brand)[Câu hỏi #number: ]
+    #text(8.5pt, fill: ds-ink)[#question]
     #if choices.len() > 0 [
       #v(3pt)
       #grid(
         columns: (1fr, 1fr),
         gutter: 4pt,
-        ..choices.map(c => text(8pt, fill: rgb("#4a5568"))[#c])
+        ..choices.map(c => text(8pt, fill: ds-muted)[#c])
       )
     ]
     #if answer != none [
       #v(2pt)
-      #text(7.5pt, style: "italic", fill: rgb("#718096"))[Đáp án: #answer]
+      #text(7.5pt, style: "italic", fill: ds-muted)[Đáp án: #answer]
     ]
   ]
 }
@@ -140,12 +131,12 @@
 #let instructor-note(note) = {
   rect(
     width: 100%,
-    stroke: (left: 3pt + rgb("#dd6b20")),
-    fill: rgb("#fffaf0"),
+    stroke: (left: 3pt + ds-warn),
+    fill: ds-warn-soft,
     radius: (right: 3pt),
     inset: (x: 8pt, y: 5pt)
   )[
-    #text(8pt, weight: "bold", fill: rgb("#c05621"))[📌 Lưu ý cho HLV: ]
-    #text(8pt, fill: rgb("#7b341e"))[#note]
+    #text(8pt, weight: "bold", fill: ds-warn)[✎ Lưu ý cho HLV: ]
+    #text(8pt, fill: ds-text)[#note]
   ]
 }

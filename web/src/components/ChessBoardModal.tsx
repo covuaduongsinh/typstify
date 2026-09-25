@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Icon } from './Icon'
 import { Modal } from './Modal'
+import { typstString } from '../lib/typst'
 
 interface ChessBoardModalProps {
   isOpen: boolean
@@ -80,16 +81,16 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
         return `#puzzle-card(
   "${currentFen}",
   number: ${puzzleNum},
-  title: "${title}",
-  to-move: "${turn}",
+  title: ${typstString(title)},
+  turn: "${turn}",
   difficulty: ${difficulty},
-  hint: "${hint}",
-  solution: "${solution}"
+  hint: ${hint.trim() ? typstString(hint) : 'none'},
+  solution: ${solution.trim() ? typstString(solution) : 'none'}
 )\n`
       case 'eco':
         return `#opening-diagram-box(
   "${currentFen}",
-  title: "${title}",
+  title: ${typstString(title)},
   turn: "${turn}",
   eval-text: "± (Trắng ưu thế)",
   caption: "Thế cờ then chốt sau biến thể chính."
@@ -97,14 +98,14 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
       case 'magazine':
         return `#column-diagram(
   "${currentFen}",
-  move-num: "${title}",
+  move-num: ${typstString(title)},
   turn: "${turn}",
   caption: "Nước đi tạo ra sự đột biến của thế trận."
 )\n`
       case 'courseware':
         return `#teaching-diagram(
   "${currentFen}",
-  title: "${title}",
+  title: ${typstString(title)},
   turn: "${turn}",
   size: 16pt,
   caption: "Thế cờ minh họa cho bài học chiến thuật."

@@ -4,8 +4,8 @@
 // Phong cách New In Chess, Chess Life, British Chess Magazine.
 // ============================================================================
 
-#import "@preview/board-n-pieces:0.9.0": board, fen
-#import "symbols.typ": turn-indicator, nag
+#import "theme.typ": *
+#import "symbols.typ": turn-indicator, nag, is-black-turn, chess-board
 
 // Thẻ Thông tin Ván đấu Đỉnh cao (Game Header Card)
 #let game-header(
@@ -27,31 +27,40 @@
 ) = {
   box(
     width: 100%,
-    fill: rgb("#f8fafc"),
-    stroke: 0.6pt + rgb("#cbd5e0"),
+    fill: ds-brand-soft,
+    stroke: 0.6pt + ds-line,
     radius: 4pt,
     inset: (x: 10pt, y: 8pt)
   )[
-    // Hàng trên: Sự kiện, Địa điểm, Mã ECO, Kết quả
+    // Hàng trên: Sự kiện, Địa điểm, Mã ECO, Kết quả. Trường để trống
+    // (PGN thiếu thông tin) được bỏ qua thay vì in ra "( , )".
+    #let place = (
+      site,
+      if round != "" { "V" + round } else { "" },
+      date,
+    ).filter(x => x != "").join(", ", default: "")
+    #let opening-line = (eco, opening).filter(x => x != "").join(": ", default: "")
     #grid(
       columns: (1fr, auto),
       align: (left + horizon, right + horizon),
       [
-        #text(8pt, weight: "bold", fill: rgb("#4a5568"))[#event (#site, R#round - #date)] \
-        #text(7.5pt, fill: rgb("#718096"))[#eco: #opening]
+        #text(8pt, weight: "bold", fill: ds-muted)[#event#if place != "" [ (#place)]] \
+        #if opening-line != "" [#text(7.5pt, fill: ds-muted)[#opening-line]]
       ],
       [
-        #box(
-          fill: rgb("#2b6cb0"),
-          radius: 3pt,
-          inset: (x: 6pt, y: 3pt)
-        )[
-          #text(8.5pt, weight: "bold", fill: rgb("#ffffff"))[#result]
+        #if result != "" [
+          #box(
+            fill: ds-brand,
+            radius: 3pt,
+            inset: (x: 6pt, y: 3pt)
+          )[
+            #text(8.5pt, weight: "bold", fill: ds-paper)[#result]
+          ]
         ]
       ]
     )
     #v(4pt)
-    #line(length: 100%, stroke: 0.4pt + rgb("#e2e8f0"))
+    #line(length: 100%, stroke: 0.4pt + ds-line)
     #v(4pt)
     // Hàng dưới: Kỳ thủ Trắng vs Đen
     #grid(
@@ -59,15 +68,17 @@
       align: (left + horizon, center + horizon, right + horizon),
       [
         #turn-indicator("w", size: 8pt) #h(3pt)
-        #text(8.5pt, weight: "bold", fill: rgb("#1a202c"))[#if white-title != "" [#white-title ]#white]
-        #text(7.5pt, fill: rgb("#718096"))[ (#white-fed, #white-elo)]
+        #text(8.5pt, weight: "bold", fill: ds-ink)[#if white-title != "" [#white-title ]#white]
+        #let w-info = (white-fed, white-elo).filter(x => x != "").join(", ", default: "")
+        #if w-info != "" [#text(7.5pt, fill: ds-muted)[ (#w-info)]]
       ],
       [
-        #text(8pt, weight: "bold", fill: rgb("#a0aec0"))[VS]
+        #text(8pt, weight: "bold", fill: ds-subtle)[VS]
       ],
       [
-        #text(7.5pt, fill: rgb("#718096"))[(#black-elo, #black-fed) ]
-        #text(8.5pt, weight: "bold", fill: rgb("#1a202c"))[#if black-title != "" [#black-title ]#black]
+        #let b-info = (black-elo, black-fed).filter(x => x != "").join(", ", default: "")
+        #if b-info != "" [#text(7.5pt, fill: ds-muted)[(#b-info) ]]
+        #text(8.5pt, weight: "bold", fill: ds-ink)[#if black-title != "" [#black-title ]#black]
         #h(3pt) #turn-indicator("b", size: 8pt)
       ]
     )
@@ -85,29 +96,20 @@
 ) = {
   align(center)[
     #block(width: size * 8, breakable: false)[
+      #set par(justify: false)
       #if move-num != "" or caption != "" [
         #grid(
           columns: (1fr, auto),
           align: (left + horizon, right + horizon),
-          [#text(7.5pt, weight: "bold", fill: rgb("#4a5568"))[#move-num]],
+          [#text(7.5pt, weight: "bold", fill: ds-muted)[#move-num]],
           [#turn-indicator(turn, size: 7.5pt)]
         )
         #v(2pt)
       ]
-      #box(stroke: 0.8pt + rgb("#2d3748"), fill: rgb("#ffffff"), inset: 0pt)[
-        #board(
-          fen(fen-str),
-          square-size: size,
-          reverse: (turn == "b" or turn == "black"),
-          display-numbers: false,
-          white-square-fill: rgb("#ffffff"),
-          black-square-fill: rgb("#e2e8f0"),
-          arrows: arrows
-        )
-      ]
+      #chess-board(fen-str, size: size, reverse: is-black-turn(turn), arrows: arrows, frame: 0.8pt + ds-text)
       #if caption != "" [
         #v(2pt)
-        #text(7pt, style: "italic", fill: rgb("#718096"))[#caption]
+        #text(7pt, style: "italic", fill: ds-muted)[#caption]
       ]
     ]
   ]
@@ -117,16 +119,16 @@
 #let chess-quote(author: "", text-content) = {
   rect(
     width: 100%,
-    stroke: (left: 3pt + rgb("#3182ce")),
-    fill: rgb("#ebf8ff"),
+    stroke: (left: 3pt + ds-brand),
+    fill: ds-brand-soft,
     radius: (right: 4pt),
     inset: (x: 10pt, y: 7pt)
   )[
-    #text(8.5pt, style: "italic", fill: rgb("#2c5282"))[“#text-content”]
+    #text(8.5pt, style: "italic", fill: ds-brand-dark)[“#text-content”]
     #if author != "" [
       #v(2pt)
       #align(right)[
-        #text(7.5pt, weight: "bold", fill: rgb("#4299e1"))[— #author]
+        #text(7.5pt, weight: "bold", fill: ds-brand-light)[— #author]
       ]
     ]
   ]

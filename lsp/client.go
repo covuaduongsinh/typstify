@@ -123,8 +123,8 @@ func (c *Client) buildInitOptions(setting *settings.Settings) map[string]any {
 		typstExtraArgs = append(typstExtraArgs, sysInputs...)
 	}
 
-	if typstSettings.PackageDir != "" {
-		typstExtraArgs = append(typstExtraArgs, "--package-path", typstSettings.PackageDir)
+	if pkgDir := typstSettings.EffectivePackageDir(); pkgDir != "" {
+		typstExtraArgs = append(typstExtraArgs, "--package-path", pkgDir)
 	}
 	if typstSettings.PackageCacheDir != "" {
 		typstExtraArgs = append(typstExtraArgs, "--package-cache-path", typstSettings.PackageCacheDir)

@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import type { TreeEntry } from '../api/types'
 import { useTranslations } from '../lib/i18n'
 import { useTheme } from '../lib/theme'
+import { CHESSBOOK_IMPORT, hasChessbookImport } from '../lib/typst'
 import { AgentChat } from './AgentChat'
 import { BrandMark } from './BrandMark'
 import { ChessBoardModal } from './ChessBoardModal'
@@ -52,7 +53,19 @@ function savePref(key: string, value: string) {
   }
 }
 
-const NEW_DOC_TEMPLATE = `// Tài Liệu Cờ Vua Mới\n#set text(font: ("Arial", "Segoe UI Symbol"), size: 9.5pt, lang: "vi")\n\n= Tiêu Đề Tài Liệu\n\n`
+const NEW_DOC_TEMPLATE = `${CHESSBOOK_IMPORT}
+
+#show: chess-book-init.with(
+  title: "TÊN TÀI LIỆU",
+  subtitle: "",
+  author: "CLB Cờ vua Dương Sinh",
+  paper-size: "a5",
+)
+
+= Tiêu đề chương
+
+Nội dung bài viết…
+`
 
 export function Workspace({ projectPath, onCloseProject }: { projectPath: string; onCloseProject: () => void }) {
   const [activePath, setActivePath] = useState<string | null>(null)
@@ -195,7 +208,11 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     }
   }
 
+  // Every toolbar/modal snippet calls chessbook functions, so make sure the
+  // document imports the library -- otherwise it fails with "unknown
+  // variable" as soon as it compiles.
   const handleInsertText = (text: string) => {
+    editorRef.current?.ensureLineAtTop(CHESSBOOK_IMPORT, hasChessbookImport)
     editorRef.current?.insertText(text)
   }
 

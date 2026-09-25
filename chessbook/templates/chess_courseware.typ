@@ -22,7 +22,7 @@
   ]
 )
 
-#set text(font: ("Arial", "Segoe UI Symbol"), size: 9pt, lang: "vi")
+#set text(font: font-sans, size: 9pt, lang: "vi")
 #set par(justify: true, leading: 0.55em)
 
 // Tiêu đề bài học
