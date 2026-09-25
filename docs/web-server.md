@@ -94,6 +94,15 @@ gói thuê bao hàng tháng của chính nhà cung cấp (Claude Pro/Max, ChatGP
 thay vì trả tiền theo API. Nguyên tắc cốt lõi: server chỉ **spawn thẳng binary CLI chính chủ** của agent
 (qua `npx`/binary như registry ACP mô tả) và không tự đọc/giải mã token OAuth của nó.
 
+**Đăng nhập kiểu "Log in with Google" (OAuth loopback — Antigravity, Gemini CLI…):** agent
+chạy trong container trên máy chủ và chờ Google chuyển hướng về `http://127.0.0.1:<cổng>` của
+**container**. Trình duyệt lại mở `127.0.0.1` trên **máy người dùng** nên hiện trang lỗi
+"không kết nối được" — đó là bình thường. Thẻ đăng nhập trong khung Trợ lý AI hướng dẫn sao chép
+toàn bộ địa chỉ trang lỗi đó, dán vào ô **Hoàn tất đăng nhập**; server gửi đúng request ấy tới
+agent qua `POST /api/agent/auth/callback`. Endpoint chỉ nhận địa chỉ loopback `http`, đúng cổng
+`redirect_uri` trong liên kết đăng nhập agent vừa in ra, có tham số `code`, và chỉ khi đang có
+lượt đăng nhập chờ — không thể dùng để gọi dịch vụ nội bộ khác.
+
 | Endpoint | Ý nghĩa |
 | --- | --- |
 | `GET /api/agent/registry` | Danh sách đầy đủ agent từ [registry ACP chính thức](https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json) (cache — xem `settings.FetchAgentRegistry`). |
