@@ -7,6 +7,7 @@ import { typst_lezer } from 'codemirror-lang-typst/lezer'
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { typstifyTheme } from '../lib/editorTheme'
 import { LspClient, type LspDiagnostic } from '../lib/lspClient'
+import { repairChessImports } from '../lib/typst'
 
 // Exposes an imperative save() so a toolbar button can trigger the same
 // save path as the editor's own Ctrl+S keymap -- the shortcut alone isn't
@@ -19,6 +20,8 @@ export interface EditorHandle {
   getContent: () => string
   /** Inserts `line` at the top of the document unless `present(doc)`. */
   ensureLineAtTop: (line: string, present: (doc: string) => boolean) => void
+  /** Auto repairs missing chess library imports and saves */
+  autoFixImports: () => void
 }
 
 interface EditorProps {
@@ -131,6 +134,18 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const view = viewRef.current
       if (!view || present(view.state.doc.toString())) return
       view.dispatch({ changes: { from: 0, to: 0, insert: `${line}\n` } })
+    },
+    autoFixImports: () => {
+      const view = viewRef.current
+      if (!view) return
+      const current = view.state.doc.toString()
+      const fixed = repairChessImports(current)
+      if (fixed !== current) {
+        view.dispatch({
+          changes: { from: 0, to: current.length, insert: fixed },
+        })
+        void saveRef.current()
+      }
     },
   }))
 

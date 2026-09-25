@@ -66,6 +66,39 @@ export function boardToFen(board: Piece[][], turn: 'w' | 'b'): string {
   return `${rows.join('/')} ${turn} ${castlingRights(board)} - 0 1`
 }
 
+/** fenToBoard deserialises a FEN string into a board array and side to move. */
+export function fenToBoard(fen: string): { board: Piece[][]; turn: 'w' | 'b' } {
+  const parts = fen.trim().split(/\s+/)
+  const placement = parts[0] || '8/8/8/8/8/8/8/8'
+  const turn = (parts[1] === 'b' ? 'b' : 'w') as 'w' | 'b'
+
+  const board: Piece[][] = Array.from({ length: 8 }, () => Array<Piece>(8).fill(null))
+  const rows = placement.split('/')
+
+  for (let r = 0; r < Math.min(8, rows.length); r++) {
+    const rowStr = rows[r]
+    let c = 0
+    for (const ch of rowStr) {
+      if (c >= 8) break
+      if (/\d/.test(ch)) {
+        c += parseInt(ch, 10)
+      } else if (/[pnbrqkPNBRQK]/.test(ch)) {
+        board[r][c] = ch
+        c++
+      }
+    }
+  }
+
+  return { board, turn }
+}
+
+/** squareName converts 0-indexed row (0=rank 8) and column (0=file a) to algebraic square. */
+export function squareName(r: number, c: number): string {
+  const file = 'abcdefgh'[c] ?? 'a'
+  const rank = 8 - r
+  return `${file}${rank}`
+}
+
 /** Vietnamese piece names, for accessible labels. */
 export const PIECE_NAMES: Record<string, string> = {
   K: 'Vua trắng',

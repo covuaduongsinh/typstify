@@ -12,12 +12,26 @@ export function typstString(s: string): string {
   return `"${escaped}"`
 }
 
-/** The import line that brings in the chessbook library (installed as a
- * local Typst package on the server and, via scripts/, on desktops). */
+/** The primary import line that brings in the chessbook library. */
 export const CHESSBOOK_IMPORT = '#import "@local/chessbook:0.1.0": *'
 
 /** hasChessbookImport reports whether a document already imports the
- * library, either as the package or via the in-repo relative path. */
+ * chess library or defines required helpers locally. */
 export function hasChessbookImport(doc: string): boolean {
-  return /@local\/chessbook:|lib\/lib\.typ/.test(doc)
+  return /@local\/chessbook:|lib\/lib\.typ|chess_template\.typ|#let game-header|#let puzzle-card/.test(doc)
+}
+
+/** requiresChessImport detects if the document uses chessbook functions. */
+export function requiresChessImport(doc: string): boolean {
+  return /#(game-header|puzzle-card|eco-header|lesson-header|column-diagram|teaching-diagram|opening-diagram-box|nag|w[KQBNRP]|b[KQBNRP])\b/.test(
+    doc,
+  )
+}
+
+/** repairChessImports ensures that if a document uses chess functions, the required import is placed at the top. */
+export function repairChessImports(doc: string): string {
+  if (hasChessbookImport(doc) || !requiresChessImport(doc)) {
+    return doc
+  }
+  return `${CHESSBOOK_IMPORT}\n\n${doc.trimStart()}`
 }

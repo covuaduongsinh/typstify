@@ -6,7 +6,7 @@ export interface DiagnosticCounts {
 }
 
 /** StatusBar is the thin strip under the workspace: file, LSP diagnostics,
- * cursor position and save state. */
+ * cursor position, save state and quick-fix actions. */
 export function StatusBar({
   activePath,
   cursor,
@@ -14,6 +14,7 @@ export function StatusBar({
   dirty,
   lastSaved,
   saveError,
+  onAutoFix,
 }: {
   activePath: string | null
   cursor: { line: number; col: number } | null
@@ -21,6 +22,7 @@ export function StatusBar({
   dirty: boolean
   lastSaved: Date | null
   saveError?: string | null
+  onAutoFix?: () => void
 }) {
   const isTyp = activePath?.endsWith('.typ')
   return (
@@ -42,6 +44,27 @@ export function StatusBar({
             </>
           )}
         </span>
+      )}
+      {activePath && isTyp && diagnostics.errors > 0 && onAutoFix && (
+        <button
+          className="status-item"
+          style={{
+            background: 'var(--color-accent, #2563eb)',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '4px',
+            padding: '2px 8px',
+            cursor: 'pointer',
+            fontSize: '11px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+          onClick={onAutoFix}
+          title="Tự động sửa lỗi thiếu import thư viện cờ vua"
+        >
+          <Icon name="sparkles" size={12} /> Tự động sửa import
+        </button>
       )}
       <span className="status-spacer" />
       {activePath && cursor && (

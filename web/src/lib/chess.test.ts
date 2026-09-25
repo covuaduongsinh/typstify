@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { boardToFen, castlingRights, EMPTY_BOARD, INITIAL_BOARD, type Piece } from './chess'
+import {
+  boardToFen,
+  castlingRights,
+  EMPTY_BOARD,
+  fenToBoard,
+  INITIAL_BOARD,
+  type Piece,
+  squareName,
+} from './chess'
 
 const clone = (b: Piece[][]) => b.map((r) => [...r])
 
@@ -16,6 +24,33 @@ describe('boardToFen', () => {
     b[0][7] = 'r'
     b[7][3] = 'Q'
     expect(boardToFen(b, 'w').split(' ')[0]).toBe('k6r/8/8/8/8/8/8/3Q4')
+  })
+})
+
+describe('fenToBoard', () => {
+  it('deserialises starting position correctly', () => {
+    const res = fenToBoard('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+    expect(res.turn).toBe('w')
+    expect(res.board[0][0]).toBe('r')
+    expect(res.board[7][4]).toBe('K')
+    expect(res.board[3][3]).toBeNull()
+  })
+
+  it('deserialises a puzzle position with black to move', () => {
+    const fen = 'r1bqk2r/pppp1ppp/2n5/4p3/1bB1n3/2NP1N2/PPP2PPP/R1BQK2R b KQkq - 0 6'
+    const res = fenToBoard(fen)
+    expect(res.turn).toBe('b')
+    expect(res.board[0][4]).toBe('k')
+    expect(res.board[4][4]).toBe('n')
+  })
+})
+
+describe('squareName', () => {
+  it('converts row/col indices to standard algebraic notation', () => {
+    expect(squareName(7, 4)).toBe('e1')
+    expect(squareName(4, 4)).toBe('e4')
+    expect(squareName(0, 0)).toBe('a8')
+    expect(squareName(7, 7)).toBe('h1')
   })
 })
 

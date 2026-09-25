@@ -16,4 +16,4 @@ chessbook/*.pdf
 chessbook/output/*.pdf
 chessbook/output/*.png
 demo/
-testproject/.DS_Store
+testproject/

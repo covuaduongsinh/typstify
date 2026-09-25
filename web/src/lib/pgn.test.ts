@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { formatDate, formatResult, gameToTypst, movetextToTypst, parsePgn, pgnToTypst } from './pgn'
+import {
+  formatDate,
+  formatMovesAsColumns,
+  formatResult,
+  gameToTypst,
+  movetextToTypst,
+  parseMoves,
+  parsePgn,
+  pgnToTypst,
+} from './pgn'
 
 const TWO_GAMES = `[Event "Giải CLB"]
 [White "Nguyễn Văn A"]
@@ -36,6 +45,32 @@ describe('parsePgn', () => {
   })
 })
 
+describe('parseMoves', () => {
+  it('parses SAN move pairs and comments', () => {
+    const moves = parseMoves('1. e4 {Mở đầu} e5 2. Nf3 $1 Nc6 {Nước cờ hay}')
+    expect(moves).toHaveLength(2)
+    expect(moves[0].num).toBe(1)
+    expect(moves[0].white).toBe('e4')
+    expect(moves[0].whiteComment).toBe('Mở đầu')
+    expect(moves[0].black).toBe('e5')
+    expect(moves[1].num).toBe(2)
+    expect(moves[1].white).toBe('Nf3')
+    expect(moves[1].whiteNag).toBe('1')
+    expect(moves[1].black).toBe('Nc6')
+    expect(moves[1].blackComment).toBe('Nước cờ hay')
+  })
+})
+
+describe('formatMovesAsColumns', () => {
+  it('generates a clean 3-column Typst table', () => {
+    const moves = parseMoves('1. e4 e5 2. Nf3 Nc6')
+    const table = formatMovesAsColumns(moves)
+    expect(table).toContain('#table(')
+    expect(table).toContain('[1.], [#strong[e4]], [#strong[e5]],')
+    expect(table).toContain('[2.], [#strong[Nf3]], [#strong[Nc6]],')
+  })
+})
+
 describe('movetextToTypst', () => {
   it('emits moves as string literals, comments as emph, NAGs via #nag', () => {
     expect(movetextToTypst('1. e4 {hay *nhất*} e5 2. Nf3 $14 Nc6')).toBe(
@@ -59,7 +94,7 @@ describe('formatting', () => {
 
 describe('gameToTypst', () => {
   it('never invents missing tags', () => {
-    const out = gameToTypst(parsePgn('1. e4 e5')[0])
+    const out = gameToTypst(parsePgn('1. e4 e5')[0], { layout: 'inline' })
     expect(out).toContain('white-elo: "",')
     expect(out).toContain('white-title: "",')
     expect(out).toContain('result: "",')
@@ -70,6 +105,12 @@ describe('gameToTypst', () => {
   })
   it('converts every game in a file', () => {
     expect(pgnToTypst(TWO_GAMES).match(/#game-header\(/g)).toHaveLength(2)
+  })
+  it('supports header_only layout', () => {
+    const out = gameToTypst(parsePgn('1. e4 e5')[0], { layout: 'header_only' })
+    expect(out).toContain('#game-header(')
+    expect(out).not.toContain('#table(')
+    expect(out).not.toContain('1. e4')
   })
 })
 

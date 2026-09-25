@@ -2,7 +2,15 @@ import { useMemo, useState } from 'react'
 import { Icon } from './Icon'
 import { Modal } from './Modal'
 import { typstString } from '../lib/typst'
-import { boardToFen, EMPTY_BOARD, INITIAL_BOARD, PIECE_NAMES, PIECE_SYMBOLS, type Piece } from '../lib/chess'
+import {
+  boardToFen,
+  EMPTY_BOARD,
+  fenToBoard,
+  INITIAL_BOARD,
+  PIECE_NAMES,
+  PIECE_SYMBOLS,
+  type Piece,
+} from '../lib/chess'
 
 interface ChessBoardModalProps {
   isOpen: boolean
@@ -15,17 +23,29 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
   const [selectedTool, setSelectedTool] = useState<Piece | 'trash'>('P')
   const [turn, setTurn] = useState<'w' | 'b'>('w')
   const [flipped, setFlipped] = useState(false)
-  const [formatType, setFormatType] = useState<'puzzle' | 'eco' | 'magazine' | 'courseware'>('puzzle')
+  const [formatType, setFormatType] = useState<'puzzle' | 'eco' | 'magazine' | 'courseware' | 'standalone'>('puzzle')
   const [title, setTitle] = useState('Đòn chiến thuật')
   const [puzzleNum, setPuzzleNum] = useState(1)
   const [difficulty, setDifficulty] = useState(2)
   const [hint, setHint] = useState('')
   const [solution, setSolution] = useState('')
+  const [arrowsInput, setArrowsInput] = useState('')
+  const [fenInputText, setFenInputText] = useState('')
   const [fenCopied, setFenCopied] = useState(false)
 
   const currentFen = useMemo(() => boardToFen(boardState, turn), [boardState, turn])
 
+  const parsedArrows = useMemo(() => {
+    return arrowsInput
+      .split(/[\s,]+/)
+      .map((a) => a.trim().toLowerCase())
+      .filter((a) => /^[a-h][1-8][a-h][1-8]$/.test(a))
+  }, [arrowsInput])
+
   const generatedTypstCode = useMemo(() => {
+    const arrowsCode =
+      parsedArrows.length > 0 ? `\n  arrows: (${parsedArrows.map((a) => `"${a}"`).join(', ')}),` : ''
+
     switch (formatType) {
       case 'puzzle':
         return `#puzzle-card(
@@ -35,7 +55,7 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
   turn: "${turn}",
   difficulty: ${difficulty},
   hint: ${hint.trim() ? typstString(hint) : 'none'},
-  solution: ${solution.trim() ? typstString(solution) : 'none'}
+  solution: ${solution.trim() ? typstString(solution) : 'none'}${arrowsCode}
 )\n`
       case 'eco':
         return `#opening-diagram-box(
@@ -43,14 +63,14 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
   title: ${typstString(title)},
   turn: "${turn}",
   eval-text: "± (Trắng ưu thế)",
-  caption: "Thế cờ then chốt sau biến thể chính."
+  caption: "Thế cờ then chốt sau biến thể chính."${arrowsCode}
 )\n`
       case 'magazine':
         return `#column-diagram(
   "${currentFen}",
   move-num: ${typstString(title)},
   turn: "${turn}",
-  caption: "Nước đi tạo ra sự đột biến của thế trận."
+  caption: "Nước đi tạo ra sự đột biến của thế trận."${arrowsCode}
 )\n`
       case 'courseware':
         return `#teaching-diagram(
@@ -58,10 +78,20 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
   title: ${typstString(title)},
   turn: "${turn}",
   size: 16pt,
-  caption: "Thế cờ minh họa cho bài học chiến thuật."
+  caption: "Thế cờ minh họa cho bài học chiến thuật."${arrowsCode}
 )\n`
+      case 'standalone':
+        return `// Bàn cờ độc lập (tự chứa)
+#box(stroke: 0.8pt + rgb("#334155"), fill: rgb("#ffffff"), inset: 0pt)[
+  #board(
+    fen("${currentFen}"),
+    square-size: 16pt,
+    reverse: ${turn === 'b'},
+    display-numbers: true${arrowsCode}
+  )
+]\n`
     }
-  }, [formatType, currentFen, puzzleNum, title, turn, difficulty, hint, solution])
+  }, [formatType, currentFen, puzzleNum, title, turn, difficulty, hint, solution, parsedArrows])
 
   if (!isOpen) return null
 
@@ -75,8 +105,6 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
     setBoardState(newBoard)
   }
 
-  // Drag & drop: from the palette (places a new piece) or from another
-  // square (moves it). Dropping a square's piece outside the board removes it.
   const DRAG_TYPE = 'application/x-chess-piece'
   const handleDrop = (e: React.DragEvent, r: number, c: number) => {
     e.preventDefault()
@@ -106,6 +134,17 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
       setFenCopied(true)
       window.setTimeout(() => setFenCopied(false), 1500)
     })
+  }
+
+  const handleLoadFen = () => {
+    if (!fenInputText.trim()) return
+    try {
+      const res = fenToBoard(fenInputText)
+      setBoardState(res.board)
+      setTurn(res.turn)
+    } catch {
+      // ignore invalid fen
+    }
   }
 
   const handleClearBoard = () => {
@@ -146,10 +185,10 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
                       onClick={() => handleSquareClick(r, c)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
+                          e.preventDefault}
                           handleSquareClick(r, c)
                         }
-                      }}
+                      }
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleDrop(e, r, c)}
                     >
@@ -233,6 +272,21 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
                 <Icon name="x" size={13} /> Xóa bàn
               </button>
             </div>
+
+            {/* FEN Quick Input */}
+            <div style={{ marginTop: '8px', display: 'flex', gap: '4px' }}>
+              <input
+                type="text"
+                className="chess-input"
+                placeholder="Dán mã FEN vào đây để tải thế cờ..."
+                value={fenInputText}
+                onChange={(e) => setFenInputText(e.target.value)}
+                style={{ fontSize: '11px', flex: 1 }}
+              />
+              <button className="small-action-btn" onClick={handleLoadFen}>
+                Tải FEN
+              </button>
+            </div>
           </div>
         </div>
 
@@ -249,6 +303,7 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
               <option value="eco">📖 Dạng B: Bách Khoa Khai Cuộc (ECO Diagram)</option>
               <option value="magazine">📰 Dạng C: Tạp Chí Cờ Vua (Column Diagram)</option>
               <option value="courseware">🎓 Dạng D: Giáo Trình Bài Giảng (Teaching Diagram)</option>
+              <option value="standalone">⚡ Bàn cờ Độc lập (Không phụ thuộc package)</option>
             </select>
           </div>
 
@@ -285,6 +340,17 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
               onChange={(e) => setTitle(e.target.value)}
               className="chess-input"
               placeholder="VD: Đòn chiếu bắt Hậu, Khai cuộc Ý..."
+            />
+          </div>
+
+          <div className="config-group">
+            <label>Mũi tên chiến thuật (Arrows - ví dụ: e2e4, g1f3):</label>
+            <input
+              type="text"
+              value={arrowsInput}
+              onChange={(e) => setArrowsInput(e.target.value)}
+              className="chess-input"
+              placeholder="VD: e2e4, c4f7, g1f3"
             />
           </div>
 

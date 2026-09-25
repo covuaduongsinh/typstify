@@ -11,8 +11,8 @@ import { ExportButton } from './ExportButton'
 import { FileTree } from './FileTree'
 import { Icon, type IconName } from './Icon'
 import { Modal } from './Modal'
+import { NewDocModal } from './NewDocModal'
 import { PreviewPane } from './PreviewPane'
-import { PromptDialog } from './PromptDialog'
 import { Resizer } from './Resizer'
 import { StatusBar, type DiagnosticCounts } from './StatusBar'
 
@@ -240,13 +240,18 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     editorRef.current?.insertText(text)
   }
 
-  const createNewDoc = async (fileName: string) => {
+  const handleAutoFix = () => {
+    editorRef.current?.autoFixImports()
+  }
+
+  const createNewDoc = async (fileName: string, templateContent?: string) => {
     setIsNewDocOpen(false)
     let target = fileName
     if (!target.includes('.')) target += '.typ'
+    const initialCode = templateContent ?? NEW_DOC_TEMPLATE
     try {
       await api.post('/api/workspace/file', { path: target, isDir: false })
-      await api.put(`/api/workspace/file?path=${encodeURIComponent(target)}`, NEW_DOC_TEMPLATE)
+      await api.put(`/api/workspace/file?path=${encodeURIComponent(target)}`, initialCode)
     } catch {
       // already exists (the create is O_EXCL, so the template write is
       // skipped and nothing gets overwritten): just open it
@@ -534,6 +539,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         dirty={dirty}
         saveError={saveError}
         lastSaved={lastSaved}
+        onAutoFix={handleAutoFix}
       />
 
       <Suspense fallback={null}>
@@ -571,14 +577,10 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         </Modal>
       )}
       {isNewDocOpen && (
-        <PromptDialog
-          title="Tạo tài liệu mới"
-          label="Tên file"
-          defaultValue="chess_document.typ"
-          hint="Tự thêm đuôi .typ nếu bạn không ghi. Có thể dùng thư mục, ví dụ: chapters/chuong-1.typ"
-          confirmLabel="Tạo"
-          onConfirm={createNewDoc}
-          onCancel={() => setIsNewDocOpen(false)}
+        <NewDocModal
+          isOpen={isNewDocOpen}
+          onClose={() => setIsNewDocOpen(false)}
+          onCreate={createNewDoc}
         />
       )}
     </div>

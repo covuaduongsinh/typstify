@@ -67,21 +67,21 @@ const TEMPLATES = [
     label: 'Thẻ ván đấu (tạp chí)',
     title: 'Thông tin ván đấu: kỳ thủ, Elo, giải, vòng, kết quả',
     code: `#game-header(
-  white: "Magnus Carlsen",
+  white: "Ding Liren",
   white-title: "GM",
-  white-elo: "2835",
-  white-fed: "NOR",
-  black: "Hikaru Nakamura",
+  white-elo: "2728",
+  white-fed: "CHN",
+  black: "Gukesh D",
   black-title: "GM",
-  black-elo: "2802",
-  black-fed: "USA",
-  event: "FIDE Candidates Tournament",
-  site: "Toronto",
-  date: "2024.04.15",
-  round: "10",
+  black-elo: "2794",
+  black-fed: "IND",
+  event: "FIDE World Championship 2024",
+  site: "Singapore",
+  date: "2024.11.25",
+  round: "1",
   result: "1 - 0",
   eco: "C58",
-  opening: "Phòng thủ Hai Mã"
+  opening: "Two Knights Defense"
 )\n`,
   },
   {
@@ -95,17 +95,44 @@ const TEMPLATES = [
   objective: "Học viên nắm vững định nghĩa đòn ghim và nhận biết cơ hội trong thực chiến."
 )\n`,
   },
+  {
+    label: 'Khái niệm then chốt',
+    title: 'Khung lý thuyết đóng khung nổi bật với biểu tượng',
+    code: `#concept-box(title: "Khái niệm Then chốt")[
+  Đòn ghim tuyệt đối là đòn ghim mà quân phía sau là Vua, quân bị ghim không được phép di chuyển theo luật.
+]\n`,
+  },
+  {
+    label: 'Hộp trích dẫn danh ngôn',
+    title: 'Khung trích dẫn nhận định ván cờ hoặc câu nói nổi tiếng',
+    code: `#chess-quote(author: "Garry Kasparov")[
+  Cờ vua là sự thử thách của trí tuệ, nơi mỗi nước đi đều phản ánh chiều sâu tư duy chiến lược.
+]\n`,
+  },
+  {
+    label: 'Lưu ý cho HLV',
+    title: 'Ghi chú nghiệp vụ sư phạm dành cho giáo viên / huấn luyện viên',
+    code: `#instructor-note[
+  Nhắc học sinh quan sát đường chéo trước khi quyết định di chuyển quân Tượng.
+]\n`,
+  },
+  {
+    label: 'Câu hỏi trắc nghiệm',
+    title: 'Câu hỏi kiểm tra kèm các phương án lựa chọn và đáp án',
+    code: `#practice-question(
+  number: 1,
+  question: "Đâu là nước đi tối ưu nhất cho Trắng?",
+  choices: ("A. 1. Qh5+", "B. 1. Bxf7+", "C. 1. Nf3", "D. 1. d4"),
+  answer: "B. 1. Bxf7+ (Chiếu Vua và bắt Hậu)"
+)\n`,
+  },
 ]
 
-// The annotations used most while commenting a game stay one click away on
-// the bar itself; the full NAG set lives in the "Ký hiệu" popover.
 const QUICK_NAGS = NAGS.slice(0, 6)
 
 type Menu = 'pieces' | 'nags' | 'templates' | null
 
-// Popover widths (px), matching App.css, so a popover opened near the right
-// edge of the window can be shifted left instead of being cut off.
-const POPOVER_WIDTH: Record<Exclude<Menu, null>, number> = { pieces: 344, nags: 372, templates: 320 }
+const POPOVER_WIDTH: Record<Exclude<Menu, null>, number> = { pieces: 344, nags: 372, templates: 340 }
 
 export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn }: ChessToolbarProps) {
   const [menu, setMenu] = useState<Menu>(null)
@@ -114,8 +141,6 @@ export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn }: ChessTool
   const close = useCallback(() => setMenu(null), [])
   useDismiss(barRef, menu !== null, close)
 
-  // Popovers are position:fixed so the editor column's overflow clipping
-  // can't cut them off; they're placed under their trigger button.
   const toggle = (m: Exclude<Menu, null>, trigger: HTMLElement) => {
     if (menu === m) {
       setMenu(null)
@@ -224,7 +249,7 @@ export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn }: ChessTool
       <div className="chess-toolbar-group popover-anchor">
         {trigger('templates', 'template', 'Chèn mẫu')}
         {menu === 'templates' && (
-          <div className="chess-popover templates-popover" role="menu" style={popoverStyle}>
+          <div className="chess-popover templates-popover" role="menu" style={{ ...popoverStyle, maxHeight: '360px', overflowY: 'auto' }}>
             {TEMPLATES.map((tmpl) => (
               <button key={tmpl.label} role="menuitem" className="template-row" onClick={() => insert(tmpl.code)}>
                 <span className="template-name">{tmpl.label}</span>
