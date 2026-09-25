@@ -2,62 +2,12 @@ import { useMemo, useState } from 'react'
 import { Icon } from './Icon'
 import { Modal } from './Modal'
 import { typstString } from '../lib/typst'
+import { boardToFen, EMPTY_BOARD, INITIAL_BOARD, PIECE_SYMBOLS, type Piece } from '../lib/chess'
 
 interface ChessBoardModalProps {
   isOpen: boolean
   onClose: () => void
   onInsertCode: (code: string) => void
-}
-
-type Piece = string | null // 'P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k', null
-
-const INITIAL_BOARD: Piece[][] = [
-  ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
-  ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
-  ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'],
-]
-
-const PIECE_SYMBOLS: Record<string, string> = {
-  K: '♔',
-  Q: '♕',
-  R: '♖',
-  B: '♗',
-  N: '♘',
-  P: '♙',
-  k: '♚',
-  q: '♛',
-  r: '♜',
-  b: '♝',
-  n: '♞',
-  p: '♟',
-}
-
-function boardToFen(board: Piece[][], turn: 'w' | 'b'): string {
-  const rows: string[] = []
-  for (let r = 0; r < 8; r++) {
-    let empty = 0
-    let rowStr = ''
-    for (let c = 0; c < 8; c++) {
-      const p = board[r][c]
-      if (!p) {
-        empty++
-      } else {
-        if (empty > 0) {
-          rowStr += empty
-          empty = 0
-        }
-        rowStr += p
-      }
-    }
-    if (empty > 0) rowStr += empty
-    rows.push(rowStr)
-  }
-  return `${rows.join('/')} ${turn} KQkq - 0 1`
 }
 
 export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardModalProps) {
@@ -159,11 +109,7 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
   }
 
   const handleClearBoard = () => {
-    setBoardState(
-      Array(8)
-        .fill(null)
-        .map(() => Array(8).fill(null)),
-    )
+    setBoardState(EMPTY_BOARD.map((row) => [...row]))
   }
 
   const handleResetBoard = () => {
