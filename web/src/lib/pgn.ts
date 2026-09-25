@@ -305,7 +305,7 @@ export function formatMovesAsColumns(moves: PgnMove[]): string {
     '  stroke: none,',
     '  inset: (x: 4pt, y: 3pt),',
     '  fill: (col, row) => if calc.odd(row) { rgb("#f8fafc") } else { none },',
-    '  table.header([*#*], [*Trắng*], [*Đen*]),',
+    '  table.header([*\\#*], [*Trắng*], [*Đen*]),',
     ...rows,
     ')',
   ].join('\n')

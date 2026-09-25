@@ -72,7 +72,7 @@ Nội dung phân tích chi tiết thế trận...
 #table(
   columns: (22pt, 1fr, 1fr),
   stroke: none,
-  table.header([*#*], [*Trắng*], [*Đen*]),
+  table.header([*\\#*], [*Trắng*], [*Đen*]),
   [1.], [#strong[e4]], [#strong[e5]],
   [2.], [#strong[Nf3]], [#strong[Nc6]],
   [3.], [#strong[Bc4]], [#strong[Nf6]],
