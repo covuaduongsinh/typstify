@@ -110,6 +110,8 @@ func (s *Server) handleAgentAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.authInProgress.Add(1)
+	defer s.authInProgress.Add(-1)
 	if err := mgr.Authenticate(r.Context(), methodID); err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return

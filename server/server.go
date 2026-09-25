@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"looz.ws/typstify/service"
@@ -43,6 +44,11 @@ type Server struct {
 	// compileSlots bounds concurrent typst compiles from /api/export and
 	// /api/preview/pdf: every request spawns a typst process.
 	compileSlots chan struct{}
+	// authInProgress counts agent logins waiting in handleAgentAuth; the
+	// OAuth callback relay only works while one is pending.
+	authInProgress atomic.Int32
+	// consoleTextFn overrides the console source (tests).
+	consoleTextFn func() string
 }
 
 func New(appSrv *service.ServiceFacade, opts Options) *Server {
@@ -112,6 +118,7 @@ func (s *Server) routes() {
 	// AI agent registry / selection / auth.
 	s.handle("GET /api/agent/registry", s.handleAgentRegistry)
 	s.handle("POST /api/agent/select", s.handleAgentSelect)
+	s.handle("POST /api/agent/auth/callback", s.handleAgentAuthCallback)
 	s.handle("POST /api/agent/auth/{methodId}", s.handleAgentAuth)
 	s.handle("POST /api/agent/preferred-config", s.handleSavePreferredConfig)
 	s.handle("GET /api/console", s.handleConsole)
