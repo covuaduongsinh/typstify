@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -24,11 +25,48 @@ func resolveInRoot(root, rel string) (string, error) {
 
 	joinedAbs := filepath.Join(rootAbs, cleaned)
 
-	if joinedAbs != rootAbs && !strings.HasPrefix(joinedAbs, rootAbs+string(filepath.Separator)) {
+	if !within(rootAbs, joinedAbs) {
+		return "", errPathEscapesRoot
+	}
+
+	// The lexical check above can't see symlinks: a link inside the project
+	// (which the AI agent's shell can create) pointing at /etc or another
+	// project would let reads, writes and deletes escape. Compare the
+	// resolved locations too.
+	if !within(realPath(rootAbs), realPath(joinedAbs)) {
 		return "", errPathEscapesRoot
 	}
 
 	return joinedAbs, nil
+}
+
+// within reports whether p is root or underneath it (both absolute, clean).
+func within(root, p string) bool {
+	return p == root || strings.HasPrefix(p, root+string(filepath.Separator))
+}
+
+// realPath resolves symlinks in p. For a path that doesn't exist yet (a
+// file about to be created) it resolves the longest existing ancestor and
+// re-appends the rest, so a symlinked parent directory is still caught.
+func realPath(p string) string {
+	if real, err := filepath.EvalSymlinks(p); err == nil {
+		return real
+	}
+	var rest []string
+	cur := p
+	for {
+		parent := filepath.Dir(cur)
+		rest = append([]string{filepath.Base(cur)}, rest...)
+		if parent == cur {
+			return p
+		}
+		if real, err := filepath.EvalSymlinks(parent); err == nil {
+			return filepath.Join(append([]string{real}, rest...)...)
+		} else if !os.IsNotExist(err) {
+			return p
+		}
+		cur = parent
+	}
 }
 
 // relPath returns p relative to root using forward slashes, suitable for
@@ -50,5 +88,5 @@ func isUnderRoot(root, abs string) bool {
 	if err != nil {
 		return false
 	}
-	return abs == rootAbs || strings.HasPrefix(abs, rootAbs+string(filepath.Separator))
+	return within(rootAbs, abs) && within(realPath(rootAbs), realPath(abs))
 }

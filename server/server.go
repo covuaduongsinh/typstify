@@ -40,6 +40,9 @@ type Server struct {
 	opts   Options
 	auth   *authManager
 	mux    *http.ServeMux
+	// compileSlots bounds concurrent typst compiles from /api/export and
+	// /api/preview/pdf: every request spawns a typst process.
+	compileSlots chan struct{}
 }
 
 func New(appSrv *service.ServiceFacade, opts Options) *Server {
@@ -48,6 +51,8 @@ func New(appSrv *service.ServiceFacade, opts Options) *Server {
 		opts:   opts,
 		auth:   newAuthManager(opts.Password),
 		mux:    http.NewServeMux(),
+
+		compileSlots: make(chan struct{}, maxConcurrentCompiles),
 	}
 	s.routes()
 	return s
@@ -101,8 +106,8 @@ func (s *Server) routes() {
 	s.handle("PUT /api/settings/lsp", settingsPutHandler(s.appSrv.Settings().Lsp))
 	s.handle("GET /api/settings/agent", settingsGetHandler(s.appSrv.Settings().AcpAgent))
 	s.handle("PUT /api/settings/agent", settingsPutHandler(s.appSrv.Settings().AcpAgent))
-	s.handle("GET /api/settings/tpix", settingsGetHandler(s.appSrv.Settings().Tpix))
-	s.handle("PUT /api/settings/tpix", settingsPutHandler(s.appSrv.Settings().Tpix))
+	// No /api/settings/tpix: it holds the package-registry API key, which
+	// the web UI never uses, so it is not exposed to the browser at all.
 
 	// AI agent registry / selection / auth.
 	s.handle("GET /api/agent/registry", s.handleAgentRegistry)

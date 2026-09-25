@@ -73,9 +73,11 @@ type ACPSession struct {
 	usage         UsageUpdate
 	mu            sync.Mutex
 
-	// ongoing prompt turn info
+	// ongoing prompt turn info. The turn is read from the update-subscriber
+	// goroutine and the ACP client goroutine while Prompt swaps it, so it is
+	// an atomic pointer (use Turn()).
 	hasOngoingTurn atomic.Bool
-	CurrentTurn    *PromptTurn
+	currentTurn    atomic.Pointer[PromptTurn]
 	// When there is a ongoing turn, succeeded input from user will be buffered, and sent when the previous
 	// turn is finished.
 	contentBuf   []acp.ContentBlock
@@ -91,6 +93,11 @@ type ACPSession struct {
 	// be blocked.
 	updateChan chan any
 	grantChan  chan PermissionGrantRequest
+	// done is closed by Close. updateChan/grantChan are never closed --
+	// senders may still be running then, and a send on a closed channel
+	// panics -- so senders and the subscriber select on done instead.
+	done      chan struct{}
+	closeOnce sync.Once
 	// bound to a view or not. A session has to be bound to
 	// a view implementing a SessionUpdateSubsciber to work.
 	bound bool
@@ -104,7 +111,18 @@ func NewACPSession(sessionID string, cwd string) *ACPSession {
 		Cwd:        cwd,
 		updateChan: make(chan any, maxSessionUpdates),
 		grantChan:  make(chan PermissionGrantRequest),
+		done:       make(chan struct{}),
 	}
+}
+
+// Turn returns the ongoing prompt turn, or nil.
+func (sn *ACPSession) Turn() *PromptTurn {
+	return sn.currentTurn.Load()
+}
+
+// Done is closed once the session is closed.
+func (sn *ACPSession) Done() <-chan struct{} {
+	return sn.done
 }
 
 func (sn *ACPSession) String() string {
@@ -122,7 +140,10 @@ func (sn *ACPSession) SetConn(conn *AgentConn) {
 	defer sn.mu.Unlock()
 
 	if sn.conn != nil {
-		panic("Cannot set connection of active session")
+		// Programming error (a session is only connected once); keep the
+		// existing connection rather than taking the whole server down.
+		log.Printf("session %s: SetConn called on an active session, ignoring", sn.SessionID)
+		return
 	}
 	sn.conn = conn
 }
@@ -316,20 +337,22 @@ func (sn *ACPSession) Prompt(ctx context.Context, contents ...acp.ContentBlock) 
 
 	defer func() {
 		sn.hasOngoingTurn.Store(false)
-		sn.CurrentTurn = nil
+		sn.currentTurn.Store(nil)
 
 		// check if there is buffered messages
 		sn.contentBufMu.Lock()
 		buf := sn.contentBuf
-		sn.contentBuf = sn.contentBuf[:0]
+		sn.contentBuf = nil
 		sn.contentBufMu.Unlock()
 		if len(buf) > 0 {
-			sn.Prompt(ctx, buf...)
+			// The finished turn's ctx may already be cancelled; the
+			// buffered prompt is a new turn and must not inherit that.
+			sn.Prompt(context.WithoutCancel(ctx), buf...)
 		}
 	}()
 
 	// start a new turn.
-	sn.CurrentTurn = NewPromptTurn()
+	sn.currentTurn.Store(NewPromptTurn())
 
 	// Prompt will not get a response until there is no pending tool calls, and the agent sends
 	// the final response.
@@ -364,10 +387,14 @@ func (sn *ACPSession) Cancel(ctx context.Context) error {
 		defer func() {
 			// the pending session/request_permission requests should check this to cancel
 			// themselves. This should be called BEFORE session/request_permission responds.
-			// so we should not set sn.CurrentTurn = nil.
-			if sn.CurrentTurn != nil {
-				sn.CurrentTurn.Cancel()
+			// so we should not set the current turn to nil.
+			if turn := sn.Turn(); turn != nil {
+				turn.Cancel()
 			}
+			// Prompts queued behind the cancelled turn are dropped too.
+			sn.contentBufMu.Lock()
+			sn.contentBuf = nil
+			sn.contentBufMu.Unlock()
 			log.Println("prompt turn canceled")
 		}()
 
@@ -380,27 +407,25 @@ func (sn *ACPSession) Cancel(ctx context.Context) error {
 	return nil
 }
 
-func (sn *ACPSession) RequestPermission(req acp.RequestPermissionRequest, grantResponseChan chan acp.PermissionOptionId) {
-	sn.mu.Lock()
-	if sn.grantChan == nil {
-		sn.grantChan = make(chan PermissionGrantRequest)
-	}
-	sn.mu.Unlock()
-
-	sn.grantChan <- PermissionGrantRequest{
-		Req:          req,
-		ResponseChan: grantResponseChan,
+// RequestPermission hands a permission request to the bound view. It
+// returns false without delivering it if the session was closed first.
+func (sn *ACPSession) RequestPermission(req acp.RequestPermissionRequest, grantResponseChan chan acp.PermissionOptionId) bool {
+	select {
+	case sn.grantChan <- PermissionGrantRequest{Req: req, ResponseChan: grantResponseChan}:
+		return true
+	case <-sn.done:
+		return false
 	}
 }
 
+// PublishUpdate queues a session update for the bound view. Once the
+// session is closed updates are dropped instead of blocking the ACP
+// connection forever on a full buffer nobody drains.
 func (sn *ACPSession) PublishUpdate(update any) {
-	sn.mu.Lock()
-	if sn.updateChan == nil {
-		sn.updateChan = make(chan any, maxSessionUpdates)
+	select {
+	case sn.updateChan <- update:
+	case <-sn.done:
 	}
-	sn.mu.Unlock()
-
-	sn.updateChan <- update
 }
 
 func (sn *ACPSession) SubscribeUpdates(ctx context.Context, sub SessionUpdateSubsciber) {
@@ -410,6 +435,7 @@ func (sn *ACPSession) SubscribeUpdates(ctx context.Context, sub SessionUpdateSub
 
 	sn.mu.Lock()
 	if sn.bound {
+		sn.mu.Unlock()
 		return
 	}
 	sn.bound = true
@@ -418,10 +444,9 @@ func (sn *ACPSession) SubscribeUpdates(ctx context.Context, sub SessionUpdateSub
 	go func() {
 		for {
 			select {
-			case update, ok := <-sn.updateChan:
-				if !ok {
-					return
-				}
+			case <-sn.done:
+				return
+			case update := <-sn.updateChan:
 				switch update := update.(type) {
 				case UserMessageChunk:
 					sub.OnUserMessage(update)
@@ -430,13 +455,13 @@ func (sn *ACPSession) SubscribeUpdates(ctx context.Context, sub SessionUpdateSub
 				case AgentThoughtChunk:
 					sub.OnAgentThought(update)
 				case ToolCall:
-					if sn.CurrentTurn != nil {
-						sn.CurrentTurn.UpdateToolCall(update)
+					if turn := sn.Turn(); turn != nil {
+						turn.UpdateToolCall(update)
 					}
 					sub.OnToolCallInit(update)
 				case ToolCallUpdate:
-					if sn.CurrentTurn != nil {
-						sn.CurrentTurn.UpdateToolCall(update)
+					if turn := sn.Turn(); turn != nil {
+						turn.UpdateToolCall(update)
 					}
 					sub.OnToolCallUpdate(update)
 				case Plan:
@@ -460,12 +485,9 @@ func (sn *ACPSession) SubscribeUpdates(ctx context.Context, sub SessionUpdateSub
 				case UsageUpdate:
 					sn.UpdateUsage(update)
 				default:
-					log.Panicf("unknown update object: %v", update)
+					log.Printf("session: ignoring unknown update object: %T", update)
 				}
-			case permissionReq, ok := <-sn.grantChan:
-				if !ok {
-					return
-				}
+			case permissionReq := <-sn.grantChan:
 				sub.OnRequestPermission(permissionReq)
 			case <-ctx.Done():
 				log.Println("session subscriber closed")
@@ -510,20 +532,22 @@ func (sn *ACPSession) ReleaseTerminal(terminalID string) error {
 	return nil
 }
 
+// Close ends the session locally: stops its subscriber, unblocks pending
+// senders, cancels the turn and kills its terminals. Safe to call twice.
 func (sn *ACPSession) Close() {
-	if sn.CurrentTurn != nil {
-		sn.CurrentTurn.Close()
+	sn.closeOnce.Do(sn.close)
+}
+
+func (sn *ACPSession) close() {
+	if turn := sn.Turn(); turn != nil {
+		turn.Close()
 	}
 
-	if sn.updateChan != nil {
-		close(sn.updateChan)
-	}
+	close(sn.done)
 
-	if sn.grantChan != nil {
-		close(sn.grantChan)
-	}
-
+	sn.mu.Lock()
 	sn.bound = false
+	sn.mu.Unlock()
 	sn.contentBufMu.Lock()
 	sn.contentBuf = nil
 	sn.contentBufMu.Unlock()

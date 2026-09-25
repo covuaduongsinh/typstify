@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sort"
 	"time"
 )
@@ -216,6 +217,10 @@ func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "cannot delete the project root")
 		return
 	}
+	if isProtectedPath(root, p) {
+		writeError(w, http.StatusBadRequest, "cannot delete "+filepath.Base(p))
+		return
+	}
 
 	if err := os.RemoveAll(p); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -256,6 +261,15 @@ func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
 
 	if err := os.MkdirAll(filepath.Dir(to), 0755); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// os.Rename silently replaces an existing file; never lose one that way.
+	if _, err := os.Lstat(to); err == nil {
+		writeError(w, http.StatusConflict, "đã có tệp/thư mục tên "+filepath.Base(to))
+		return
+	}
+	if isProtectedPath(root, from) {
+		writeError(w, http.StatusBadRequest, "cannot rename "+filepath.Base(from))
 		return
 	}
 	if err := os.Rename(from, to); err != nil {
@@ -336,4 +350,15 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 
 	s.appSrv.SetProjectDir(abs)
 	writeJSON(w, http.StatusOK, map[string]string{"path": abs})
+}
+
+// isProtectedPath reports whether p is project metadata the file tree must
+// not delete or rename: the git repository and Typstify's own settings dir.
+func isProtectedPath(root, p string) bool {
+	rel, err := filepath.Rel(filepath.Clean(root), p)
+	if err != nil {
+		return true
+	}
+	first := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
+	return first == ".git" || first == ".typstify"
 }

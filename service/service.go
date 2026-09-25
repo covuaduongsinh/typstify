@@ -58,6 +58,9 @@ type ServiceFacade struct {
 	acpStarting        bool
 	mcpServer          *agent.McpServer // the built-in mcp server
 
+	// projMu guards currentProjectDir and previewSrv: the web server
+	// switches projects from one HTTP handler while others read them.
+	projMu            sync.RWMutex
 	currentProjectDir string
 
 	// Window layout metrics for native webview positioning.
@@ -162,8 +165,8 @@ func (s *ServiceFacade) Close(ctx context.Context) {
 	s.windowSrv.Shutdown()
 	s.windowSrv.Wait()
 	lsp.StopLsp()
-	if s.previewSrv != nil {
-		s.previewSrv.Destroy(ctx)
+	if previewSrv := s.PreviewService(); previewSrv != nil {
+		previewSrv.Destroy(ctx)
 	}
 
 	s.stopAcpSessionManager(ctx)
@@ -231,16 +234,18 @@ func (s *ServiceFacade) SetProjectDir(dir string) {
 		return
 	}
 
+	s.projMu.Lock()
 	s.currentProjectDir = dir
+	s.projMu.Unlock()
 
-	s.Workspace().SwitchWorkspace(s.currentProjectDir)
+	s.Workspace().SwitchWorkspace(dir)
 
 	// init executable lookup path.
 	lsp.SetupCmdBuilder(s.settings.General().ExternalTinymist)
 	typst.SetupCmdBuilder(s.settings.General().ExternalTypst)
 
 	// connect to LSP server in an eager way.
-	client := lsp.GetLspClient(s.currentProjectDir, s.Settings())
+	client := lsp.GetLspClient(dir, s.Settings())
 	if s.settings.Lsp().EnableLSPLogs != 0 {
 		client.SetServreLogStreamer(s.consoleState)
 	} else {
@@ -252,9 +257,16 @@ func (s *ServiceFacade) SetProjectDir(dir string) {
 		previewMode = lsp.DocumentPreviewMode
 	}
 
-	s.previewSrv = lsp.NewPreviwService(client)
+	previewSrv := lsp.NewPreviwService(client)
+	// No explicit Destroy of the previous service: its preview lived on the
+	// previous LSP client (stopped by GetLspClient when the workspace
+	// changes), and Start kills tinymist's shared "default_preview" task
+	// before starting a new one on the same client.
+	s.projMu.Lock()
+	s.previewSrv = previewSrv
+	s.projMu.Unlock()
 	go func() {
-		s.previewSrv.Start(context.Background(),
+		previewSrv.Start(context.Background(),
 			lsp.PreviewOptions{
 				Mode:          previewMode,
 				InvertColor:   "never",
@@ -271,7 +283,10 @@ func (s *ServiceFacade) RestartPreview(ctx context.Context, onFinish func()) {
 }
 
 func (s *ServiceFacade) RestartPreviewWithEntry(ctx context.Context, entryFile string, onFinish func()) {
-	if s.previewSrv == nil {
+	s.projMu.RLock()
+	previewSrv, projectDir := s.previewSrv, s.currentProjectDir
+	s.projMu.RUnlock()
+	if previewSrv == nil {
 		return
 	}
 
@@ -281,10 +296,10 @@ func (s *ServiceFacade) RestartPreviewWithEntry(ctx context.Context, entryFile s
 	}
 
 	go func() {
-		s.previewSrv.Start(context.Background(),
+		previewSrv.Start(context.Background(),
 			lsp.PreviewOptions{
 				Mode:          previewMode,
-				ProjectRoot:   s.currentProjectDir,
+				ProjectRoot:   projectDir,
 				EntryFile:     entryFile,
 				InvertColor:   "never",
 				PartialRender: s.settings.Lsp().EnablePartialRenderPreview,
@@ -293,10 +308,14 @@ func (s *ServiceFacade) RestartPreviewWithEntry(ctx context.Context, entryFile s
 }
 
 func (s *ServiceFacade) PreviewService() *lsp.PreviewService {
+	s.projMu.RLock()
+	defer s.projMu.RUnlock()
 	return s.previewSrv
 }
 
 func (s *ServiceFacade) CurrentProjectDir() string {
+	s.projMu.RLock()
+	defer s.projMu.RUnlock()
 	return s.currentProjectDir
 }
 
@@ -316,7 +335,8 @@ func (s *ServiceFacade) initMcpServer(ctx context.Context) {
 	}
 	s.mcpServer = agent.NewMcpServer(serverPort)
 
-	client := lsp.GetLspClient(s.currentProjectDir, s.Settings())
+	projectDir, previewSrv := s.CurrentProjectDir(), s.PreviewService()
+	client := lsp.GetLspClient(projectDir, s.Settings())
 
 	// compilerTool := mcp.TypstCompilerHandler(s.CurrentProjectDir(), s.Settings().Typst())
 	// agent.AddMcpTool(s.mcpServer, mcp.TypstCompilerTool, compilerTool)
@@ -334,14 +354,18 @@ func (s *ServiceFacade) initMcpServer(ctx context.Context) {
 		}
 		return nil
 	}
-	editorToolSrv := mcp.NewEditorMcpService(s.currentProjectDir, s.settings, client, s.previewSrv, s.eventbus, activeDocQuerier)
+	editorToolSrv := mcp.NewEditorMcpService(projectDir, s.settings, client, previewSrv, s.eventbus, activeDocQuerier)
 	s.mcpServer.RegisterToolProvider(editorToolSrv)
 
-	pkgToolSrv := mcp.NewPackageMcpService(s.currentProjectDir, s.TpixClient(), s.PkgService())
+	pkgToolSrv := mcp.NewPackageMcpService(projectDir, s.TpixClient(), s.PkgService())
 	s.mcpServer.RegisterToolProvider(pkgToolSrv)
 	s.mcpServer.RegisterResourceProvider(pkgToolSrv)
 
-	s.mcpServer.Run()
+	if err := s.mcpServer.Run(); err != nil {
+		// Run without the built-in tools rather than crashing (the static
+		// MCP port may be taken, e.g. by a second instance).
+		log.Printf("built-in MCP tools disabled: %v", err)
+	}
 }
 
 func (s *ServiceFacade) listMcpServer() []acp.McpServer {

@@ -2,6 +2,8 @@ package server
 
 import (
 	"archive/zip"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"looz.ws/typstify/typst"
 	"looz.ws/typstify/typst/export"
@@ -56,7 +59,14 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 
 	outName := strings.TrimSuffix(filepath.Base(targetFile), filepath.Ext(targetFile))
 
+	ctx, release, ok := s.acquireCompile(w, r)
+	if !ok {
+		return
+	}
+	defer release()
+
 	helper := export.NewCompileHelper(root, s.appSrv.Settings().Typst())
+	helper.Ctx = ctx
 	helper.Format = format
 	helper.Pages = r.URL.Query().Get("pages")
 	helper.PPI = 144
@@ -69,7 +79,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	params.OutDir = outDir // override CompileHelper's project-relative default
 
 	if err := helper.Compile(params); err != nil {
-		writeError(w, http.StatusInternalServerError, "export failed: "+err.Error())
+		writeCompileError(w, ctx, http.StatusInternalServerError, "export failed: ", err)
 		return
 	}
 
@@ -150,7 +160,14 @@ func (s *Server) handlePreviewPdf(w http.ResponseWriter, r *http.Request) {
 
 	outName := strings.TrimSuffix(filepath.Base(targetFile), filepath.Ext(targetFile))
 
+	ctx, release, ok := s.acquireCompile(w, r)
+	if !ok {
+		return
+	}
+	defer release()
+
 	helper := export.NewCompileHelper(root, s.appSrv.Settings().Typst())
+	helper.Ctx = ctx
 	helper.Format = typst.PDF
 	helper.PPI = 144
 
@@ -162,7 +179,7 @@ func (s *Server) handlePreviewPdf(w http.ResponseWriter, r *http.Request) {
 	params.OutDir = outDir
 
 	if err := helper.Compile(params); err != nil {
-		writeError(w, http.StatusUnprocessableEntity, "compile failed: "+err.Error())
+		writeCompileError(w, ctx, http.StatusUnprocessableEntity, "compile failed: ", err)
 		return
 	}
 
@@ -192,4 +209,37 @@ func addFileToZip(zw *zip.Writer, path string) error {
 	}
 	_, err = io.Copy(entry, f)
 	return err
+}
+
+const (
+	maxConcurrentCompiles = 2
+	compileTimeout        = 90 * time.Second
+)
+
+// acquireCompile waits for a free compile slot (or the client giving up)
+// and returns a context that kills the typst process after compileTimeout
+// or when the client disconnects. ok=false means a response was written.
+func (s *Server) acquireCompile(w http.ResponseWriter, r *http.Request) (ctx context.Context, release func(), ok bool) {
+	select {
+	case s.compileSlots <- struct{}{}:
+	case <-r.Context().Done():
+		writeError(w, http.StatusServiceUnavailable, "server busy compiling, try again")
+		return nil, nil, false
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), compileTimeout)
+	return ctx, func() {
+		cancel()
+		<-s.compileSlots
+	}, true
+}
+
+// writeCompileError reports a failed compile, as 504 when it was our
+// timeout that killed it.
+func writeCompileError(w http.ResponseWriter, ctx context.Context, status int, prefix string, err error) {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		writeError(w, http.StatusGatewayTimeout,
+			fmt.Sprintf("Biên dịch quá %d giây nên đã dừng. Kiểm tra vòng lặp hoặc tài liệu quá lớn.", int(compileTimeout.Seconds())))
+		return
+	}
+	writeError(w, status, prefix+err.Error())
 }

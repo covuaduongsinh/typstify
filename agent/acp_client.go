@@ -165,38 +165,34 @@ func (a *ACPClient) RequestPermission(ctx context.Context, params acp.RequestPer
 		return emptyResp, fmt.Errorf("No active ACP session found: %s", params.SessionId)
 	}
 
-	// send and wait for user grants
-	permissionGrantChan := make(chan acp.PermissionOptionId)
-	session.RequestPermission(params, permissionGrantChan)
+	cancelled := acp.RequestPermissionResponse{Outcome: acp.NewRequestPermissionOutcomeCancelled()}
 
-	// respond with the result. If prompt turn is canceled, the ongoing tool call grants
-	// should also be canceled.
-	if session.CurrentTurn == nil {
-		optionID := <-permissionGrantChan
+	// send and wait for user grants. The response channel is buffered so a
+	// late answer (after cancellation) never blocks the view.
+	permissionGrantChan := make(chan acp.PermissionOptionId, 1)
+	if !session.RequestPermission(params, permissionGrantChan) {
+		return cancelled, nil // session closed
+	}
+
+	// respond with the result. If the prompt turn is canceled, or the
+	// session closes (the browser disconnected), the pending grant is
+	// cancelled instead of waiting forever.
+	var cancelChan <-chan acp.ToolCallId
+	if turn := session.Turn(); turn != nil {
+		cancelChan = turn.CancelChan(params.ToolCall.ToolCallId) // nil if not registered yet: never fires
+	}
+	select {
+	case optionID := <-permissionGrantChan:
 		return acp.RequestPermissionResponse{
 			Outcome: acp.NewRequestPermissionOutcomeSelected(optionID),
 		}, nil
-
-	} else {
-		cancelChan := session.CurrentTurn.CancelChan(params.ToolCall.ToolCallId)
-		if cancelChan == nil {
-			// Tool call not yet registered; no cancellation channel available.
-			optionID := <-permissionGrantChan
-			return acp.RequestPermissionResponse{
-				Outcome: acp.NewRequestPermissionOutcomeSelected(optionID),
-			}, nil
-		}
-		select {
-		case optionID := <-permissionGrantChan:
-			return acp.RequestPermissionResponse{
-				Outcome: acp.NewRequestPermissionOutcomeSelected(optionID),
-			}, nil
-		case <-cancelChan:
-			// do not check session.hasOngoingTurn here, as this should be called AFTER the turn is canceled.
-			return acp.RequestPermissionResponse{
-				Outcome: acp.NewRequestPermissionOutcomeCancelled(),
-			}, nil
-		}
+	case <-cancelChan:
+		// do not check session.hasOngoingTurn here, as this should be called AFTER the turn is canceled.
+		return cancelled, nil
+	case <-session.Done():
+		return cancelled, nil
+	case <-ctx.Done():
+		return cancelled, nil
 	}
 
 }

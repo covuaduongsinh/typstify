@@ -23,6 +23,9 @@ type CompileHelper struct {
 	NoPdfTags   bool
 	Format      typst.OutFormat
 	CmdOutput   io.Writer
+	// Ctx bounds the typst process (cancel/timeout kills it). Nil means
+	// context.Background(), as before.
+	Ctx context.Context
 }
 
 func NewCompileHelper(projectDir string, settings *settings.TypstSettings) *CompileHelper {
@@ -128,5 +131,9 @@ func (ch *CompileHelper) onExportFile(params *typst.CompileParams) error {
 	}
 	defer compiler.Close()
 
-	return compiler.Compile(context.Background(), params, nil)
+	ctx := ch.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return compiler.Compile(ctx, params, nil)
 }
