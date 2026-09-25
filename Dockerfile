@@ -77,10 +77,10 @@ RUN mkdir -p /out/fonts && cd /usr/share/fonts/truetype \
     && for f in Regular Bold Italic BoldItalic; do cp noto/NotoSerif-$f.ttf noto/NotoSans-$f.ttf /out/fonts/; done \
     && cp noto/NotoSansSymbols2-Regular.ttf /out/fonts/
 
-# ---- antigravity (Google's own agy_acp_server, no localharness.exe needed --
+# ---- antigravity (Google's own agy_acp_server + localharness bundle,
 # verified live against the real ACP registry, see docs/web-server.md) ----
 FROM debian:bookworm-slim AS antigravity
-ARG ANTIGRAVITY_VERSION=1.1.1
+ARG ANTIGRAVITY_VERSION=1.2.1
 ARG TARGETARCH
 # Set to false to leave the Antigravity agent out of the image (it is
 # large, and needs an AVX-capable CPU on x86_64 -- see the probe below).
@@ -96,10 +96,11 @@ RUN set -eu; \
       *) echo "unsupported TARGETARCH for antigravity-acp: ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
     curl -fsSL -o /tmp/agy.zip \
-      "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_${ANTIGRAVITY_VERSION}-linux-${agy_arch}.zip" \
+      "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${ANTIGRAVITY_VERSION}-linux-${agy_arch}.zip" \
     && unzip -q /tmp/agy.zip -d /tmp/agy \
     && mv /tmp/agy/agy_acp_server.par /out/agy_acp_server.par \
-    && chmod +x /out/agy_acp_server.par \
+    && mv /tmp/agy/localharness_external /out/localharness \
+    && chmod +x /out/agy_acp_server.par /out/localharness \
     && rm -rf /tmp/agy /tmp/agy.zip
 # agy_acp_server.par has no --version flag; confirm it at least starts,
 # same "build must go RED" rule as the typst/tinymist steps above -- but
@@ -144,6 +145,7 @@ RUN if [ ! -f /out/agy_acp_server.par ]; then exit 0; fi; \
 # this image in v1 and will show as "install manually" in the picker.
 FROM node:22-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && groupadd -g 65535 nobody 2>/dev/null || true \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=tools /usr/local/bin/typst /usr/local/bin/typst
@@ -170,6 +172,7 @@ ENV TYPSTIFY_STATIC_DIR=/app/web/dist \
     TYPSTIFY_PROJECT_DIR=/data/project \
     TYPSTIFY_PROJECT_ROOT=/data \
     TYPSTIFY_SERVER_ADDR=:8080 \
+    ANTIGRAVITY_HARNESS_PATH=/usr/local/bin/localharness \
     HOME=/data \
     XDG_CONFIG_HOME=/data/config \
     XDG_CACHE_HOME=/data/cache \
