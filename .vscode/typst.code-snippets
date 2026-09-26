@@ -1,0 +1,89 @@
+{
+  "Typst Chess Document": {
+    "prefix": "typ-chess",
+    "body": [
+      "#import \"@local/chessbook:0.1.0\": *",
+      "#import \"@preview/board-n-pieces:0.9.0\": board, fen",
+      "",
+      "= ${1:Tiêu đề tài liệu}",
+      "",
+      "$0"
+    ],
+    "description": "Khung chuẩn cho file cờ vua Typst với đầy đủ import tại dòng 1"
+  },
+  "Typst Chess Book Master": {
+    "prefix": "typ-master",
+    "body": [
+      "#import \"@local/chessbook:0.1.0\": *",
+      "#import \"@preview/board-n-pieces:0.9.0\": board, fen",
+      "",
+      "#show: chess-book-init.with(",
+      "  title: \"${1:TÊN SÁCH CỜ VUA}\",",
+      "  subtitle: \"${2:Tuyển tập chiến thuật}\",",
+      "  author: \"${3:Tác giả}\",",
+      "  paper-size: \"${4|a5,a4|}\",",
+      ")",
+      "",
+      "#include \"${5:chuong-1.typ}\"",
+      "$0"
+    ],
+    "description": "File tổng hợp (Master Document) cho sách cờ vua nhiều chương"
+  },
+  "Typst Chess Puzzle Card": {
+    "prefix": "typ-puzzle",
+    "body": [
+      "#puzzle-card(",
+      "  \"${1:r1bqk2r/pppp1ppp/2n5/4p3/1bB1n3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6}\",",
+      "  number: ${2:1},",
+      "  title: \"${3:Tiêu đề bài tập}\",",
+      "  turn: \"${4|w,b|}\",",
+      "  difficulty: ${5:2},",
+      "  hint: \"${6:Gợi ý}\",",
+      "  solution: \"${7:Lời giải}\"",
+      ")",
+      "$0"
+    ],
+    "description": "Thẻ bài tập cờ vua (Puzzle Card)"
+  },
+  "Typst Chess Game Header": {
+    "prefix": "typ-game",
+    "body": [
+      "#game-header(",
+      "  white: \"${1:Trắng}\",",
+      "  white-title: \"${2:GM}\",",
+      "  white-elo: \"${3:2700}\",",
+      "  black: \"${4:Đen}\",",
+      "  black-title: \"${5:GM}\",",
+      "  black-elo: \"${6:2700}\",",
+      "  event: \"${7:Giải đấu}\",",
+      "  site: \"${8:Địa điểm}\",",
+      "  date: \"${9:2026.01.01}\",",
+      "  result: \"${10|1 - 0,0 - 1,1/2 - 1/2|}\",",
+      "  eco: \"${11:C58}\",",
+      "  opening: \"${12:Two Knights Defense}\"",
+      ")",
+      "",
+      "$0"
+    ],
+    "description": "Khung thông tin ván đấu cờ vua (Game Header)"
+  },
+  "Typst Chess Lesson Header": {
+    "prefix": "typ-lesson",
+    "body": [
+      "#lesson-header(",
+      "  lesson-num: ${1:1},",
+      "  title: \"${2:TÊN BÀI HỌC}\",",
+      "  level: \"${3:Trình độ: Cơ bản}\",",
+      "  duration: \"${4:Thời lượng: 60 phút}\",",
+      "  objective: \"${5:Mục tiêu bài học}\"",
+      ")",
+      "",
+      "#concept-box(title: \"Khái niệm Then chốt\")[",
+      "  ${6:Nội dung lý thuyết...}",
+      "]",
+      "",
+      "$0"
+    ],
+    "description": "Khung giáo án bài giảng cờ vua (Lesson Header & Concept)"
+  }
+}
