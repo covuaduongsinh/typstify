@@ -148,6 +148,11 @@ func (s *Server) handleFilePut(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// For .typ files, strip any AI-generated mock #let definitions that
+	// shadow the real chessbook library functions before persisting.
+	if strings.HasSuffix(p, ".typ") {
+		data = repairTypstContent(data)
+	}
 	if err := os.WriteFile(p, data, 0644); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

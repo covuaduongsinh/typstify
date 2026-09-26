@@ -47,7 +47,16 @@ func NewMcpServer(port int) *McpServer {
 				Version: version.BinVersion,
 			},
 			&mcpsdk.ServerOptions{
-				Instructions: "Use this server when you need to use exported tools and resources of the Typstify editor environment. Show preview result before editing the typst files if possible.",
+				Instructions: `Typstify MCP Server – Chess Document Editor Environment.
+
+CRITICAL RULES for Typst chess documents:
+1. NEVER manually declare #let definitions for any chessbook function (e.g. lesson-header, chess-quote, instructor-note, practice-question, puzzle-card, game-header, eco-header, concept-box, teaching-diagram, column-diagram, opening-diagram-box, difficulty-stars, turn-indicator, chess-board, turn-box, nag, note-num, upside-down-solutions, render-puzzle-solutions).
+2. ALL these functions are provided by the @local/chessbook:0.1.0 package. If a document uses any of them, ensure #import "@local/chessbook:0.1.0": * is at the top.
+3. If you see "unknown variable" errors for any of these functions, ADD THE IMPORT LINE — do NOT create inline #let definitions.
+4. In Typst content blocks [...], the # character starts a code expression. Literal # must be escaped as \# (e.g. table.header([*\#*], [*White*], [*Black*])).
+5. puzzle-card accepts both turn: and to-move: parameters.
+6. chess-quote, instructor-note, concept-box accept content blocks: #chess-quote(author: "Name")[Content here].
+7. Show preview result before editing the typst files if possible.`,
 				Logger:       slog.Default(),
 				PageSize:     mcpsdk.DefaultPageSize,
 				GetSessionID: func() string {

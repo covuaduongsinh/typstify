@@ -4,6 +4,7 @@ import {
   hasChessbookImport,
   repairChessImports,
   requiresChessImport,
+  stripChessbookMockDefinitions,
   typstString,
 } from './typst'
 
@@ -42,6 +43,80 @@ describe('requiresChessImport', () => {
   })
 })
 
+describe('stripChessbookMockDefinitions', () => {
+  it('removes a simple single-function mock', () => {
+    const doc = [
+      '#import "@local/chessbook:0.1.0": *',
+      '',
+      '#let puzzle-card(',
+      '  fen-str,',
+      '  number: 1,',
+      ') = {',
+      '  block()[]',
+      '}',
+      '',
+      '#puzzle-card("fen", number: 1)',
+    ].join('\n')
+    const result = stripChessbookMockDefinitions(doc)
+    expect(result).not.toContain('#let puzzle-card')
+    expect(result).toContain('#puzzle-card("fen", number: 1)')
+    expect(result).toContain('#import')
+  })
+
+  it('removes multiple mock definitions', () => {
+    const doc = [
+      '#import "@local/chessbook:0.1.0": *',
+      '',
+      '#let turn-box(turn) = {',
+      '  box()',
+      '}',
+      '',
+      '#let chess-quote(author: "", text-content) = {',
+      '  rect()[]',
+      '}',
+      '',
+      '#let instructor-note(note) = {',
+      '  rect()[]',
+      '}',
+      '',
+      '#chess-quote(author: "GK")[Hello]',
+    ].join('\n')
+    const result = stripChessbookMockDefinitions(doc)
+    expect(result).not.toContain('#let turn-box')
+    expect(result).not.toContain('#let chess-quote')
+    expect(result).not.toContain('#let instructor-note')
+    expect(result).toContain('#chess-quote(author: "GK")[Hello]')
+  })
+
+  it('preserves non-chessbook #let definitions', () => {
+    const doc = [
+      '#let my-custom-func() = {',
+      '  box()',
+      '}',
+      '',
+      '#my-custom-func()',
+    ].join('\n')
+    expect(stripChessbookMockDefinitions(doc)).toBe(doc)
+  })
+
+  it('handles nested braces correctly', () => {
+    const doc = [
+      '#let game-header(white: "", black: "") = {',
+      '  block()[',
+      '    #if true {',
+      '      text()[hello]',
+      '    }',
+      '  ]',
+      '}',
+      '',
+      '#game-header(white: "A")',
+    ].join('\n')
+    const result = stripChessbookMockDefinitions(doc)
+    expect(result).not.toContain('#let game-header')
+    expect(result).toContain('#game-header(white: "A")')
+  })
+})
+
 describe('repairChessImports', () => {
   it('prepends import when document uses chess functions without import', () => {
     const doc = '= My Game\n\n#game-header(white: "A", black: "B")'
@@ -58,8 +133,25 @@ describe('repairChessImports', () => {
     expect(repaired.startsWith(CHESSBOOK_IMPORT)).toBe(true)
   })
 
-  it('does nothing when import already exists', () => {
+  it('does nothing when import already exists and no mocks', () => {
     const doc = `${CHESSBOOK_IMPORT}\n\n#game-header(white: "A")`
     expect(repairChessImports(doc)).toBe(doc)
   })
+
+  it('strips mock definitions when import exists', () => {
+    const doc = [
+      '#import "@local/chessbook:0.1.0": *',
+      '',
+      '#let lesson-header(lesson-num: 1) = {',
+      '  block()[]',
+      '}',
+      '',
+      '#lesson-header(lesson-num: 1)',
+    ].join('\n')
+    const result = repairChessImports(doc)
+    expect(result).not.toContain('#let lesson-header')
+    expect(result).toContain('#lesson-header(lesson-num: 1)')
+    expect(result).toContain('#import')
+  })
 })
+
