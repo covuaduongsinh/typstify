@@ -13,8 +13,8 @@
 #import "magazine.typ": *
 #import "courseware.typ": *
 
-// Hàm khởi tạo định dạng Sách Cờ Vua Chuẩn (khổ "a5", "a4", hoặc mọi khổ
-// giấy Typst hỗ trợ, ví dụ "b5")
+// Hàm khởi tạo định dạng Sách Cờ Vua Chuẩn (khổ "a5", "a4", "16x24", hoặc mọi khổ
+// giấy Typst hỗ trợ, ví dụ "b5" hoặc (width: 16cm, height: 24cm))
 #let chess-book-init(
   title: "CẨM NANG CỜ VUA",
   subtitle: "",
@@ -23,10 +23,25 @@
   font: font-serif,
   body
 ) = {
+  let actual-paper = if paper-size == "16x24" or paper-size == "16x24cm" {
+    (width: 16cm, height: 24cm)
+  } else {
+    paper-size
+  }
+
+  let is-16x24 = paper-size == "16x24" or paper-size == "16x24cm"
+  let page-margin = if is-16x24 {
+    (inside: 1.8cm, outside: 1.3cm, top: 1.5cm, bottom: 1.4cm)
+  } else {
+    (x: 1.5cm, top: 1.6cm, bottom: 1.6cm)
+  }
+
   set document(title: title, author: author)
   set page(
-    paper: paper-size,
-    margin: (x: 1.5cm, top: 1.6cm, bottom: 1.6cm),
+    paper: if type(actual-paper) == str { actual-paper } else { "a4" },
+    width: if type(actual-paper) == dictionary { actual-paper.at("width", default: auto) } else { auto },
+    height: if type(actual-paper) == dictionary { actual-paper.at("height", default: auto) } else { auto },
+    margin: page-margin,
     header: context [
       #let p = counter(page).get().first()
       #let is-odd = calc.odd(p)
@@ -59,6 +74,64 @@
     justify: true,
     leading: 0.55em,
     first-line-indent: 0em
+  )
+
+  body
+}
+
+// Hàm khởi tạo Phiếu Bài Tập / Worksheet (Khổ A4 hoặc 16x24cm)
+#let chess-worksheet-init(
+  title: "PHIẾU BÀI TẬP CỜ VUA",
+  subtitle: "",
+  author: "CLB Cờ vua Dương Sinh",
+  date: "",
+  paper-size: "a4",
+  font: font-sans,
+  body
+) = {
+  let actual-paper = if paper-size == "16x24" or paper-size == "16x24cm" {
+    (width: 16cm, height: 24cm)
+  } else {
+    paper-size
+  }
+
+  set page(
+    paper: if type(actual-paper) == str { actual-paper } else { "a4" },
+    width: if type(actual-paper) == dictionary { actual-paper.at("width", default: auto) } else { auto },
+    height: if type(actual-paper) == dictionary { actual-paper.at("height", default: auto) } else { auto },
+    margin: (x: 1.2cm, top: 1.3cm, bottom: 1.2cm),
+    header: context [
+      #let p = counter(page).get().first()
+      #grid(
+        columns: (1fr, auto),
+        align: (left + horizon, right + horizon),
+        [
+          #text(8pt, weight: "bold", fill: ds-brand)[#title]
+          #if subtitle != "" [
+            #text(7.5pt, fill: ds-muted)[ — #subtitle]
+          ]
+        ],
+        [
+          #if date != "" [
+            #text(7.5pt, fill: ds-muted)[#date | ]
+          ]
+          #text(7.5pt, weight: "bold", fill: ds-text)[Trang #p]
+        ]
+      )
+      #v(2pt)
+      #line(length: 100%, stroke: 0.5pt + ds-brand)
+    ]
+  )
+
+  set text(
+    font: font,
+    size: 8.5pt,
+    lang: "vi"
+  )
+
+  set par(
+    justify: true,
+    leading: 0.52em
   )
 
   body

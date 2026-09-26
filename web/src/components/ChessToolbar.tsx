@@ -41,8 +41,54 @@ const NAGS = [
 
 const TEMPLATES = [
   {
-    label: 'Bài tập cờ vua',
-    title: 'Khung bài tập (puzzle card) khổ A5: FEN, độ khó, gợi ý, lời giải',
+    label: 'Lưới 12 bài A4 (3x4)',
+    title: 'Lưới 12 bài tập cờ vua xếp 3 cột x 4 hàng vừa vặn khổ A4',
+    code: `#puzzle-grid-a4(
+  puzzles: (
+    (fen: "r1bqk2r/pppp1ppp/2n5/4p3/1bB1n3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6", number: 1, title: "Đòn đánh đôi", turn: "w", difficulty: 1, hint: "Quan sát Mã e4"),
+    (fen: "r1b1k2r/ppppqppp/2n5/4P3/2B2Bn1/2P2N2/P4PPP/R2Q1RK1 b kq - 0 10", number: 2, title: "Tấn công f2", turn: "b", difficulty: 2, hint: "Chiếu Vua"),
+    (fen: "r2qkb1r/pp2pppp/2n2n2/3p4/3P2b1/2N2N2/PPP1BPPP/R1BQK2R w KQkq - 3 7", number: 3, title: "Gỡ ghim", turn: "w", difficulty: 2, hint: "Đổi quân"),
+    (fen: "r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4", number: 4, title: "Chiếu bắt Hậu", turn: "w", difficulty: 2, hint: "Nước chiếu mở"),
+    (fen: "rnbqkb1r/pppp1ppp/5n2/4p3/4P3/2N5/PPPP1PPP/R1BQKBNR w KQkq - 1 3", number: 5, title: "Chiếm trung tâm", turn: "w", difficulty: 1, hint: "Phát triển quân"),
+    (fen: "r1bqkb1r/pp1p1ppp/2n1pn2/2p5/2B1P3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 5", number: 6, title: "Khóa Tượng", turn: "w", difficulty: 2, hint: "Đẩy Tốt trung tâm"),
+    (fen: "r1bq1rk1/pppp1ppp/2n2n2/4p3/1bB1P3/2NP1N2/PPP2PPP/R1BQK2R w KQ - 1 6", number: 7, title: "Phòng thủ chắc", turn: "w", difficulty: 2, hint: "Nhập thành"),
+    (fen: "r2qk2r/ppp2ppp/2n1bn2/3pp3/1bB1P3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6", number: 8, title: "Đòn ghim Tượng", turn: "w", difficulty: 3, hint: "Đổi Tốt trung tâm"),
+    (fen: "r1bqkb1r/pp3ppp/2np1n2/2p1p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6", number: 9, title: "Tấn công f7", turn: "w", difficulty: 2, hint: "Đưa Mã lên g5"),
+    (fen: "r1b1kb1r/ppppqppp/2n5/4p3/2B1n3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6", number: 10, title: "Phản công cánh Vua", turn: "w", difficulty: 3, hint: "Đòn mở đường"),
+    (fen: "r1bqk2r/ppppbppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 1 5", number: 11, title: "Thế cờ mở", turn: "w", difficulty: 2, hint: "Đẩy Tốt d4"),
+    (fen: "r1bqkb1r/pppp1ppp/8/4n3/2B1P3/8/PPPP1PPP/RNBQK2R w KQkq - 0 5", number: 12, title: "Chiếu bắt Xe", turn: "w", difficulty: 3, hint: "Chiếu Vua bắt Xe")
+  )
+)\n`,
+  },
+  {
+    label: 'Lưới 6 bài 16x24 (2x3)',
+    title: 'Lưới 6 bài tập cờ vua xếp 2 cột x 3 hàng chuẩn sách 16x24cm',
+    code: `#puzzle-grid-16x24(
+  puzzles: (
+    (fen: "r1bqk2r/pppp1ppp/2n5/4p3/1bB1n3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6", number: 1, title: "Đòn đánh đôi", turn: "w", difficulty: 1, hint: "Quan sát Mã e4", solution: "1. dxe4 Bxc3+ 2. bxc3"),
+    (fen: "r1b1k2r/ppppqppp/2n5/4P3/2B2Bn1/2P2N2/P4PPP/R2Q1RK1 b kq - 0 10", number: 2, title: "Tấn công f2", turn: "b", difficulty: 2, hint: "Chiếu Vua", solution: "1... Qc5 2. Bxf7+ Kxf7"),
+    (fen: "r2qkb1r/pp2pppp/2n2n2/3p4/3P2b1/2N2N2/PPP1BPPP/R1BQK2R w KQkq - 3 7", number: 3, title: "Gỡ ghim", turn: "w", difficulty: 2, hint: "Đổi quân", solution: "1. Ne5 Bxe2 2. Qxe2"),
+    (fen: "r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4", number: 4, title: "Chiếu bắt Hậu", turn: "w", difficulty: 2, hint: "Nước chiếu mở", solution: "1. Bxf7+ Kxf7 2. Nxe5+"),
+    (fen: "rnbqkb1r/pppp1ppp/5n2/4p3/4P3/2N5/PPPP1PPP/R1BQKBNR w KQkq - 1 3", number: 5, title: "Chiếm trung tâm", turn: "w", difficulty: 1, hint: "Phát triển quân", solution: "1. d4 exd4 2. Qxd4"),
+    (fen: "r1bqkb1r/pp1p1ppp/2n1pn2/2p5/2B1P3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 5", number: 6, title: "Khóa Tượng", turn: "w", difficulty: 3, hint: "Đẩy Tốt e5", solution: "1. e5 dxe5 2. Nxe5")
+  )
+)\n`,
+  },
+  {
+    label: 'Đáp án lật ngược',
+    title: 'Khung đáp án in úp ngược 180 độ ở chân trang sách / bài tập',
+    code: `#upside-down-solutions((
+  "1": "1. dxe4 Bxc3+ 2. bxc3",
+  "2": "1... Qc5 2. Bxf7+",
+  "3": "1. Ne5 Bxe2 2. Qxe2",
+  "4": "1. Bxf7+ Kxf7 2. Nxe5+",
+  "5": "1. d4 exd4 2. Qxd4",
+  "6": "1. e5 dxe5 2. Nxe5"
+))\n`,
+  },
+  {
+    label: 'Bài tập đơn lẻ',
+    title: 'Khung 1 bài tập đơn (puzzle card): FEN, độ khó, gợi ý, lời giải',
     code: `#puzzle-card(
   "r1bqk2r/pppp1ppp/2n5/4p3/1bB1n3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6",
   number: 1,

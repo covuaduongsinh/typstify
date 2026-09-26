@@ -29,13 +29,14 @@
   difficulty: 1,
   hint: none,
   size: 16pt,
+  compact: false,
   solution: none,
   arrows: ()
 ) = {
   // Xác định lượt đi
   let side = if turn != auto { turn } else if to-move != auto { to-move } else { fen-turn(fen-str) }
   let is-black = is-black-turn(side)
-  let turn-label = if is-black { "Đen đi trước" } else { "Trắng đi trước" }
+  let turn-label = if is-black { "Đen đi" } else { "Trắng đi" }
   let board-width = size * 8
 
   // Nếu có solution, tự động ghi nhận vào state
@@ -51,6 +52,11 @@
     })
   }
 
+  let num-font-size = if compact { 7.5pt } else { 8pt }
+  let title-font-size = if compact { 7.5pt } else { 8.5pt }
+  let turn-font-size = if compact { 7pt } else { 7.5pt }
+  let indicator-size = if compact { 7.5pt } else { 9pt }
+
   block(width: board-width, breakable: false)[
     // Ô hẹp: căn đều hai bên (mặc định của sách) làm giãn chữ tiêu đề.
     #set par(justify: false)
@@ -61,37 +67,37 @@
       [
         #box(
           fill: ds-brand,
-          radius: 3pt,
-          inset: (x: 5pt, y: 2pt)
+          radius: 2.5pt,
+          inset: (x: if compact { 4pt } else { 5pt }, y: if compact { 1.5pt } else { 2pt })
         )[
-          #text(8pt, weight: "bold", fill: ds-paper)[#number]
+          #text(num-font-size, weight: "bold", fill: ds-paper)[#number]
         ]
-        #h(4pt)
         #if title != "" [
-          #text(8.5pt, weight: "bold", fill: ds-text)[#title]
+          #h(3pt)
+          #text(title-font-size, weight: "bold", fill: ds-text)[#title]
         ]
       ],
       [
-        #turn-indicator(if is-black { "b" } else { "w" }, size: 9pt)
-        #h(3pt)
-        #text(7.5pt, fill: ds-muted, weight: "medium")[#turn-label]
+        #turn-indicator(if is-black { "b" } else { "w" }, size: indicator-size)
+        #h(2pt)
+        #text(turn-font-size, fill: ds-muted, weight: "medium")[#turn-label]
       ]
     )
 
-    #v(3pt)
+    #v(if compact { 2pt } else { 3pt })
 
     // Khung bàn cờ
     #chess-board(fen-str, size: size, reverse: is-black, arrows: arrows)
 
     // Footer phụ: Độ khó và Gợi ý (nếu có)
     #if difficulty > 0 or hint != none [
-      #v(2pt)
+      #v(if compact { 1.5pt } else { 2pt })
       #grid(
         columns: (1fr, auto),
         align: (left + horizon, right + horizon),
         [
           #if hint != none [
-            #text(7pt, style: "italic", fill: ds-subtle)[Gợi ý: #hint]
+            #text(6.5pt, style: "italic", fill: ds-subtle)[Gợi ý: #hint]
           ]
         ],
         [
@@ -104,17 +110,102 @@
   ]
 }
 
+// Lưới bài tập A4 chuẩn: 3 cột x 4 hàng (12 bài tập)
+#let puzzle-grid-a4(
+  puzzles: (),
+  gutter: (x: 10pt, y: 8pt),
+  size: 13.5pt,
+  compact: true,
+  ..args
+) = {
+  let items = if puzzles.len() > 0 { puzzles } else { args.pos() }
+  align(center)[
+    #grid(
+      columns: (1fr, 1fr, 1fr),
+      row-gutter: gutter.at("y", default: 8pt),
+      column-gutter: gutter.at("x", default: 10pt),
+      align: center + top,
+      ..items.map(p => {
+        if type(p) == dictionary {
+          puzzle-card(
+            p.fen,
+            number: p.at("number", default: 1),
+            title: p.at("title", default: ""),
+            turn: p.at("turn", default: auto),
+            difficulty: p.at("difficulty", default: 0),
+            hint: p.at("hint", default: none),
+            size: p.at("size", default: size),
+            compact: p.at("compact", default: compact),
+            solution: p.at("solution", default: none),
+            arrows: p.at("arrows", default: ()),
+          )
+        } else {
+          p
+        }
+      })
+    )
+  ]
+}
+
+// Lưới bài tập 16x24cm chuẩn: 2 cột x 3 hàng (6 bài tập)
+#let puzzle-grid-16x24(
+  puzzles: (),
+  gutter: (x: 12pt, y: 10pt),
+  size: 15pt,
+  compact: false,
+  ..args
+) = {
+  let items = if puzzles.len() > 0 { puzzles } else { args.pos() }
+  align(center)[
+    #grid(
+      columns: (1fr, 1fr),
+      row-gutter: gutter.at("y", default: 10pt),
+      column-gutter: gutter.at("x", default: 12pt),
+      align: center + top,
+      ..items.map(p => {
+        if type(p) == dictionary {
+          puzzle-card(
+            p.fen,
+            number: p.at("number", default: 1),
+            title: p.at("title", default: ""),
+            turn: p.at("turn", default: auto),
+            difficulty: p.at("difficulty", default: 0),
+            hint: p.at("hint", default: none),
+            size: p.at("size", default: size),
+            compact: p.at("compact", default: compact),
+            solution: p.at("solution", default: none),
+            arrows: p.at("arrows", default: ()),
+          )
+        } else {
+          p
+        }
+      })
+    )
+  ]
+}
+
 // In dải đáp án úp ngược 180 độ ở chân trang (Upside Down Solutions)
 #let upside-down-solutions(solutions-dict) = {
   v(1fr)
   line(length: 100%, stroke: (dash: "densely-dashed", thickness: 0.5pt, paint: ds-subtle))
   v(2pt)
   rotate(180deg)[
-    #box(width: 100%, fill: ds-brand-soft, inset: 6pt, radius: 4pt)[
-      #text(7pt, weight: "bold", fill: ds-muted)[ĐÁP ÁN (LẬT NGƯỢC)]
-      #v(2pt)
-      #for (k, v) in solutions-dict [
-        #text(7pt, weight: "bold")[#k.] #text(7pt)[#v] #h(8pt)
+    #box(width: 100%, fill: ds-brand-soft, inset: (x: 6pt, y: 4pt), radius: 3pt)[
+      #text(6.5pt, weight: "bold", fill: ds-muted)[ĐÁP ÁN (LẬT NGƯỢC)]
+      #v(1.5pt)
+      #let entries = if type(solutions-dict) == dictionary {
+        solutions-dict.pairs()
+      } else if type(solutions-dict) == array {
+        solutions-dict
+      } else {
+        ()
+      }
+      #for item in entries [
+        #if type(item) == array [
+          #text(6.5pt, weight: "bold")[#item.at(0).] #text(6.5pt)[#item.at(1)] #h(6pt)
+        ] else [
+          #text(6.5pt)[#item] #h(6pt)
+        ]
       ]
     ]
   ]
@@ -144,3 +235,4 @@
     )
   ]
 }
+

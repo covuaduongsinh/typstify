@@ -11,11 +11,14 @@ Typstify includes the built-in chess package `@local/chessbook:0.1.0`.
 ## Available Functions in `@local/chessbook:0.1.0`
 
 ### 1. Document Initialization
-- `#show: chess-book-init.with(title: "...", subtitle: "...", author: "...", paper-size: "a5")`
+- `#show: chess-book-init.with(title: "...", subtitle: "...", author: "...", paper-size: "16x24" | "a5" | "a4")`
+- `#show: chess-worksheet-init.with(title: "...", subtitle: "...", author: "...", date: "...", paper-size: "a4")`
 - `#show: chess-magazine-init.with(magazine-title: "...", issue: "...")`
 
 ### 2. Puzzle & Tactics Module (`puzzle.typ`)
-- `#puzzle-card(fen, number: 1, title: "...", turn: "w" | "b", difficulty: 1..5, hint: "...", solution: "...", arrows: ())` (Note: both `turn` and `to-move` are accepted)
+- `#puzzle-grid-a4(puzzles: (...))` (Lưới 12 bài tập A4: 3 cột x 4 hàng, tự căn chỉnh `size: 13.5pt` vừa khít 1 trang)
+- `#puzzle-grid-16x24(puzzles: (...))` (Lưới 6 bài tập 16x24cm: 2 cột x 3 hàng, `size: 15pt` chuẩn in sách)
+- `#puzzle-card(fen, number: 1, title: "...", turn: "w" | "b", difficulty: 1..5, hint: "...", size: 16pt, compact: false, solution: "...", arrows: ())` (Note: both `turn` and `to-move` are accepted)
 - `#difficulty-stars(level)`
 - `#upside-down-solutions(( "1": "1. e4", "2": "1. d4" ))`
 - `#render-puzzle-solutions()`
