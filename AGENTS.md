@@ -16,6 +16,8 @@ Typstify includes the built-in chess package `@local/chessbook:0.1.0`.
 - `#show: chess-magazine-init.with(magazine-title: "...", issue: "...")`
 
 ### 2. Puzzle & Tactics Module (`puzzle.typ`)
+- `#render-puzzle-collection(puzzle-data, layout: "16x24-2x3" | "a4-3x4", title-prefix: "...", start-number: 1, show-page-solutions: true, show-end-appendix: false)` (Tự động chia trang và xuất bài tập từ mảng JSON/CSV)
+- `#csv-to-puzzles(csv-data)` (Chuyển đổi dữ liệu từ hàm `csv("...")` chuẩn Typst sang mảng đối tượng bài tập)
 - `#puzzle-grid-a4(puzzles: (...))` (Lưới 12 bài tập A4: 3 cột x 4 hàng, tự căn chỉnh `size: 13.5pt` vừa khít 1 trang)
 - `#puzzle-grid-16x24(puzzles: (...))` (Lưới 6 bài tập 16x24cm: 2 cột x 3 hàng, `size: 15pt` chuẩn in sách)
 - `#puzzle-card(fen, number: 1, title: "...", turn: "w" | "b", difficulty: 1..5, hint: "...", size: 16pt, compact: false, solution: "...", arrows: ())` (Note: both `turn` and `to-move` are accepted)

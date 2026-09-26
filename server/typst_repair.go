@@ -28,6 +28,8 @@ var chessbookDefinedFunctions = []string{
 	"chess-worksheet-init",
 	"puzzle-grid-a4",
 	"puzzle-grid-16x24",
+	"render-puzzle-collection",
+	"csv-to-puzzles",
 	"difficulty-stars",
 	"upside-down-solutions",
 	"render-puzzle-solutions",

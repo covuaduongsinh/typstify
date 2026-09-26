@@ -155,5 +155,36 @@
       "$0"
     ],
     "description": "File tổng hợp (Master Document) cho sách cờ vua khổ 16x24cm"
+  },
+  "Typst Chess Puzzle Collection (Database Driven)": {
+    "prefix": "typ-collection",
+    "body": [
+      "#import \"@local/chessbook:0.1.0\": *",
+      "",
+      "#show: chess-book-init.with(",
+      "  title: \"${1:TUYỂN TẬP BÀI TẬP CỜ VUA}\",",
+      "  subtitle: \"${2:Phân trang tự động từ CSDL}\",",
+      "  author: \"${3:CLB Cờ vua Dương Sinh}\",",
+      "  paper-size: \"${4|16x24,a4|}\",",
+      ")",
+      "",
+      "// Đọc dữ liệu từ file JSON hoặc CSV:",
+      "// #let puzzle-data = json(\"${5:puzzles.json}\")",
+      "// #let puzzle-data = csv-to-puzzles(csv(\"${5:puzzles.csv}\"))",
+      "",
+      "#let puzzle-data = (",
+      "  (fen: \"${6:r1bqk2r/pppp1ppp/2n5/4p3/1bB1n3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6}\", title: \"Bài 1\", turn: \"w\", hint: \"Gợi ý\", solution: \"1. dxe4\"),",
+      ")",
+      "",
+      "#render-puzzle-collection(",
+      "  puzzle-data,",
+      "  layout: \"${7|16x24-2x3,a4-3x4|}\",",
+      "  title-prefix: \"${8:Chương 1: Bài tập rèn luyện}\",",
+      "  show-page-solutions: ${9|true,false|},",
+      "  show-end-appendix: ${10|true,false|},",
+      ")",
+      "$0"
+    ],
+    "description": "Tạo tập sách bài tập tự động từ danh sách / CSDL JSON / CSV với phân trang và phụ lục đáp án"
   }
 }

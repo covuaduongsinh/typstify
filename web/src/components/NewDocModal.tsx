@@ -207,6 +207,42 @@ Nội dung phân tích chi tiết thế trận...
 `,
   },
   {
+    id: 'puzzle_collection',
+    name: 'Sách Tuyển Tập Bài Tập (CSDL JSON / CSV)',
+    desc: 'Tự động phân trang hàng chục/hàng trăm bài tập (khổ A4 hoặc 16x24cm), có đáp án lật ngược và phụ lục cuối sách',
+    icon: 'table',
+    content: `${CHESSBOOK_IMPORT}
+
+#show: chess-book-init.with(
+  title: "TUYỂN TẬP BÀI TẬP CỜ VUA",
+  subtitle: "Tự động phân trang & xuất đáp án",
+  author: "CLB Cờ vua Dương Sinh",
+  paper-size: "16x24",
+)
+
+// Đọc dữ liệu từ file JSON hoặc CSV
+// #let puzzle-data = json("puzzles.json")
+// #let puzzle-data = csv-to-puzzles(csv("puzzles.csv"))
+
+#let puzzle-data = (
+  (fen: "r1bqk2r/pppp1ppp/2n5/4p3/1bB1n3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6", title: "Đòn đánh đôi", turn: "w", hint: "Mã e4", solution: "1. dxe4 Bxc3+ 2. bxc3"),
+  (fen: "r1b1k2r/ppppqppp/2n5/4P3/2B2Bn1/2P2N2/P4PPP/R2Q1RK1 b kq - 0 10", title: "Tấn công f2", turn: "b", hint: "Chiếu Vua", solution: "1... Qc5 2. Bxf7+"),
+  (fen: "r2qkb1r/pp2pppp/2n2n2/3p4/3P2b1/2N2N2/PPP1BPPP/R1BQK2R w KQkq - 3 7", title: "Gỡ ghim", turn: "w", hint: "Đổi quân", solution: "1. Ne5 Bxe2 2. Qxe2"),
+  (fen: "r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4", title: "Chiếu bắt Hậu", turn: "w", hint: "Chiếu mở", solution: "1. Bxf7+ Kxf7 2. Nxe5+"),
+  (fen: "rnbqkb1r/pppp1ppp/5n2/4p3/4P3/2N5/PPPP1PPP/R1BQKBNR w KQkq - 1 3", title: "Trung tâm", turn: "w", hint: "Phát triển", solution: "1. d4 exd4 2. Qxd4"),
+  (fen: "r1bqkb1r/pp1p1ppp/2n1pn2/2p5/2B1P3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 5", title: "Khóa Tượng", turn: "w", hint: "Đẩy Tốt", solution: "1. e5 dxe5 2. Nxe5"),
+)
+
+#render-puzzle-collection(
+  puzzle-data,
+  layout: "16x24-2x3",
+  title-prefix: "Chương 1: Rèn luyện chiến thuật",
+  show-page-solutions: true,
+  show-end-appendix: true,
+)
+`,
+  },
+  {
     id: 'blank',
     name: 'Tài Liệu Typst Tối Giản',
     desc: 'Tài liệu trắng chỉ kèm khai báo thư viện cờ vua',

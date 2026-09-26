@@ -6,6 +6,7 @@ interface ChessToolbarProps {
   onInsertText: (text: string) => void
   onOpenBoard: () => void
   onOpenPgn: () => void
+  onOpenDataImport?: () => void
 }
 
 const PIECES = [
@@ -180,7 +181,7 @@ type Menu = 'pieces' | 'nags' | 'templates' | null
 
 const POPOVER_WIDTH: Record<Exclude<Menu, null>, number> = { pieces: 344, nags: 372, templates: 340 }
 
-export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn }: ChessToolbarProps) {
+export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn, onOpenDataImport }: ChessToolbarProps) {
   const [menu, setMenu] = useState<Menu>(null)
   const [anchor, setAnchor] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
   const barRef = useRef<HTMLDivElement>(null)
@@ -239,6 +240,16 @@ export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn }: ChessTool
         >
           <Icon name="scroll" size={14} /> <span className="tb-label">Nhập PGN</span>
         </button>
+        {onOpenDataImport && (
+          <button
+            className="chess-tool-btn"
+            aria-label="Nhập dữ liệu"
+            title="Nhập danh sách bài tập từ file CSV, JSON hoặc FEN để tạo tài liệu tự động"
+            onClick={onOpenDataImport}
+          >
+            <Icon name="layout-grid" size={14} /> <span className="tb-label">Nhập dữ liệu</span>
+          </button>
+        )}
       </div>
 
       <div className="chess-toolbar-divider" />

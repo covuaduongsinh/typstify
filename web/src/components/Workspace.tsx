@@ -24,6 +24,7 @@ const PackageManager = lazy(() => import('./PackageManager').then((m) => ({ defa
 const SettingsPanel = lazy(() => import('./SettingsPanel').then((m) => ({ default: m.SettingsPanel })))
 const ChessBoardModal = lazy(() => import('./ChessBoardModal').then((m) => ({ default: m.ChessBoardModal })))
 const PgnImportModal = lazy(() => import('./PgnImportModal').then((m) => ({ default: m.PgnImportModal })))
+const DataImportModal = lazy(() => import('./DataImportModal').then((m) => ({ default: m.DataImportModal })))
 const DropboxSyncModal = lazy(() => import('./DropboxSyncModal').then((m) => ({ default: m.DropboxSyncModal })))
 
 function PanelLoading() {
@@ -98,10 +99,12 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const [previewVersion, setPreviewVersion] = useState(0)
   const [isBoardOpen, setIsBoardOpen] = useState(false)
   const [isPgnOpen, setIsPgnOpen] = useState(false)
+  const [isDataImportOpen, setIsDataImportOpen] = useState(false)
   // Once opened, the chess dialogs stay mounted (hidden) so the position
   // being set up survives closing and reopening.
   const [boardUsed, setBoardUsed] = useState(false)
   const [pgnUsed, setPgnUsed] = useState(false)
+  const [dataImportUsed, setDataImportUsed] = useState(false)
   const openBoard = () => {
     setBoardUsed(true)
     setIsBoardOpen(true)
@@ -109,6 +112,10 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const openPgn = () => {
     setPgnUsed(true)
     setIsPgnOpen(true)
+  }
+  const openDataImport = () => {
+    setDataImportUsed(true)
+    setIsDataImportOpen(true)
   }
   const [isNewDocOpen, setIsNewDocOpen] = useState(false)
   const [isDropboxOpen, setIsDropboxOpen] = useState(false)
@@ -423,6 +430,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     onInsertText={handleInsertText}
                     onOpenBoard={openBoard}
                     onOpenPgn={openPgn}
+                    onOpenDataImport={openDataImport}
                   />
                 )}
                 <Suspense fallback={<PanelLoading />}>
@@ -484,6 +492,9 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     </button>
                     <button className="welcome-btn" onClick={openPgn}>
                       <Icon name="scroll" /> Nhập PGN
+                    </button>
+                    <button className="welcome-btn" onClick={openDataImport}>
+                      <Icon name="table" /> Nhập CSDL bài tập
                     </button>
                   </div>
                 </div>
@@ -559,6 +570,14 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         )}
         {pgnUsed && (
           <PgnImportModal isOpen={isPgnOpen} onClose={() => setIsPgnOpen(false)} onInsertCode={handleInsertText} />
+        )}
+        {dataImportUsed && (
+          <DataImportModal
+            isOpen={isDataImportOpen}
+            onClose={() => setIsDataImportOpen(false)}
+            onInsertCode={handleInsertText}
+            onCreateNewDoc={createNewDoc}
+          />
         )}
         {isDropboxOpen && (
           <DropboxSyncModal

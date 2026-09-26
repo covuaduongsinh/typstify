@@ -236,3 +236,152 @@
   ]
 }
 
+// Hàm chuẩn hóa dữ liệu thô từ CSV thành danh sách dictionary bài tập
+#let csv-to-puzzles(csv-data) = {
+  if type(csv-data) != array or csv-data.len() == 0 {
+    return ()
+  }
+  // Nếu là array of dictionaries (khi load csv(..., row-type: dictionary))
+  if type(csv-data.first()) == dictionary {
+    return csv-data.map(row => {
+      let diff = row.at("difficulty", default: "1")
+      let diff-int = if type(diff) == int { diff } else { int(diff) }
+      (
+        fen: row.at("fen", default: ""),
+        title: row.at("title", default: ""),
+        turn: row.at("turn", default: auto),
+        difficulty: diff-int,
+        hint: row.at("hint", default: none),
+        solution: row.at("solution", default: none),
+      )
+    })
+  }
+  // Nếu là array of arrays (dạng bảng ma trận thông thường)
+  let start-idx = 0
+  let headers = csv-data.first()
+  if headers.contains("fen") or headers.contains("FEN") {
+    start-idx = 1
+  }
+  let result = ()
+  for row in csv-data.slice(start-idx) {
+    if row.len() > 0 and row.first().trim() != "" {
+      let diff-val = if row.len() > 3 and row.at(3) != "" {
+        let raw = row.at(3)
+        if type(raw) == int { raw } else { int(raw) }
+      } else { 1 }
+
+      result.push((
+        fen: row.at(0, default: ""),
+        title: row.at(1, default: ""),
+        turn: row.at(2, default: auto),
+        difficulty: diff-val,
+        hint: if row.len() > 4 and row.at(4) != "" { row.at(4) } else { none },
+        solution: if row.len() > 5 and row.at(5) != "" { row.at(5) } else { none },
+      ))
+    }
+  }
+  result
+}
+
+// Alias nội bộ để không bị trùng tên với tham số
+#let _render-upside-down-solutions = upside-down-solutions
+
+// Tự động phân trang và hiển thị tuyển tập bài tập từ cơ sở dữ liệu (JSON / CSV / Array)
+#let render-puzzle-collection(
+  data,
+  layout: "a4-3x4",
+  per-page: auto,
+  start-number: 1,
+  show-upside-down: true,
+  upside-down: auto,
+  upside-down-solutions: auto,
+  render-appendix-at-end: true,
+  page-title: none,
+) = {
+  let do-upside-down = if upside-down-solutions != auto {
+    upside-down-solutions
+  } else if upside-down != auto {
+    upside-down
+  } else {
+    show-upside-down
+  }
+  let items = if type(data) == array {
+    if data.len() > 0 and type(data.first()) == array {
+      csv-to-puzzles(data)
+    } else {
+      data
+    }
+  } else {
+    ()
+  }
+
+  let count-per-page = if per-page != auto {
+    per-page
+  } else if layout == "16x24-2x3" or layout == "16x24" {
+    6
+  } else if layout == "a5-2x2" or layout == "a5" {
+    4
+  } else {
+    12
+  }
+
+  let total-items = items.len()
+  let num-pages = calc.ceil(total-items / count-per-page)
+  let cur-num = start-number
+
+  for p in range(num-pages) {
+    let start-idx = p * count-per-page
+    let end-idx = calc.min(total-items, (p + 1) * count-per-page)
+    let page-items = items.slice(start-idx, end-idx)
+
+    // Gán số thứ tự bài tập tăng dần liên tục và trích xuất đáp án
+    let numbered-items = ()
+    let sol-dict = (:)
+    for item in page-items {
+      let num = cur-num
+      cur-num += 1
+
+      let p-dict = if type(item) == dictionary {
+        item + (number: num)
+      } else if type(item) == str {
+        (fen: item, number: num)
+      } else {
+        item
+      }
+      numbered-items.push(p-dict)
+
+      let sol = if type(p-dict) == dictionary { p-dict.at("solution", default: none) } else { none }
+      if sol != none and sol != "" {
+        sol-dict.insert(str(num), sol)
+      }
+    }
+
+    if page-title != none [
+      #heading(level: 2)[#page-title #(if num-pages > 1 [ (Trang #(p + 1))] else [])]
+      #v(4pt)
+    ]
+
+    // Render lưới bài tập tương ứng
+    if layout == "16x24-2x3" or layout == "16x24" {
+      puzzle-grid-16x24(puzzles: numbered-items)
+    } else {
+      puzzle-grid-a4(puzzles: numbered-items)
+    }
+
+    // In dải đáp án úp ngược ở chân trang
+    if do-upside-down and sol-dict.len() > 0 {
+      _render-upside-down-solutions(sol-dict)
+    }
+
+    // Ngắt trang nếu chưa phải trang cuối hoặc có phụ lục đáp án
+    if p < num-pages - 1 or render-appendix-at-end {
+      pagebreak()
+    }
+  }
+
+  if render-appendix-at-end {
+    render-puzzle-solutions()
+  }
+}
+
+
