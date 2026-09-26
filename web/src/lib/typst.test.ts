@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CHESSBOOK_IMPORT,
   hasChessbookImport,
+  hoistChessbookImport,
   repairChessImports,
   requiresChessImport,
   stripChessbookMockDefinitions,
@@ -117,6 +118,42 @@ describe('stripChessbookMockDefinitions', () => {
   })
 })
 
+describe('hoistChessbookImport', () => {
+  it('moves import from bottom of file to top', () => {
+    const doc = [
+      '#puzzle-card("fen", number: 1)',
+      '',
+      '#import "@local/chessbook:0.1.0": *',
+    ].join('\n')
+    const hoisted = hoistChessbookImport(doc)
+    expect(hoisted.startsWith(CHESSBOOK_IMPORT)).toBe(true)
+    const lines = hoisted.split('\n')
+    expect(lines[0]).toBe(CHESSBOOK_IMPORT)
+    // Make sure it's not at the bottom anymore
+    expect(hoisted.endsWith('#import "@local/chessbook:0.1.0": *')).toBe(false)
+  })
+
+  it('deduplicates multiple imports throughout the file', () => {
+    const doc = [
+      '#import "@local/chessbook:0.1.0": *',
+      '#puzzle-card("fen1")',
+      '#import "@local/chessbook:0.1.0": *',
+      '#puzzle-card("fen2")',
+      '#import "lib/lib.typ": *',
+    ].join('\n')
+    const hoisted = hoistChessbookImport(doc)
+    const matches = hoisted.match(/#import\s+["']@local\/chessbook/g)
+    expect(matches).toHaveLength(1)
+    expect(hoisted).not.toContain('lib/lib.typ')
+    expect(hoisted.startsWith(CHESSBOOK_IMPORT)).toBe(true)
+  })
+
+  it('does not touch documents without chess functions or chess imports', () => {
+    const doc = '= My regular document\n\nSome text.'
+    expect(hoistChessbookImport(doc)).toBe(doc)
+  })
+})
+
 describe('repairChessImports', () => {
   it('prepends import when document uses chess functions without import', () => {
     const doc = '= My Game\n\n#game-header(white: "A", black: "B")'
@@ -133,7 +170,28 @@ describe('repairChessImports', () => {
     expect(repaired.startsWith(CHESSBOOK_IMPORT)).toBe(true)
   })
 
-  it('does nothing when import already exists and no mocks', () => {
+  it('hoists import from bottom to line 1 and strips mocks (full repair scenario)', () => {
+    const doc = [
+      '#puzzle-card(',
+      '  "fen",',
+      '  number: 1,',
+      '  turn: "w",',
+      ')',
+      '',
+      '#let turn-box(turn) = { box() }',
+      '',
+      '#import "@local/chessbook:0.1.0": *',
+    ].join('\n')
+    const repaired = repairChessImports(doc)
+    expect(repaired.startsWith(CHESSBOOK_IMPORT)).toBe(true)
+    expect(repaired).not.toContain('#let turn-box')
+    expect(repaired).toContain('#puzzle-card(')
+    // Only one import line
+    const importCount = (repaired.match(/#import\s+["']@local\/chessbook/g) || []).length
+    expect(importCount).toBe(1)
+  })
+
+  it('preserves clean documents that already have import at top', () => {
     const doc = `${CHESSBOOK_IMPORT}\n\n#game-header(white: "A")`
     expect(repairChessImports(doc)).toBe(doc)
   })
@@ -154,4 +212,5 @@ describe('repairChessImports', () => {
     expect(result).toContain('#import')
   })
 })
+
 

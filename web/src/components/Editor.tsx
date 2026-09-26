@@ -7,7 +7,7 @@ import { typst_lezer } from 'codemirror-lang-typst/lezer'
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { typstifyTheme } from '../lib/editorTheme'
 import { LspClient, type LspDiagnostic } from '../lib/lspClient'
-import { repairChessImports } from '../lib/typst'
+import { CHESSBOOK_IMPORT, hasChessbookImport, repairChessImports } from '../lib/typst'
 
 // Exposes an imperative save() so a toolbar button can trigger the same
 // save path as the editor's own Ctrl+S keymap -- the shortcut alone isn't
@@ -17,6 +17,8 @@ export interface EditorHandle {
   /** Saves the document; resolves true once the server confirmed it. */
   save: () => Promise<boolean>
   insertText: (text: string) => void
+  /** Inserts a chess snippet atomically, ensuring #import is hoisted to line 1. */
+  insertChessSnippet: (text: string) => void
   getContent: () => string
   /** Inserts `line` at the top of the document unless `present(doc)`. */
   ensureLineAtTop: (line: string, present: (doc: string) => boolean) => void
@@ -129,6 +131,40 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   useImperativeHandle(ref, () => ({
     save: () => saveRef.current(),
     insertText: (text: string) => insertTextRef.current(text),
+    insertChessSnippet: (textToInsert: string) => {
+      const view = viewRef.current
+      if (!view) return
+      const currentDoc = view.state.doc.toString()
+      const hasImport = hasChessbookImport(currentDoc)
+
+      if (!hasImport) {
+        if (currentDoc.trim() === '') {
+          // Empty document: replace with import at top and snippet
+          const newDoc = `${CHESSBOOK_IMPORT}\n\n${textToInsert}\n`
+          view.dispatch({
+            changes: { from: 0, to: currentDoc.length, insert: newDoc },
+            selection: { anchor: newDoc.length },
+          })
+        } else {
+          // Non-empty document: insert import at line 1, insert snippet at cursor
+          const importPrefix = `${CHESSBOOK_IMPORT}\n\n`
+          const sel = view.state.selection.main
+          const insertPos = sel.from
+          const snippetPos = insertPos === 0 ? importPrefix.length : importPrefix.length + insertPos
+          view.dispatch({
+            changes: [
+              { from: 0, to: 0, insert: importPrefix },
+              { from: sel.from, to: sel.to, insert: textToInsert },
+            ],
+            selection: { anchor: snippetPos + textToInsert.length },
+          })
+        }
+      } else {
+        // Document already has import: insert at current selection
+        insertTextRef.current(textToInsert)
+      }
+      view.focus()
+    },
     getContent: () => viewRef.current?.state.doc.toString() ?? '',
     ensureLineAtTop: (line: string, present: (doc: string) => boolean) => {
       const view = viewRef.current

@@ -3,7 +3,7 @@ import { api } from '../api/client'
 import type { TreeEntry } from '../api/types'
 import { useTranslations } from '../lib/i18n'
 import { useTheme } from '../lib/theme'
-import { CHESSBOOK_IMPORT, hasChessbookImport } from '../lib/typst'
+import { CHESSBOOK_IMPORT } from '../lib/typst'
 import { BrandMark } from './BrandMark'
 import { ChessToolbar } from './ChessToolbar'
 import type { EditorHandle } from './Editor'
@@ -236,8 +236,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   // document imports the library -- otherwise it fails with "unknown
   // variable" as soon as it compiles.
   const handleInsertText = (text: string) => {
-    editorRef.current?.ensureLineAtTop(CHESSBOOK_IMPORT, hasChessbookImport)
-    editorRef.current?.insertText(text)
+    editorRef.current?.insertChessSnippet(text)
   }
 
   const handleAutoFix = () => {

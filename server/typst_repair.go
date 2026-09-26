@@ -34,7 +34,11 @@ var chessbookDefinedFunctions = []string{
 	"nag",
 }
 
-var chessbookMockPattern *regexp.Regexp
+var (
+	chessbookMockPattern   *regexp.Regexp
+	chessFuncCallPattern   *regexp.Regexp
+	chessImportLinePattern = regexp.MustCompile(`(?m)^[ \t]*#import[ \t]+["'](?:@local/chessbook:[^"']+|lib/lib\.typ|chess_template\.typ)["'][^\r\n]*\r?\n?`)
+)
 
 func init() {
 	names := make([]string, len(chessbookDefinedFunctions))
@@ -43,6 +47,9 @@ func init() {
 	}
 	chessbookMockPattern = regexp.MustCompile(
 		`^#let\s+(?:` + strings.Join(names, "|") + `)\s*[\(]`,
+	)
+	chessFuncCallPattern = regexp.MustCompile(
+		`#(?:` + strings.Join(names, "|") + `|w[KQBNRP]|b[KQBNRP])\b`,
 	)
 }
 
@@ -100,17 +107,29 @@ func stripChessbookMocks(doc string) string {
 	return strings.Join(kept, "\n")
 }
 
-// repairTypstContent ensures that a .typ document using chessbook functions
-// has the correct import and no inline mock definitions.
+// repairTypstContent ensures that a .typ document using chessbook functions:
+// 1. Has no inline `#let` mock definitions shadowing the library.
+// 2. Has exactly one canonical `#import "@local/chessbook:0.1.0": *` at the very top (line 1).
 func repairTypstContent(data []byte) []byte {
 	content := string(data)
-	hasImport := strings.Contains(content, "@local/chessbook:")
+	hasImport := strings.Contains(content, "@local/chessbook:") || strings.Contains(content, "lib/lib.typ")
+	hasFunc := chessFuncCallPattern.MatchString(content)
 
-	if hasImport {
-		repaired := stripChessbookMocks(content)
-		if repaired != content {
-			return []byte(repaired)
-		}
+	if !hasImport && !hasFunc {
+		return data
+	}
+
+	// 1. Strip mock definitions.
+	cleaned := stripChessbookMocks(content)
+
+	// 2. Remove all existing misplaced/duplicate chessbook import lines.
+	cleaned = chessImportLinePattern.ReplaceAllString(cleaned, "")
+	cleaned = strings.TrimLeft(cleaned, " \t\r\n")
+
+	// 3. Prepend the canonical import at line 1.
+	repaired := "#import \"@local/chessbook:0.1.0\": *\n\n" + cleaned
+	if repaired != content {
+		return []byte(repaired)
 	}
 	return data
 }

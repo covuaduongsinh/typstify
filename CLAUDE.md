@@ -5,7 +5,7 @@ Typstify includes the built-in chess package `@local/chessbook:0.1.0`.
 ## ⚠️ Important Rules for AI Assistants
 
 1. **NEVER manually declare `#let` mock definitions** for chessbook functions (e.g. `#let lesson-header`, `#let chess-quote`, `#let instructor-note`, `#let practice-question`, `#let eco-header`, `#let game-header`, `#let puzzle-card`).
-2. **ALWAYS include `#import "@local/chessbook:0.1.0": *`** at the top of any Typst document that uses chess notation, diagrams, templates, or helpers.
+2. **ALWAYS include `#import "@local/chessbook:0.1.0": *` at LINE 1 (the very top of the file)** before any chess notation, diagrams, templates, or helpers. Typst executes sequentially top-to-bottom; calling a function before its `#import` causes `unknown variable` compilation errors.
 3. In Typst content blocks `[...]`, `#` unconditionally starts a code expression. Literal hash `#` MUST be escaped as `\#` (for example in table headers: `table.header([*\#*], [*Trắng*], [*Đen*])`).
 
 ## Available Functions in `@local/chessbook:0.1.0`

@@ -126,16 +126,36 @@ export function stripChessbookMockDefinitions(doc: string): string {
   return kept.join('\n')
 }
 
-/** repairChessImports ensures that if a document uses chess functions, the
- *  required import is placed at the top. It also removes any inline `#let`
- *  mock definitions that shadow the real chessbook library functions. */
+const CHESS_IMPORT_LINE_REGEX =
+  /^[ \t]*#import[ \t]+["'](?:@local\/chessbook:[^"']+|lib\/lib\.typ|chess_template\.typ)["'][^\r\n]*\r?\n?/gm
+
+/**
+ * hoistChessbookImport ensures that if a document imports or requires chessbook,
+ * all duplicate or misplaced chessbook import lines are removed from the body and
+ * a single `#import "@local/chessbook:0.1.0": *` is placed at the very top of the file.
+ */
+export function hoistChessbookImport(doc: string): string {
+  const hasImport = hasChessbookImport(doc)
+  const needsImport = hasImport || requiresChessImport(doc)
+  if (!needsImport) return doc
+
+  // Remove all existing chessbook import lines from the document body
+  let cleaned = doc.replace(CHESS_IMPORT_LINE_REGEX, '').trimStart()
+  cleaned = cleaned.replace(/^\n+/, '')
+
+  return `${CHESSBOOK_IMPORT}\n\n${cleaned}`
+}
+
+/** repairChessImports ensures that if a document uses chess functions:
+ *  1. Any mock `#let` definitions that shadow the library are removed.
+ *  2. Any misplaced or duplicate `#import` lines are hoisted to line 1. */
 export function repairChessImports(doc: string): string {
   // Step 1: strip mock #let definitions that override chessbook functions.
-  let result = hasChessbookImport(doc) ? stripChessbookMockDefinitions(doc) : doc
+  let result = stripChessbookMockDefinitions(doc)
 
-  // Step 2: add the import if it's still missing.
-  if (!hasChessbookImport(result) && requiresChessImport(result)) {
-    result = `${CHESSBOOK_IMPORT}\n\n${result.trimStart()}`
-  }
+  // Step 2: hoist/ensure chessbook import is at the very top (line 1).
+  result = hoistChessbookImport(result)
+
   return result
 }
+

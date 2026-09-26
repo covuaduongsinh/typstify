@@ -51,8 +51,8 @@ func NewMcpServer(port int) *McpServer {
 
 CRITICAL RULES for Typst chess documents:
 1. NEVER manually declare #let definitions for any chessbook function (e.g. lesson-header, chess-quote, instructor-note, practice-question, puzzle-card, game-header, eco-header, concept-box, teaching-diagram, column-diagram, opening-diagram-box, difficulty-stars, turn-indicator, chess-board, turn-box, nag, note-num, upside-down-solutions, render-puzzle-solutions).
-2. ALL these functions are provided by the @local/chessbook:0.1.0 package. If a document uses any of them, ensure #import "@local/chessbook:0.1.0": * is at the top.
-3. If you see "unknown variable" errors for any of these functions, ADD THE IMPORT LINE — do NOT create inline #let definitions.
+2. ALL these functions are provided by the @local/chessbook:0.1.0 package. If a document uses any of them, ALWAYS ensure #import "@local/chessbook:0.1.0": * is at LINE 1 (the very top of the file) before any content or function calls. Typst executes top-to-bottom, so calling a function before its #import causes an unknown variable error.
+3. If you see "unknown variable" errors for any of these functions, ADD THE IMPORT LINE AT LINE 1 (THE VERY TOP) — do NOT create inline #let definitions.
 4. In Typst content blocks [...], the # character starts a code expression. Literal # must be escaped as \# (e.g. table.header([*\#*], [*White*], [*Black*])).
 5. puzzle-card accepts both turn: and to-move: parameters.
 6. chess-quote, instructor-note, concept-box accept content blocks: #chess-quote(author: "Name")[Content here].
