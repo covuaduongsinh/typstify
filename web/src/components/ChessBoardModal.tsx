@@ -185,10 +185,10 @@ export function ChessBoardModal({ isOpen, onClose, onInsertCode }: ChessBoardMod
                       onClick={() => handleSquareClick(r, c)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault}
+                          e.preventDefault()
                           handleSquareClick(r, c)
                         }
-                      }
+                      }}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleDrop(e, r, c)}
                     >

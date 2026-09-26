@@ -179,7 +179,192 @@ export function SettingsPanel() {
         ]}
       />
 
+      <DropboxSettingsSection />
+
       <Section<LspSettings> title="Nâng cao: LSP" path="/api/settings/lsp" fields={[]} description="Chưa có tùy chọn nào cho bản web." />
     </div>
+  )
+}
+
+function DropboxSettingsSection() {
+  const [status, setStatus] = useState<{
+    connected: boolean
+    account?: { display_name: string; email: string }
+    syncFolder: string
+    autoSync: boolean
+    autoSyncInterval: number
+    syncOnSave: boolean
+    appKey?: string
+  } | null>(null)
+  const [accessToken, setAccessToken] = useState('')
+  const [refreshToken, setRefreshToken] = useState('')
+  const [appKey, setAppKey] = useState('')
+  const [appSecret, setAppSecret] = useState('')
+  const [syncFolder, setSyncFolder] = useState('/Typstify')
+  const [autoSync, setAutoSync] = useState(false)
+  const [autoSyncInterval, setAutoSyncInterval] = useState(10)
+  const [syncOnSave, setSyncOnSave] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = () => {
+    api
+      .get<any>('/api/dropbox/status')
+      .then((res) => {
+        setStatus(res)
+        setSyncFolder(res.syncFolder || '/Typstify')
+        setAutoSync(res.autoSync || false)
+        setAutoSyncInterval(res.autoSyncInterval || 10)
+        setSyncOnSave(res.syncOnSave || false)
+        if (res.appKey) setAppKey(res.appKey)
+      })
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  const save = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.post('/api/dropbox/auth/token', {
+        accessToken: accessToken.trim(),
+        refreshToken: refreshToken.trim(),
+        appKey: appKey.trim(),
+        appSecret: appSecret.trim(),
+        syncFolder: syncFolder.trim() || '/Typstify',
+        autoSync,
+        autoSyncInterval: Number(autoSyncInterval) || 10,
+        syncOnSave,
+      })
+      setSaved(true)
+      setAccessToken('')
+      setRefreshToken('')
+      load()
+      setTimeout(() => setSaved(false), 1500)
+    } catch (err: any) {
+      setError(err instanceof ApiError ? err.message : 'Không lưu được cài đặt Dropbox')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const disconnect = async () => {
+    if (!confirm('Ngắt kết nối tài khoản Dropbox?')) return
+    setBusy(true)
+    try {
+      await api.post('/api/dropbox/auth/disconnect', {})
+      load()
+    } catch {
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <details className="settings-section">
+      <summary>
+        <Icon name="chevron-right" size={14} className="settings-caret" />
+        Đồng bộ Dropbox
+      </summary>
+      <div className="settings-section-body">
+        <p className="settings-hint">
+          Tự động đồng bộ tài liệu, giáo trình và bài tập với tài khoản Dropbox cá nhân.
+        </p>
+
+        {status?.connected ? (
+          <div className="settings-field" style={{ marginBottom: 12 }}>
+            <span style={{ color: 'var(--color-success, #22c55e)' }}>
+              <Icon name="check" size={14} /> Đã kết nối: {status.account?.display_name} ({status.account?.email})
+            </span>
+            <button className="btn-secondary btn-sm" onClick={disconnect} disabled={busy} style={{ width: 'fit-content' }}>
+              Ngắt kết nối
+            </button>
+          </div>
+        ) : (
+          <p className="settings-hint" style={{ color: 'var(--color-warning, #eab308)' }}>
+            Chưa kết nối tài khoản Dropbox. Nhập Access Token dưới đây để kích hoạt.
+          </p>
+        )}
+
+        <label className="settings-field">
+          <span>Access Token / Refresh Token</span>
+          <input
+            type="password"
+            placeholder={status?.connected ? '••••••••••••••••' : 'Nhập token từ Dropbox Console'}
+            value={accessToken}
+            onChange={(e) => setAccessToken(e.target.value)}
+          />
+        </label>
+
+        <div className="grid-2col">
+          <label className="settings-field">
+            <span>App Key (tùy chọn)</span>
+            <input
+              placeholder="App key"
+              value={appKey}
+              onChange={(e) => setAppKey(e.target.value)}
+            />
+          </label>
+          <label className="settings-field">
+            <span>App Secret (tùy chọn)</span>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={appSecret}
+              onChange={(e) => setAppSecret(e.target.value)}
+            />
+          </label>
+        </div>
+
+        <label className="settings-field">
+          <span>Thư mục đồng bộ trên Dropbox</span>
+          <input value={syncFolder} onChange={(e) => setSyncFolder(e.target.value)} placeholder="/Typstify" />
+        </label>
+
+        <div className="checkbox-row" style={{ marginTop: 8 }}>
+          <label className="checkbox-label">
+            <input type="checkbox" checked={autoSync} onChange={(e) => setAutoSync(e.target.checked)} />
+            <span>Tự động đồng bộ định kỳ</span>
+          </label>
+          {autoSync && (
+            <label className="inline-input">
+              <span>Mỗi</span>
+              <input
+                type="number"
+                min={1}
+                max={120}
+                value={autoSyncInterval}
+                onChange={(e) => setAutoSyncInterval(Number(e.target.value))}
+                style={{ width: 60 }}
+              />
+              <span>phút</span>
+            </label>
+          )}
+        </div>
+
+        <div className="checkbox-row" style={{ marginTop: 8 }}>
+          <label className="checkbox-label">
+            <input type="checkbox" checked={syncOnSave} onChange={(e) => setSyncOnSave(e.target.checked)} />
+            <span>Tự động đẩy lên Dropbox khi lưu (Sync on save)</span>
+          </label>
+        </div>
+
+        <div className="settings-actions" style={{ marginTop: 12 }}>
+          <button className="btn-primary" onClick={save} disabled={busy}>
+            {busy ? 'Đang lưu…' : 'Lưu cấu hình Dropbox'}
+          </button>
+          {saved && (
+            <span className="settings-saved">
+              <Icon name="check" size={13} /> Đã lưu
+            </span>
+          )}
+        </div>
+        {error && <div className="error">{error}</div>}
+      </div>
+    </details>
   )
 }

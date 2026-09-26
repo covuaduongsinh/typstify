@@ -115,6 +115,16 @@ func (s *Server) routes() {
 	// No /api/settings/tpix: it holds the package-registry API key, which
 	// the web UI never uses, so it is not exposed to the browser at all.
 
+	// Dropbox sync & integration.
+	s.handle("GET /api/dropbox/status", s.handleDropboxStatus)
+	s.handle("POST /api/dropbox/auth/url", s.handleDropboxAuthURL)
+	s.handle("POST /api/dropbox/auth/callback", s.handleDropboxAuthCallback)
+	s.handle("POST /api/dropbox/auth/token", s.handleDropboxSaveToken)
+	s.handle("POST /api/dropbox/auth/disconnect", s.handleDropboxDisconnect)
+	s.handle("POST /api/dropbox/sync", s.handleDropboxSync)
+	s.handle("GET /api/dropbox/projects", s.handleDropboxListProjects)
+	s.handle("POST /api/dropbox/import", s.handleDropboxImport)
+
 	// AI agent registry / selection / auth.
 	s.handle("GET /api/agent/registry", s.handleAgentRegistry)
 	s.handle("POST /api/agent/select", s.handleAgentSelect)

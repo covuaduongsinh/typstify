@@ -21,6 +21,7 @@ var (
 	_ Model = (*LspSettings)(nil)
 	_ Model = (*TpixSettings)(nil)
 	_ Model = (*AcpAgentSettings)(nil)
+	_ Model = (*DropboxSettings)(nil)
 )
 
 var (

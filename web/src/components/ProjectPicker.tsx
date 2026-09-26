@@ -3,6 +3,7 @@ import { ApiError, api } from '../api/client'
 import type { RecentProject } from '../api/types'
 import { useTheme } from '../lib/theme'
 import { BrandMark } from './BrandMark'
+import { DropboxImportModal } from './DropboxImportModal'
 import { Icon } from './Icon'
 
 const relTime = new Intl.RelativeTimeFormat('vi', { numeric: 'auto' })
@@ -24,6 +25,7 @@ export function ProjectPicker({ onOpened }: { onOpened: (path: string) => void }
   const [path, setPath] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [isDropboxImportOpen, setIsDropboxImportOpen] = useState(false)
   const [theme, toggleTheme] = useTheme()
 
   useEffect(() => {
@@ -116,6 +118,14 @@ export function ProjectPicker({ onOpened }: { onOpened: (path: string) => void }
               >
                 <Icon name="folder-plus" size={15} /> Tạo dự án mới
               </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busy}
+                onClick={() => setIsDropboxImportOpen(true)}
+              >
+                <Icon name="cloud-download" size={15} /> Nhập từ Dropbox
+              </button>
             </div>
           </form>
           {error && (
@@ -125,6 +135,17 @@ export function ProjectPicker({ onOpened }: { onOpened: (path: string) => void }
           )}
         </section>
       </main>
+
+      {isDropboxImportOpen && (
+        <DropboxImportModal
+          isOpen={isDropboxImportOpen}
+          onClose={() => setIsDropboxImportOpen(false)}
+          onImported={(p) => {
+            setIsDropboxImportOpen(false)
+            onOpened(p)
+          }}
+        />
+      )}
     </div>
   )
 }

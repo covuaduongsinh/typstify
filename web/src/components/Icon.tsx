@@ -29,6 +29,11 @@ const PATHS: Record<string, string> = {
   scroll: 'M7 4h11a2 2 0 0 1 2 2v1h-4M7 4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7M7 4a2 2 0 0 1 2 2v12M12 10h4M12 14h4',
   send: 'M4 12l16-8-6 16-2.5-6.5zM11.5 13.5L20 4',
   template: 'M4 4h16v5H4zM4 13h7v7H4zM15 13h5M15 17h5',
+  cloud: 'M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z',
+  'cloud-upload': 'M16 16l-4-4-4 4M12 12v9M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3',
+  'cloud-download': 'M8 17l4 4 4-4M12 12v9M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3',
+  sync: 'M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67',
+  dropbox: 'M4 6l4-2.5 4 2.5-4 2.5zm8 0l4-2.5 4 2.5-4 2.5zm-8 5l4-2.5 4 2.5-4 2.5zm8 0l4-2.5 4 2.5-4 2.5zm-4 4.5l4-2.5 4 2.5-4 2.5z',
 }
 
 export type IconName = keyof typeof PATHS

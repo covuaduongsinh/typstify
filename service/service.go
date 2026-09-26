@@ -17,6 +17,7 @@ import (
 	"looz.ws/typstify/agent"
 	"looz.ws/typstify/lsp"
 	"looz.ws/typstify/service/bus"
+	"looz.ws/typstify/service/dropbox"
 	"looz.ws/typstify/service/mcp"
 	"looz.ws/typstify/service/net"
 	"looz.ws/typstify/service/settings"
@@ -57,6 +58,8 @@ type ServiceFacade struct {
 	acpCond            *sync.Cond
 	acpStarting        bool
 	mcpServer          *agent.McpServer // the built-in mcp server
+	dropboxClient      *dropbox.Client
+	dropboxSyncer      *dropbox.Syncer
 
 	// projMu guards currentProjectDir and previewSrv: the web server
 	// switches projects from one HTTP handler while others read them.
@@ -90,6 +93,14 @@ func NewService(ctx context.Context) *ServiceFacade {
 
 	s.workspaceSrv = NewWorkspaceService(st.General().RootDir, eventbus, s.TpixClient())
 
+	s.dropboxClient = dropbox.NewClient(st.Dropbox())
+	s.dropboxSyncer = dropbox.NewSyncer(s.dropboxClient, st.Dropbox(), eventbus)
+
+	eventbus.Subscribe(s, "service.onDropboxSettingUpdate", bus.TopicSettingsUpdated, func(topic string, data interface{}) {
+		s.dropboxClient = dropbox.NewClient(st.Dropbox())
+		s.dropboxSyncer = dropbox.NewSyncer(s.dropboxClient, st.Dropbox(), eventbus)
+	})
+
 	// init executable lookup path.
 	lsp.SetupCmdBuilder(s.settings.General().ExternalTinymist)
 	typst.SetupCmdBuilder(s.settings.General().ExternalTypst)
@@ -97,6 +108,14 @@ func NewService(ctx context.Context) *ServiceFacade {
 	s.RegisterDevice()
 
 	return s
+}
+
+func (s *ServiceFacade) DropboxClient() *dropbox.Client {
+	return s.dropboxClient
+}
+
+func (s *ServiceFacade) DropboxSyncer() *dropbox.Syncer {
+	return s.dropboxSyncer
 }
 
 func (s *ServiceFacade) EventBus() *bus.EventBus {

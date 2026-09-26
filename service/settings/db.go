@@ -28,6 +28,7 @@ type Settings struct {
 	lsp      *LspSettings
 	tpix     *TpixSettings
 	acpAgent *AcpAgentSettings
+	dropbox  *DropboxSettings
 }
 
 func configRoot() string {
@@ -146,6 +147,20 @@ func (s *Settings) AcpAgent() *AcpAgentSettings {
 
 	s.acpAgent.Load()
 	return s.acpAgent
+}
+
+func (s *Settings) Dropbox() *DropboxSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.dropbox == nil {
+		s.dropbox = &DropboxSettings{
+			baseModel: s.initModel("dropbox"),
+		}
+	}
+
+	s.dropbox.Load()
+	return s.dropbox
 }
 
 func (s *Settings) initModel(name string) baseModel {

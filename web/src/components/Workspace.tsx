@@ -24,6 +24,7 @@ const PackageManager = lazy(() => import('./PackageManager').then((m) => ({ defa
 const SettingsPanel = lazy(() => import('./SettingsPanel').then((m) => ({ default: m.SettingsPanel })))
 const ChessBoardModal = lazy(() => import('./ChessBoardModal').then((m) => ({ default: m.ChessBoardModal })))
 const PgnImportModal = lazy(() => import('./PgnImportModal').then((m) => ({ default: m.PgnImportModal })))
+const DropboxSyncModal = lazy(() => import('./DropboxSyncModal').then((m) => ({ default: m.DropboxSyncModal })))
 
 function PanelLoading() {
   return (
@@ -110,6 +111,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     setIsPgnOpen(true)
   }
   const [isNewDocOpen, setIsNewDocOpen] = useState(false)
+  const [isDropboxOpen, setIsDropboxOpen] = useState(false)
   const [treeVersion, setTreeVersion] = useState(0)
   const [rootFiles, setRootFiles] = useState<TreeEntry[]>([])
 
@@ -314,6 +316,16 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
 
         <div className="hdr-group hdr-right">
           {activePath?.endsWith('.typ') && <ExportButton path={activePath} />}
+
+          <button
+            className="hdr-btn"
+            onClick={() => setIsDropboxOpen(true)}
+            title="Đồng bộ Dropbox"
+            aria-label="Đồng bộ Dropbox"
+          >
+            <Icon name="cloud" />
+            <span className="hdr-label">Dropbox</span>
+          </button>
 
           <div className="hdr-toggle-group" role="group" aria-label="Bố cục">
             <button
@@ -547,6 +559,13 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         )}
         {pgnUsed && (
           <PgnImportModal isOpen={isPgnOpen} onClose={() => setIsPgnOpen(false)} onInsertCode={handleInsertText} />
+        )}
+        {isDropboxOpen && (
+          <DropboxSyncModal
+            isOpen={isDropboxOpen}
+            onClose={() => setIsDropboxOpen(false)}
+            onSyncCompleted={() => setTreeVersion((v) => v + 1)}
+          />
         )}
       </Suspense>
       {pendingNav && (
