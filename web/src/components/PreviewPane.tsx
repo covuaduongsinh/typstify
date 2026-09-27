@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { calculateLineRatio, calculateScrollTarget, type PageLayoutInfo } from '../lib/scrollSync'
+import { extractSvgDimensions, scopeSvgIds } from '../lib/svgHelper'
 import { Icon } from './Icon'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -10,6 +11,92 @@ interface PreviewPaneProps {
   version: number
   liveContent?: string | null
   cursor?: { line: number; col: number; totalLines: number } | null
+}
+
+interface PageCardProps {
+  pageIndex: number
+  pageCount: number
+  rawSvg: string
+  isActive: boolean
+  containerEl: HTMLDivElement | null
+  onRegisterRef: (el: HTMLDivElement | null) => void
+}
+
+function PreviewPageCard({
+  pageIndex,
+  pageCount,
+  rawSvg,
+  isActive,
+  containerEl,
+  onRegisterRef,
+}: PageCardProps) {
+  const [isVisible, setIsVisible] = useState<boolean>(pageIndex < 3) // Immediately render first 3 pages
+  const cardRef = useRef<HTMLDivElement | null>(null)
+
+  const dimensions = useMemo(() => extractSvgDimensions(rawSvg), [rawSvg])
+  const scopedSvg = useMemo(() => {
+    if (!isVisible) return ''
+    return scopeSvgIds(rawSvg, pageIndex)
+  }, [rawSvg, pageIndex, isVisible])
+
+  useEffect(() => {
+    const el = cardRef.current
+    if (!el) return
+
+    // Use IntersectionObserver to lazy-render SVGs only when near viewport
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setIsVisible(true)
+          } else {
+            // Keep rendered once loaded for fast smooth scrolling
+            // or unload if very far (keep active/near)
+          }
+        }
+      },
+      {
+        root: containerEl,
+        rootMargin: '1000px 0px', // Pre-render 1000px before scrolling into view
+        threshold: 0.01,
+      },
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [containerEl])
+
+  return (
+    <div
+      ref={(el) => {
+        cardRef.current = el
+        onRegisterRef(el)
+      }}
+      className={`preview-page-card${isActive ? ' active-page' : ''}`}
+      data-page={pageIndex + 1}
+      style={{
+        aspectRatio: `${dimensions.width} / ${dimensions.height}`,
+        minHeight: '280px',
+      }}
+    >
+      <div className="preview-page-header">
+        <span>Trang {pageIndex + 1} / {pageCount}</span>
+      </div>
+      <div className="preview-svg-content">
+        {isVisible && scopedSvg ? (
+          <div
+            className="preview-svg-inner"
+            dangerouslySetInnerHTML={{ __html: scopedSvg }}
+          />
+        ) : (
+          <div className="preview-page-placeholder">
+            <span className="spinner spinner-sm" />
+            <span>Đang tải trang {pageIndex + 1}…</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneProps) {
@@ -31,6 +118,13 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
   const lastRenderedContentRef = useRef<string | null>(null)
 
   const isTyp = !!path && path.endsWith('.typ')
+
+  // Calculate active page based on cursor
+  const activePageIndex = useMemo(() => {
+    if (!cursor || !pageCount) return 0
+    const ratio = calculateLineRatio(cursor.line, cursor.totalLines)
+    return Math.min(pageCount - 1, Math.floor(ratio * pageCount))
+  }, [cursor, pageCount])
 
   // Fetch / render live SVG or PDF
   useEffect(() => {
@@ -122,7 +216,7 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
 
   // Sync scroll to cursor position
   useEffect(() => {
-    if (!syncScroll || !cursor || !scrollContainerRef.current || viewMode !== 'svg') return
+    if (!syncScroll || !cursor || !scrollContainerRef.current || viewMode !== 'svg' || pages.length === 0) return
     if (isUserScrollingRef.current) return // User is actively scrolling manually
 
     const container = scrollContainerRef.current
@@ -148,7 +242,7 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
       top: targetY,
       behavior: 'smooth',
     })
-  }, [cursor, syncScroll, pages, viewMode])
+  }, [cursor, syncScroll, pages.length, viewMode])
 
   // Track manual scroll by user to avoid jumping while reading
   const handleScroll = () => {
@@ -156,7 +250,7 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
     window.clearTimeout(manualScrollTimerRef.current)
     manualScrollTimerRef.current = window.setTimeout(() => {
       isUserScrollingRef.current = false
-    }, 1500)
+    }, 1200)
   }
 
   // Cleanup blob URL on unmount or file switch
@@ -324,22 +418,17 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
                 style={!fitWidth && zoom !== 100 ? { transform: `scale(${zoom / 100})`, transformOrigin: 'top center' } : undefined}
               >
                 {pages.map((svgContent, idx) => (
-                  <div
+                  <PreviewPageCard
                     key={idx}
-                    className="preview-page-card"
-                    data-page={idx + 1}
-                    ref={(el) => {
+                    pageIndex={idx}
+                    pageCount={pageCount}
+                    rawSvg={svgContent}
+                    isActive={idx === activePageIndex}
+                    containerEl={scrollContainerRef.current}
+                    onRegisterRef={(el) => {
                       pageRefs.current[idx] = el
                     }}
-                  >
-                    <div className="preview-page-header">
-                      <span>Trang {idx + 1} / {pageCount}</span>
-                    </div>
-                    <div
-                      className="preview-svg-content"
-                      dangerouslySetInnerHTML={{ __html: svgContent }}
-                    />
-                  </div>
+                  />
                 ))}
               </div>
             ) : status === 'loading' ? (

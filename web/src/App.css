@@ -944,7 +944,12 @@ button.btn-danger {
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(0, 0, 0, 0.08);
   overflow: hidden;
-  transition: box-shadow var(--duration-fast);
+  transition: box-shadow var(--duration-fast), border-color var(--duration-fast);
+}
+
+.preview-page-card.active-page {
+  border-color: rgba(37, 99, 235, 0.5);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25), 0 6px 24px rgba(0, 0, 0, 0.14);
 }
 
 .preview-page-header {
@@ -960,6 +965,7 @@ button.btn-danger {
 }
 
 .preview-svg-content {
+  flex: 1;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -967,13 +973,33 @@ button.btn-danger {
   background: #ffffff;
   padding: 12px;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
+.preview-svg-inner {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.preview-svg-inner svg,
 .preview-svg-content svg {
   width: 100% !important;
   height: auto !important;
   display: block;
   box-sizing: border-box;
+}
+
+.preview-page-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 16px;
+  color: #94a3b8;
+  font-size: 12px;
 }
 
 /* PDF Embed Wrapper */
