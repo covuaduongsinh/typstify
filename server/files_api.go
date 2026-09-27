@@ -115,6 +115,10 @@ func (s *Server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.HasSuffix(p, ".typ") {
+		s.SetActiveFile(p, 0)
+	}
+
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write(data)
 }
@@ -152,6 +156,7 @@ func (s *Server) handleFilePut(w http.ResponseWriter, r *http.Request) {
 	// shadow the real chessbook library functions before persisting.
 	if strings.HasSuffix(p, ".typ") {
 		data = repairTypstContent(data)
+		s.SetActiveFile(p, 0)
 	}
 	if err := os.WriteFile(p, data, 0644); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

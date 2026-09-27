@@ -454,6 +454,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     onOpenPgn={openPgn}
                     onOpenDataImport={openDataImport}
                     onOpenMarkdownImport={() => openMarkdown()}
+                    onAutoFix={handleAutoFix}
                   />
                 )}
                 <Suspense fallback={<PanelLoading />}>

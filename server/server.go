@@ -5,10 +5,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"looz.ws/typstify/service"
+	"looz.ws/typstify/service/mcp"
 )
 
 // Options configures a Server.
@@ -49,6 +52,47 @@ type Server struct {
 	authInProgress atomic.Int32
 	// consoleTextFn overrides the console source (tests).
 	consoleTextFn func() string
+
+	activeDocMu sync.RWMutex
+	activeDoc   mcp.ActiveDocument
+}
+
+type webActiveDocProvider struct {
+	server *Server
+}
+
+func (p *webActiveDocProvider) GetActiveDocument() mcp.ActiveDocument {
+	p.server.activeDocMu.RLock()
+	doc := p.server.activeDoc
+	p.server.activeDocMu.RUnlock()
+
+	if doc.File != "" {
+		return doc
+	}
+
+	root := p.server.appSrv.CurrentProjectDir()
+	if root != "" {
+		mainTyp := filepath.Join(root, "main.typ")
+		if _, err := os.Stat(mainTyp); err == nil {
+			return mcp.ActiveDocument{File: mainTyp}
+		}
+		entries, _ := os.ReadDir(root)
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".typ") {
+				return mcp.ActiveDocument{File: filepath.Join(root, e.Name())}
+			}
+		}
+	}
+	return doc
+}
+
+func (s *Server) SetActiveFile(absPath string, cursorPos int) {
+	s.activeDocMu.Lock()
+	defer s.activeDocMu.Unlock()
+	s.activeDoc = mcp.ActiveDocument{
+		File:      absPath,
+		CursorPos: cursorPos,
+	}
 }
 
 func New(appSrv *service.ServiceFacade, opts Options) *Server {
@@ -59,6 +103,11 @@ func New(appSrv *service.ServiceFacade, opts Options) *Server {
 		mux:    http.NewServeMux(),
 
 		compileSlots: make(chan struct{}, maxConcurrentCompiles),
+	}
+	if s.appSrv != nil {
+		s.appSrv.SetViewManager(nil, nil, nil, func() any {
+			return &webActiveDocProvider{server: s}
+		})
 	}
 	s.routes()
 	return s

@@ -21,7 +21,7 @@ interface QuickAction {
 // file imports the library the functions come from.
 const CHESS_PROMPT_PREFIX =
   `Làm việc trên file đang mở (dùng getActiveDocument). Nếu file chưa có dòng \`${CHESSBOOK_IMPORT}\` ` +
-  'thì thêm dòng đó lên đầu file. '
+  'thì thêm dòng đó lên đầu file. Nếu có bất kỳ khối mã Markdown nào như ```chessboard, ```fen, ```pgn thì hãy chuyển đổi sang các hàm tương ứng của gói chessbook như #teaching-diagram("...", turn: "...", caption: "..."). '
 
 const ACTIONS: QuickAction[] = [
   {
@@ -29,8 +29,9 @@ const ACTIONS: QuickAction[] = [
     group: 'doc',
     label: 'Sửa lỗi biên dịch',
     buildPrompt: () =>
-      'Check the currently active Typst document for compile/diagnostic errors ' +
-      '(use the getActiveDocument and queryDiagnostics tools), then fix them directly in the file.',
+      CHESS_PROMPT_PREFIX +
+      'Kiểm tra file Typst đang mở để sửa các lỗi biên dịch và chẩn đoán (dùng getActiveDocument và queryDiagnostics). ' +
+      'Đặc biệt, nếu thấy các đoạn ```chessboard hoặc ```fen chưa được chuyển đổi thành bàn cờ, hãy chuyển chúng thành hàm #teaching-diagram(...) và sửa toàn bộ lỗi trực tiếp vào file.',
   },
   {
     id: 'summarize',

@@ -8,6 +8,7 @@ interface ChessToolbarProps {
   onOpenPgn: () => void
   onOpenDataImport?: () => void
   onOpenMarkdownImport?: () => void
+  onAutoFix?: () => void
 }
 
 const PIECES = [
@@ -274,7 +275,14 @@ type Menu = 'pieces' | 'nags' | 'templates' | null
 
 const POPOVER_WIDTH: Record<Exclude<Menu, null>, number> = { pieces: 344, nags: 372, templates: 340 }
 
-export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn, onOpenDataImport, onOpenMarkdownImport }: ChessToolbarProps) {
+export function ChessToolbar({
+  onInsertText,
+  onOpenBoard,
+  onOpenPgn,
+  onOpenDataImport,
+  onOpenMarkdownImport,
+  onAutoFix,
+}: ChessToolbarProps) {
   const [menu, setMenu] = useState<Menu>(null)
   const [anchor, setAnchor] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
   const barRef = useRef<HTMLDivElement>(null)
@@ -351,6 +359,16 @@ export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn, onOpenDataI
             onClick={onOpenMarkdownImport}
           >
             <Icon name="file-text" size={14} /> <span className="tb-label">Nhập Markdown</span>
+          </button>
+        )}
+        {onAutoFix && (
+          <button
+            className="chess-tool-btn"
+            aria-label="Chuẩn hóa cờ"
+            title="Tự động chuẩn hóa cú pháp cờ vua (chuyển ```chessboard sang #teaching-diagram và kiểm tra import)"
+            onClick={onAutoFix}
+          >
+            <Icon name="sparkles" size={14} /> <span className="tb-label">Chuẩn hóa cờ</span>
           </button>
         )}
       </div>

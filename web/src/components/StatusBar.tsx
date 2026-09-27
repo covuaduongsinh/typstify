@@ -45,12 +45,12 @@ export function StatusBar({
           )}
         </span>
       )}
-      {activePath && isTyp && diagnostics.errors > 0 && onAutoFix && (
+      {activePath && isTyp && onAutoFix && (
         <button
           className="status-item"
           style={{
-            background: 'var(--color-accent, #2563eb)',
-            color: '#ffffff',
+            background: diagnostics.errors > 0 ? 'var(--color-accent, #2563eb)' : 'rgba(255, 255, 255, 0.08)',
+            color: diagnostics.errors > 0 ? '#ffffff' : 'inherit',
             border: 'none',
             borderRadius: '4px',
             padding: '2px 8px',
@@ -61,9 +61,9 @@ export function StatusBar({
             gap: '4px',
           }}
           onClick={onAutoFix}
-          title="Tự động sửa lỗi thiếu import thư viện cờ vua"
+          title="Tự động chuẩn hóa cú pháp cờ vua (chuyển ```chessboard sang #teaching-diagram và sửa import)"
         >
-          <Icon name="sparkles" size={12} /> Tự động sửa import
+          <Icon name="sparkles" size={12} /> Chuẩn hóa mã cờ
         </button>
       )}
       <span className="status-spacer" />

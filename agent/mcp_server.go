@@ -56,7 +56,8 @@ CRITICAL RULES for Typst chess documents:
 4. In Typst content blocks [...], the # character starts a code expression. Literal # must be escaped as \# (e.g. table.header([*\#*], [*White*], [*Black*])).
 5. puzzle-card accepts both turn: and to-move: parameters.
 6. chess-quote, instructor-note, concept-box accept content blocks: #chess-quote(author: "Name")[Content here].
-7. Show preview result before editing the typst files if possible.`,
+7. Show preview result before editing the typst files if possible.
+8. In Typst documents, raw Markdown code blocks like ` + "```chessboard, ```fen, ```pgn, ```puzzle" + ` are NOT valid Typst diagram code and will render as raw monospaced text instead of chessboards. You MUST ALWAYS convert any ` + "```chessboard" + ` or ` + "```fen" + ` blocks into #teaching-diagram("...", turn: "...", size: 16pt, caption: "...") calls from @local/chessbook:0.1.0.`,
 				Logger:       slog.Default(),
 				PageSize:     mcpsdk.DefaultPageSize,
 				GetSessionID: func() string {

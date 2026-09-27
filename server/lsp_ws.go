@@ -113,6 +113,9 @@ func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				continue
 			}
+			if strings.HasSuffix(p, ".typ") {
+				s.SetActiveFile(p, 0)
+			}
 			watched.add(msg.Path)
 			client.OnEditorUpdated(p, strings.NewReader(msg.Content))
 
