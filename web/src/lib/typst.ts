@@ -219,3 +219,167 @@ export function repairChessImports(doc: string): string {
   return result
 }
 
+/** detectDocumentFontSize finds the global font size in pt from #set text. Defaults to 11. */
+export function detectDocumentFontSize(doc: string): number {
+  const match = doc.match(/#set\s+text\s*\(\s*(?:[^)]*?\b)?size\s*:\s*(\d+(?:\.\d+)?)\s*pt/i)
+  if (match) {
+    const val = parseFloat(match[1])
+    if (Number.isFinite(val) && val > 0) return val
+  }
+  const simpleMatch = doc.match(/#set\s+text\s*\(\s*(\d+(?:\.\d+)?)\s*pt\s*\)/i)
+  if (simpleMatch) {
+    const val = parseFloat(simpleMatch[1])
+    if (Number.isFinite(val) && val > 0) return val
+  }
+  return 11
+}
+
+/** detectDocumentColumns finds whether the document uses 1 or 2 columns globally. */
+export function detectDocumentColumns(doc: string): 1 | 2 {
+  const match = doc.match(/#set\s+page\s*\([^)]*?\bcolumns\s*:\s*(\d+)/i)
+  if (match && match[1] === '2') return 2
+  return 1
+}
+
+/**
+ * applyGlobalFontSize updates or inserts the global `#set text(size: ...)`
+ * at the top of the document, and removes orphan `#set text(size: ...)`
+ * scattered down in the body.
+ */
+export function applyGlobalFontSize(doc: string, sizePt: number | string): string {
+  const sizeNum = typeof sizePt === 'number' ? sizePt : parseFloat(sizePt)
+  const formattedSize = Number.isFinite(sizeNum) ? `${sizeNum}pt` : (String(sizePt).endsWith('pt') ? String(sizePt) : `${sizePt}pt`)
+
+  let result = doc
+
+  // 1. Remove any stray `#set text(size: ...)` lines deeper in the body
+  const lines = result.split('\n')
+  const cleanedLines: string[] = []
+  let foundTopSetText = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const isSetText = /^\s*#set\s+text\s*\(\s*(?:[^)]*?\b)?size\s*:\s*\d+(?:\.\d+)?\s*pt/i.test(line)
+
+    if (isSetText) {
+      if (!foundTopSetText && i < 25) {
+        // Update top-level set text
+        const updated = line.replace(/size\s*:\s*\d+(?:\.\d+)?\s*pt/i, `size: ${formattedSize}`)
+        cleanedLines.push(updated)
+        foundTopSetText = true
+      } else {
+        // Strip duplicate or body-level #set text
+        continue
+      }
+    } else {
+      cleanedLines.push(line)
+    }
+  }
+
+  result = cleanedLines.join('\n')
+
+  // 2. If no top-level #set text was found, insert it at the proper header position
+  if (!foundTopSetText) {
+    const textDirective = `#set text(size: ${formattedSize})`
+    result = insertAtDocumentHeader(result, textDirective)
+  }
+
+  return result
+}
+
+/**
+ * applyGlobalColumns updates or inserts the global `#set page(columns: ...)`
+ * at the top of the document, and removes orphan `#set page(columns: ...)`
+ * scattered down in the body.
+ */
+export function applyGlobalColumns(doc: string, columns: 1 | 2, gutter: string = '14pt'): string {
+  let result = doc
+
+  // 1. Remove any stray `#set page(columns: ...)` lines deeper in the body
+  const lines = result.split('\n')
+  const cleanedLines: string[] = []
+  let foundTopSetPage = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const isSetPageCols = /^\s*#set\s+page\s*\([^)]*?\bcolumns\s*:\s*\d+/i.test(line)
+
+    if (isSetPageCols) {
+      if (!foundTopSetPage && i < 25) {
+        // Update top-level set page
+        let updated = line
+        if (columns === 2) {
+          updated = updated.replace(/columns\s*:\s*\d+/i, `columns: 2`)
+          if (!updated.includes('gutter:')) {
+            updated = updated.replace(/columns\s*:\s*2/i, `columns: 2, gutter: ${gutter}`)
+          }
+        } else {
+          updated = updated.replace(/columns\s*:\s*\d+(?:\s*,\s*gutter\s*:\s*[^,\)]+)?/i, `columns: 1`)
+        }
+        cleanedLines.push(updated)
+        foundTopSetPage = true
+      } else {
+        // Strip duplicate or body-level #set page columns
+        continue
+      }
+    } else {
+      cleanedLines.push(line)
+    }
+  }
+
+  result = cleanedLines.join('\n')
+
+  // 2. If no top-level #set page was found, insert it at the proper header position
+  if (!foundTopSetPage) {
+    const colDirective = columns === 2
+      ? `#set page(columns: 2, gutter: ${gutter})`
+      : `#set page(columns: 1)`
+    result = insertAtDocumentHeader(result, colDirective)
+  }
+
+  return result
+}
+
+/**
+ * Helper to insert a configuration directive (#set text / #set page)
+ * right after #import lines and #show: ... init blocks at the top of the document.
+ */
+function insertAtDocumentHeader(doc: string, directive: string): string {
+  const lines = doc.split('\n')
+  let insertIdx = 0
+
+  // Walk past initial imports and show init blocks
+  let inShowBlock = false
+  for (let i = 0; i < Math.min(lines.length, 35); i++) {
+    const trimmed = lines[i].trim()
+    if (trimmed.startsWith('#import')) {
+      insertIdx = i + 1
+      continue
+    }
+    if (trimmed.startsWith('#show:') || trimmed.startsWith('#show ')) {
+      inShowBlock = true
+      insertIdx = i + 1
+      continue
+    }
+    if (inShowBlock) {
+      insertIdx = i + 1
+      if (trimmed.endsWith(')') || trimmed === ')') {
+        inShowBlock = false
+      }
+      continue
+    }
+    if (trimmed.startsWith('#set ') && (trimmed.includes('text') || trimmed.includes('page'))) {
+      insertIdx = i + 1
+      continue
+    }
+    // First non-header line reached
+    if (trimmed !== '' && !trimmed.startsWith('//')) {
+      break
+    }
+  }
+
+  lines.splice(insertIdx, 0, directive)
+  return lines.join('\n')
+}
+
+

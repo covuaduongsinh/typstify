@@ -472,6 +472,9 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     onOpenDataImport={openDataImport}
                     onOpenMarkdownImport={() => openMarkdown()}
                     onAutoFix={handleAutoFix}
+                    onSetGlobalFontSize={(sz) => editorRef.current?.setGlobalFontSize(sz)}
+                    onSetGlobalColumns={(cols) => editorRef.current?.setGlobalColumns(cols)}
+                    onAdjustGlobalFontSize={(delta) => editorRef.current?.adjustGlobalFontSize(delta)}
                   />
                 )}
                 <Suspense fallback={<PanelLoading />}>

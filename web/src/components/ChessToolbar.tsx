@@ -9,6 +9,9 @@ interface ChessToolbarProps {
   onOpenDataImport?: () => void
   onOpenMarkdownImport?: () => void
   onAutoFix?: () => void
+  onSetGlobalFontSize?: (size: string | number) => void
+  onSetGlobalColumns?: (columns: 1 | 2) => void
+  onAdjustGlobalFontSize?: (delta: number) => void
 }
 
 const PIECES = [
@@ -297,6 +300,9 @@ export function ChessToolbar({
   onOpenDataImport,
   onOpenMarkdownImport,
   onAutoFix,
+  onSetGlobalFontSize,
+  onSetGlobalColumns,
+  onAdjustGlobalFontSize,
 }: ChessToolbarProps) {
   const [menu, setMenu] = useState<Menu>(null)
   const [anchor, setAnchor] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
@@ -324,10 +330,14 @@ export function ChessToolbar({
   }
 
   const adjustFontSize = (delta: number) => {
-    const current = parseFloat(customSize) || 11
-    const next = Math.max(6, Math.min(36, Math.round((current + delta) * 2) / 2))
-    setCustomSize(next.toString())
-    insert(`#set text(size: ${next}pt)\n`)
+    if (onAdjustGlobalFontSize) {
+      onAdjustGlobalFontSize(delta)
+    } else {
+      const current = parseFloat(customSize) || 11
+      const next = Math.max(6, Math.min(36, Math.round((current + delta) * 2) / 2))
+      setCustomSize(next.toString())
+      insert(`#set text(size: ${next}pt)\n`)
+    }
   }
 
   const trigger = (m: Exclude<Menu, null>, icon: IconName | string, label: string) => (
@@ -433,7 +443,14 @@ export function ChessToolbar({
                   key={fp.size}
                   role="menuitem"
                   className="font-preset-btn"
-                  onClick={() => insert(`#set text(size: ${fp.size})\n`)}
+                  onClick={() => {
+                    if (onSetGlobalFontSize) {
+                      onSetGlobalFontSize(fp.size)
+                    } else {
+                      insert(`#set text(size: ${fp.size})\n`)
+                    }
+                    setMenu(null)
+                  }}
                 >
                   <strong style={{ fontSize: '12px' }}>{fp.label}</strong>
                   <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>{fp.desc}</span>
@@ -460,10 +477,16 @@ export function ChessToolbar({
                 style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: '11.5px' }}
                 onClick={() => {
                   const sz = customSize.trim() || '11'
-                  insert(`#set text(size: ${sz}pt)\n`)
+                  const formatted = sz.endsWith('pt') ? sz : `${sz}pt`
+                  if (onSetGlobalFontSize) {
+                    onSetGlobalFontSize(formatted)
+                  } else {
+                    insert(`#set text(size: ${formatted})\n`)
+                  }
+                  setMenu(null)
                 }}
               >
-                Chèn lệnh #set text
+                Áp dụng toàn bài
               </button>
             </div>
           </div>
@@ -475,7 +498,7 @@ export function ChessToolbar({
         {menu === 'columns' && (
           <div className="chess-popover columns-popover" role="menu" style={popoverStyle}>
             <div className="popover-title-row">
-              <span>Bố Cục Số Cột (1 - 2 Cột)</span>
+              <span>Bố Cục Số Cột (Toàn Bài)</span>
             </div>
 
             <div className="columns-grid">
@@ -483,27 +506,41 @@ export function ChessToolbar({
                 type="button"
                 role="menuitem"
                 className="column-option-btn"
-                onClick={() => insert(`#set page(columns: 1)\n`)}
+                onClick={() => {
+                  if (onSetGlobalColumns) {
+                    onSetGlobalColumns(1)
+                  } else {
+                    insert(`#set page(columns: 1)\n`)
+                  }
+                  setMenu(null)
+                }}
               >
                 <div className="column-icon-preview">
                   <div className="col-bar full" />
                 </div>
                 <strong>1 Cột (Đơn)</strong>
-                <span style={{ fontSize: '10.5px', color: 'var(--text-dim)' }}>Toàn trang liên tục</span>
+                <span style={{ fontSize: '10.5px', color: 'var(--text-dim)' }}>Toàn văn bản liên tục</span>
               </button>
 
               <button
                 type="button"
                 role="menuitem"
                 className="column-option-btn"
-                onClick={() => insert(`#set page(columns: 2)\n`)}
+                onClick={() => {
+                  if (onSetGlobalColumns) {
+                    onSetGlobalColumns(2)
+                  } else {
+                    insert(`#set page(columns: 2)\n`)
+                  }
+                  setMenu(null)
+                }}
               >
                 <div className="column-icon-preview">
                   <div className="col-bar half" />
                   <div className="col-bar half" />
                 </div>
                 <strong>2 Cột (Song song)</strong>
-                <span style={{ fontSize: '10.5px', color: 'var(--text-dim)' }}>Báo chí, tạp chí</span>
+                <span style={{ fontSize: '10.5px', color: 'var(--text-dim)' }}>Toàn văn bản 2 cột</span>
               </button>
             </div>
 

@@ -7,7 +7,15 @@ import { typst_lezer } from 'codemirror-lang-typst/lezer'
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { typstifyTheme } from '../lib/editorTheme'
 import { LspClient, type LspDiagnostic } from '../lib/lspClient'
-import { CHESSBOOK_IMPORT, hasChessbookImport, repairChessImports } from '../lib/typst'
+import {
+  applyGlobalColumns,
+  applyGlobalFontSize,
+  CHESSBOOK_IMPORT,
+  detectDocumentColumns,
+  detectDocumentFontSize,
+  hasChessbookImport,
+  repairChessImports,
+} from '../lib/typst'
 
 // Exposes an imperative save() so a toolbar button can trigger the same
 // save path as the editor's own Ctrl+S keymap -- the shortcut alone isn't
@@ -24,6 +32,14 @@ export interface EditorHandle {
   ensureLineAtTop: (line: string, present: (doc: string) => boolean) => void
   /** Auto repairs missing chess library imports and saves */
   autoFixImports: () => void
+  /** Applies font size globally across the entire document */
+  setGlobalFontSize: (size: string | number) => void
+  /** Applies column count (1 or 2) globally across the entire document */
+  setGlobalColumns: (columns: 1 | 2) => void
+  /** Adjusts global font size by delta (+0.5, -0.5, etc.) */
+  adjustGlobalFontSize: (delta: number) => void
+  /** Gets active document formatting settings */
+  getGlobalSettings: () => { fontSize: number; columns: 1 | 2 }
 }
 
 interface EditorProps {
@@ -183,6 +199,54 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           changes: { from: 0, to: current.length, insert: fixed },
         })
         void saveRef.current()
+      }
+    },
+    setGlobalFontSize: (size: string | number) => {
+      const view = viewRef.current
+      if (!view) return
+      const current = view.state.doc.toString()
+      const updated = applyGlobalFontSize(current, size)
+      if (updated !== current) {
+        view.dispatch({
+          changes: { from: 0, to: current.length, insert: updated },
+        })
+        onDocChange?.(updated)
+      }
+      view.focus()
+    },
+    setGlobalColumns: (columns: 1 | 2) => {
+      const view = viewRef.current
+      if (!view) return
+      const current = view.state.doc.toString()
+      const updated = applyGlobalColumns(current, columns)
+      if (updated !== current) {
+        view.dispatch({
+          changes: { from: 0, to: current.length, insert: updated },
+        })
+        onDocChange?.(updated)
+      }
+      view.focus()
+    },
+    adjustGlobalFontSize: (delta: number) => {
+      const view = viewRef.current
+      if (!view) return
+      const current = view.state.doc.toString()
+      const curSize = detectDocumentFontSize(current)
+      const newSize = Math.max(6, Math.min(48, Math.round((curSize + delta) * 10) / 10))
+      const updated = applyGlobalFontSize(current, newSize)
+      if (updated !== current) {
+        view.dispatch({
+          changes: { from: 0, to: current.length, insert: updated },
+        })
+        onDocChange?.(updated)
+      }
+      view.focus()
+    },
+    getGlobalSettings: () => {
+      const doc = viewRef.current?.state.doc.toString() ?? ''
+      return {
+        fontSize: detectDocumentFontSize(doc),
+        columns: detectDocumentColumns(doc),
       }
     },
   }))

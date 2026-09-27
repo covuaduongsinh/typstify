@@ -276,6 +276,17 @@ Giao diện Web của Typstify được tích hợp bộ công cụ cờ vua th�
 3. Bấm **"Chèn … vào tài liệu"**. Hệ thống đọc tên kỳ thủ, Elo, danh hiệu, giải, ngày (bỏ phần `??`), vòng, kết quả, mã ECO; chú thích `{...}` được in nghiêng, nhánh biến `(...)` giữ nguyên, mã `$n` đổi thành ký hiệu NAG.
 4. Thông tin PGN không có sẽ **để trống** (không tự điền Elo, danh hiệu hay kết quả giả). Ký tự đặc biệt trong tên và nước đi được xử lý an toàn nên không làm hỏng mã Typst.
 
+### Định Dạng Cỡ Chữ & Bố Cục Số Cột Toàn Văn Bản (Global Formatting)
+- **Cỡ Chữ (Font Size)**:
+  - Bấm **"A-"** hoặc **"A+"** để tăng/giảm cỡ chữ nhanh chóng trên toàn bộ tài liệu theo bước 0.5pt.
+  - Chọn các mốc định sẵn: **9pt (Sách A5/16x24)**, **10pt (Sách chữ nhỏ)**, **11pt (Chuẩn A4)**, **12pt (Dễ đọc)**, **13pt**, **14pt (Trẻ em/Tiêu đề)**.
+  - Nhập số `pt` tùy ý (ví dụ `10.5`, `11.5`) rồi bấm **"Áp dụng toàn bài"**.
+  - *Đặc điểm kỹ thuật*: Thay đổi cấu hình `#set text(size: ...)` trực tiếp ở đầu tài liệu và tự động làm sạch các lệnh `#set text` cục bộ nằm rải rác bên trong văn bản, đảm bảo tất cả các trang đều đồng bộ cỡ chữ và xem trước Live Preview ngay lập tức.
+- **Bố Cục Số Cột (Columns)**:
+  - Chọn **"1 Cột (Đơn)"**: Áp dụng layout 1 cột liền mạch cho toàn bộ văn bản (`#set page(columns: 1)`).
+  - Chọn **"2 Cột (Song song)"**: Áp dụng layout 2 cột báo chí / tạp chí cho toàn bộ tài liệu (`#set page(columns: 2)`).
+  - Chọn **"Chèn khối 2 Cột theo đoạn (Grid)"**: Chỉ chia 2 cột cục bộ cho một đoạn văn bản hoặc thế cờ nhất định.
+
 ---
 
 ## 4. Hệ Thống Ký Hiệu Quân Cờ & Mã Đánh Giá NAG

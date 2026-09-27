@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyGlobalColumns,
+  applyGlobalFontSize,
   CHESSBOOK_IMPORT,
+  detectDocumentColumns,
+  detectDocumentFontSize,
   hasChessbookImport,
   hoistChessbookImport,
   repairChessImports,
@@ -212,5 +216,85 @@ describe('repairChessImports', () => {
     expect(result).toContain('#import')
   })
 })
+
+describe('detectDocumentFontSize & detectDocumentColumns', () => {
+  it('detects font size correctly', () => {
+    expect(detectDocumentFontSize('#set text(size: 14pt)\n\n= Title')).toBe(14)
+    expect(detectDocumentFontSize('#set text(size: 10.5pt)\n\n= Title')).toBe(10.5)
+    expect(detectDocumentFontSize('#set text(font: "Roboto", size: 12pt)')).toBe(12)
+    expect(detectDocumentFontSize('= Document without size')).toBe(11) // default
+  })
+
+  it('detects columns correctly', () => {
+    expect(detectDocumentColumns('#set page(columns: 2, gutter: 14pt)')).toBe(2)
+    expect(detectDocumentColumns('#set page(paper: "a4", columns: 2)')).toBe(2)
+    expect(detectDocumentColumns('#set page(columns: 1)')).toBe(1)
+    expect(detectDocumentColumns('= Default 1 col doc')).toBe(1)
+  })
+})
+
+describe('applyGlobalFontSize', () => {
+  it('inserts #set text at document header when not present', () => {
+    const doc = `${CHESSBOOK_IMPORT}\n\n#show: chess-book-init.with(\n  title: "A",\n)\n\n= Chapter 1\n`
+    const updated = applyGlobalFontSize(doc, 12)
+    expect(updated).toContain('#set text(size: 12pt)')
+    // Must be placed before = Chapter 1
+    const idxSet = updated.indexOf('#set text(size: 12pt)')
+    const idxChapter = updated.indexOf('= Chapter 1')
+    expect(idxSet).toBeLessThan(idxChapter)
+  })
+
+  it('updates existing #set text in header', () => {
+    const doc = `${CHESSBOOK_IMPORT}\n#set text(size: 10pt)\n\n= Chapter 1`
+    const updated = applyGlobalFontSize(doc, 13.5)
+    expect(updated).toContain('#set text(size: 13.5pt)')
+    expect(updated).not.toContain('10pt')
+  })
+
+  it('cleans up duplicate or body-level #set text', () => {
+    const doc = [
+      CHESSBOOK_IMPORT,
+      '#set text(size: 10pt)',
+      '= Page 1',
+      'Text on page 1...',
+      '#set text(size: 16.5pt)',
+      'Text on page 94...',
+    ].join('\n')
+    const updated = applyGlobalFontSize(doc, 12)
+    expect(updated).toContain('#set text(size: 12pt)')
+    expect(updated).not.toContain('#set text(size: 16.5pt)')
+    expect(updated).not.toContain('#set text(size: 10pt)')
+  })
+})
+
+describe('applyGlobalColumns', () => {
+  it('inserts #set page(columns: 2) at document header when setting 2 columns', () => {
+    const doc = `${CHESSBOOK_IMPORT}\n\n= Chapter 1\n`
+    const updated = applyGlobalColumns(doc, 2)
+    expect(updated).toContain('#set page(columns: 2, gutter: 14pt)')
+    expect(updated.indexOf('#set page(columns: 2')).toBeLessThan(updated.indexOf('= Chapter 1'))
+  })
+
+  it('updates existing #set page columns from 2 to 1', () => {
+    const doc = `${CHESSBOOK_IMPORT}\n#set page(columns: 2, gutter: 14pt)\n\n= Chapter 1`
+    const updated = applyGlobalColumns(doc, 1)
+    expect(updated).toContain('#set page(columns: 1)')
+    expect(updated).not.toContain('columns: 2')
+  })
+
+  it('cleans up stray #set page(columns: 2) in body when switching to 1 column', () => {
+    const doc = [
+      CHESSBOOK_IMPORT,
+      '= Chapter 1',
+      'Text on page 1...',
+      '#set page(columns: 2)',
+      'Text on page 94...',
+    ].join('\n')
+    const updated = applyGlobalColumns(doc, 1)
+    expect(updated).toContain('#set page(columns: 1)')
+    expect(updated).not.toContain('columns: 2')
+  })
+})
+
 
 
