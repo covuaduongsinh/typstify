@@ -49,6 +49,16 @@ func (s *Server) previewReverseProxy() (*httputil.ReverseProxy, error) {
 		// (surfaces here as "proxy error: EOF", and in the browser as a
 		// WebSocket connect/close loop -- reproduced live in production).
 		req.Host = targetURL.Host
+		// Real browsers also send an Origin header on WebSocket upgrades
+		// (curl doesn't unless told to, which is why this half of the fix
+		// wasn't caught by a plain curl test). tinymist checks Origin
+		// too -- confirmed by reproducing the exact "502 Bad Gateway"
+		// production failure locally once Origin was spoofed to
+		// https://typst.dsc.edu.vn alongside Host. Rewrite it to match the
+		// local target so tinymist's same-origin check passes.
+		if req.Header.Get("Origin") != "" {
+			req.Header.Set("Origin", "http://"+targetURL.Host)
+		}
 	}
 	proxy.ModifyResponse = injectBaseHref
 	return proxy, nil
