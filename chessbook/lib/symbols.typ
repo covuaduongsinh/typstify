@@ -200,16 +200,34 @@
     ]
   }
   let safe-arrows = normalize-arrows(arrows)
-  box(stroke: frame, fill: ds-paper, inset: 0pt)[
-    #board(
-      fen(fen-str),
-      square-size: size,
-      reverse: reverse,
-      display-numbers: numbers,
-      white-square-fill: ds-board-light,
-      black-square-fill: dark-fill,
-      arrows: safe-arrows,
-      marked-squares: marked,
-    )
-  ]
+  if numbers {
+    // Khi hiển thị tọa độ: viền bàn cờ ôm đúng 8x8 ô, tọa độ nằm ngoài viền thanh lịch
+    box(fill: ds-paper, inset: 0pt)[
+      #board(
+        fen(fen-str),
+        square-size: size,
+        reverse: reverse,
+        display-numbers: true,
+        stroke: frame,
+        white-square-fill: ds-board-light,
+        black-square-fill: dark-fill,
+        arrows: safe-arrows,
+        marked-squares: marked,
+      )
+    ]
+  } else {
+    // Chuẩn xuất bản quốc tế (Clean & Crisp): 8x8 ô cờ vuông vức tuyệt đối
+    box(stroke: frame, fill: ds-paper, inset: 0pt)[
+      #board(
+        fen(fen-str),
+        square-size: size,
+        reverse: reverse,
+        display-numbers: false,
+        white-square-fill: ds-board-light,
+        black-square-fill: dark-fill,
+        arrows: safe-arrows,
+        marked-squares: marked,
+      )
+    ]
+  }
 }

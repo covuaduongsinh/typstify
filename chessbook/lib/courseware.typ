@@ -75,12 +75,14 @@
   turn: "w",
   to-move: auto,
   size: 18pt,
+  numbers: false,
   arrows: (),
   caption: ""
 ) = {
   let side = if to-move != auto { to-move } else { turn }
+  let board-w = if numbers { size * 10 } else { size * 8 }
   align(center)[
-    #block(width: size * 8, breakable: false)[
+    #block(width: board-w, breakable: false)[
       #set par(justify: false)
       #if title != "" [
         #grid(
@@ -91,7 +93,7 @@
         )
         #v(2pt)
       ]
-      #chess-board(fen-str, size: size, reverse: is-black-turn(side), numbers: true, arrows: arrows, frame: 1pt + ds-text)
+      #chess-board(fen-str, size: size, reverse: is-black-turn(side), numbers: numbers, arrows: arrows, frame: 1pt + ds-text)
       #if caption != "" [
         #v(3pt)
         #text(7.5pt, style: "italic", fill: ds-muted)[#caption]
