@@ -147,4 +147,15 @@ title: "Ví dụ đòn đánh đôi"
     expect(typ).toContain('= Bài 1: Đòn Tấn công Đôi')
     expect(typ).toContain('#teaching-diagram(')
   })
+
+  it('converts chessboard code block with fen: prefix and turn into #teaching-diagram', () => {
+    const md = `\`\`\`chessboard
+fen: r1bqkb1r/ppp2Npp/2n5/3np3/2B5/8/PPPP1PPP/RNBQK2R b - - 0 9
+\`\`\``
+
+    const typ = convertMarkdownToTypst(md, { template: 'none' })
+    expect(typ).toContain('#teaching-diagram(')
+    expect(typ).toContain('"r1bqkb1r/ppp2Npp/2n5/3np3/2B5/8/PPPP1PPP/RNBQK2R b - - 0 9"')
+    expect(typ).toContain('turn: "b"')
+  })
 })

@@ -2,7 +2,7 @@
 // Supports standard Markdown elements plus FEN diagrams, PGN games,
 // puzzle cards/grids, ECO headers, lesson plans, callouts, and NAG annotations.
 
-import { isLikelyFen, parseFenList, parseJsonPuzzles } from './dataImport'
+import { cleanFen, isLikelyFen, parseFenList, parseJsonPuzzles, parseTurn } from './dataImport'
 import { gameToTypst, parsePgn } from './pgn'
 import { repairChessImports, typstString } from './typst'
 
@@ -112,9 +112,21 @@ export function convertMarkdownToTypst(markdown: string, options: MarkdownToTyps
 
       const codeContent = codeLines.join('\n')
       const lang = info.toLowerCase().split(/\s+/)[0]
+      const trimmedCode = codeContent.trim()
+      const isChessContent =
+        isChessFence(lang) ||
+        isLikelyFen(trimmedCode) ||
+        /^(?:fen|FEN|thế cờ)\s*:/im.test(trimmedCode) ||
+        trimmedCode.includes('[Event ') ||
+        trimmedCode.includes('[White ')
 
-      if (enableChess && isChessFence(lang)) {
-        outLines.push(renderChessCodeBlock(lang, info, codeContent))
+      if (enableChess && isChessContent) {
+        const resolvedLang = isChessFence(lang)
+          ? lang
+          : trimmedCode.includes('[Event ') || trimmedCode.includes('[White ')
+            ? 'pgn'
+            : 'fen'
+        outLines.push(renderChessCodeBlock(resolvedLang, info, codeContent))
       } else if (lang === 'typst' || lang === 'typ') {
         // Raw Typst code embedded in markdown
         outLines.push(codeContent)
@@ -231,34 +243,56 @@ export function convertMarkdownToTypst(markdown: string, options: MarkdownToTyps
   return repairChessImports(fullDoc)
 }
 
-function isChessFence(lang: string): boolean {
-  const clean = lang.toLowerCase()
+export function isChessFence(lang: string): boolean {
+  const clean = lang.toLowerCase().replace(/[-_]/g, '')
   return (
     clean === 'fen' ||
-    clean === 'chess-fen' ||
+    clean === 'chessfen' ||
+    clean === 'fenchess' ||
     clean === 'diagram' ||
+    clean === 'chessdiagram' ||
+    clean === 'teachingdiagram' ||
     clean === 'board' ||
+    clean === 'chessboard' ||
+    clean === 'openingdiagram' ||
     clean === 'pgn' ||
-    clean === 'chess-pgn' ||
+    clean === 'chesspgn' ||
     clean === 'chess' ||
+    clean === 'chessgame' ||
+    clean === 'game' ||
     clean === 'puzzle' ||
     clean === 'puzzles' ||
     clean === 'tactics' ||
+    clean === 'chesspuzzle' ||
     clean === 'eco' ||
-    clean === 'lesson'
+    clean === 'opening' ||
+    clean === 'ecoheader' ||
+    clean === 'lesson' ||
+    clean === 'lessonheader' ||
+    clean === 'concept'
   )
 }
 
-function renderChessCodeBlock(lang: string, fullInfo: string, content: string): string {
-  const cleanLang = lang.toLowerCase()
+export function renderChessCodeBlock(lang: string, fullInfo: string, content: string): string {
+  const clean = lang.toLowerCase().replace(/[-_]/g, '')
 
-  // 1. FEN / Diagram / Board
-  if (cleanLang === 'fen' || cleanLang === 'chess-fen' || cleanLang === 'diagram' || cleanLang === 'board') {
+  // 1. FEN / Diagram / Board / Chessboard
+  if (
+    clean === 'fen' ||
+    clean === 'chessfen' ||
+    clean === 'fenchess' ||
+    clean === 'diagram' ||
+    clean === 'chessdiagram' ||
+    clean === 'teachingdiagram' ||
+    clean === 'board' ||
+    clean === 'chessboard' ||
+    clean === 'openingdiagram'
+  ) {
     return renderFenBlock(fullInfo, content)
   }
 
   // 2. PGN Games
-  if (cleanLang === 'pgn' || cleanLang === 'chess-pgn' || cleanLang === 'chess') {
+  if (clean === 'pgn' || clean === 'chesspgn' || clean === 'chess' || clean === 'chessgame' || clean === 'game') {
     const games = parsePgn(content)
     if (games.length > 0) {
       return games.map((g) => gameToTypst(g, { layout: 'magazine' })).join('\n#v(12pt)\n\n')
@@ -266,42 +300,51 @@ function renderChessCodeBlock(lang: string, fullInfo: string, content: string): 
   }
 
   // 3. Puzzle & Tactics
-  if (cleanLang === 'puzzle' || cleanLang === 'puzzles' || cleanLang === 'tactics') {
+  if (clean === 'puzzle' || clean === 'puzzles' || clean === 'tactics' || clean === 'chesspuzzle') {
     return renderPuzzleBlock(content)
   }
 
   // 4. ECO Header
-  if (cleanLang === 'eco') {
+  if (clean === 'eco' || clean === 'opening' || clean === 'ecoheader') {
     return renderEcoBlock(content)
   }
 
   // 5. Lesson Plan Header
-  if (cleanLang === 'lesson') {
+  if (clean === 'lesson' || clean === 'lessonheader') {
     return renderLessonBlock(content)
   }
 
   return `\`\`\`${lang}\n${content}\n\`\`\``
 }
 
-function renderFenBlock(_info: string, content: string): string {
+export function renderFenBlock(_info: string, content: string): string {
   const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   if (lines.length === 0) return ''
 
   let fen = ''
   let title = 'Thế cờ'
-  let turn = 'w'
+  let turn = ''
   let caption = ''
   let arrows: string[] = []
   let evalText = ''
 
   // Look for FEN in lines or key-values
   for (const line of lines) {
-    if (isLikelyFen(line)) {
-      fen = line
-      const parts = line.split(' ')
-      if (parts.length >= 2 && (parts[1] === 'w' || parts[1] === 'b')) {
-        turn = parts[1]
+    // Check if line starts with 'fen:' or is a FEN
+    if (/^(?:fen|FEN|Fen|thế cờ|Thế cờ|the co)\s*:/i.test(line)) {
+      const val = cleanFen(line)
+      if (val) {
+        fen = val
+        const t = parseTurn(val)
+        if (t !== 'auto' && !turn) turn = t
       }
+      continue
+    }
+
+    if (isLikelyFen(line)) {
+      fen = cleanFen(line)
+      const t = parseTurn(fen)
+      if (t !== 'auto' && !turn) turn = t
       continue
     }
 
@@ -313,8 +356,7 @@ function renderFenBlock(_info: string, content: string): string {
         val = val.slice(1, -1)
       }
 
-      if (key === 'fen') fen = val
-      else if (key === 'title') title = val
+      if (key === 'title') title = val
       else if (key === 'turn') turn = val === 'b' || val === 'black' || val === 'đen' ? 'b' : 'w'
       else if (key === 'caption') caption = val
       else if (key === 'eval') evalText = val
@@ -325,11 +367,16 @@ function renderFenBlock(_info: string, content: string): string {
   }
 
   if (!fen && lines.length > 0 && isLikelyFen(lines[0])) {
-    fen = lines[0]
+    fen = cleanFen(lines[0])
   }
 
   if (!fen) {
     fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+  }
+
+  if (!turn) {
+    const t = parseTurn(fen)
+    turn = t !== 'auto' ? t : 'w'
   }
 
   if (evalText) {

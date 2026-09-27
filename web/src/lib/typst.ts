@@ -151,14 +151,69 @@ export function hoistChessbookImport(doc: string): string {
   return `${CHESSBOOK_IMPORT}\n\n${cleaned}`
 }
 
+/**
+ * repairEmbeddedChessBlocks converts raw markdown chess fences (```chessboard, ```fen, ```pgn)
+ * embedded inside a Typst document into proper chessbook function calls.
+ */
+export function repairEmbeddedChessBlocks(doc: string): string {
+  // 1. Transform ```chessboard / ```fen / ```diagram blocks
+  const fenBlockRegex =
+    /```(?:chessboard|chess-board|chess_board|fen|chess-fen|chess_fen|diagram|teaching-diagram|board)\s*\r?\n([\s\S]*?)```/gi
+
+  let res = doc.replace(fenBlockRegex, (_, content) => {
+    const lines = content.split(/\r?\n/).map((l: string) => l.trim()).filter(Boolean)
+    let fen = ''
+    let title = 'Thế cờ'
+    let turn = ''
+    let caption = ''
+
+    for (const line of lines) {
+      if (/^(?:fen|FEN|Fen|thế cờ|Thế cờ)\s*:/i.test(line)) {
+        fen = line.replace(/^(?:fen|FEN|Fen|thế cờ|Thế cờ)\s*:\s*/i, '').trim().replace(/^["']|["']$/g, '')
+        continue
+      }
+      const parts = line.split(' ')
+      const rows = parts[0].split('/')
+      if (rows.length === 8 && /^[rnbqkpRNBQKP1-8]+$/.test(rows[0])) {
+        fen = line.trim().replace(/^["']|["']$/g, '')
+        continue
+      }
+      const colonIdx = line.indexOf(':')
+      if (colonIdx > 0) {
+        const key = line.slice(0, colonIdx).trim().toLowerCase()
+        const val = line.slice(colonIdx + 1).trim().replace(/^["']|["']$/g, '')
+        if (key === 'title') title = val
+        else if (key === 'turn') turn = val === 'b' || val === 'black' || val === 'đen' ? 'b' : 'w'
+        else if (key === 'caption') caption = val
+      }
+    }
+
+    if (!fen && lines.length > 0) fen = lines[0]
+    if (!turn && fen) {
+      const parts = fen.split(' ')
+      if (parts.length >= 2 && (parts[1] === 'w' || parts[1] === 'b')) turn = parts[1]
+    }
+    if (!turn) turn = 'w'
+    if (!fen) fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+
+    return `#teaching-diagram(\n  ${typstString(fen)},\n  title: ${typstString(title)},\n  turn: "${turn}",\n  size: 16pt,\n  caption: ${typstString(caption)}\n)`
+  })
+
+  return res
+}
+
 /** repairChessImports ensures that if a document uses chess functions:
  *  1. Any mock `#let` definitions that shadow the library are removed.
- *  2. Any misplaced or duplicate `#import` lines are hoisted to line 1. */
+ *  2. Any misplaced or duplicate `#import` lines are hoisted to line 1.
+ *  3. Any residual Markdown chess blocks (```chessboard, ```fen) are converted to #teaching-diagram. */
 export function repairChessImports(doc: string): string {
   // Step 1: strip mock #let definitions that override chessbook functions.
   let result = stripChessbookMockDefinitions(doc)
 
-  // Step 2: hoist/ensure chessbook import is at the very top (line 1).
+  // Step 2: convert raw markdown chess blocks (```chessboard, ```fen)
+  result = repairEmbeddedChessBlocks(result)
+
+  // Step 3: hoist/ensure chessbook import is at the very top (line 1).
   result = hoistChessbookImport(result)
 
   return result

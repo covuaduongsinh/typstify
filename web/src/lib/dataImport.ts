@@ -150,23 +150,34 @@ function splitCsvLine(line: string): string[] {
   return result.map((c) => c.replace(/^"|"$/g, '').replace(/""/g, '"'))
 }
 
+export function cleanFen(str: string): string {
+  if (!str || typeof str !== 'string') return ''
+  return str
+    .trim()
+    .replace(/^(?:fen|FEN|Fen|thế cờ|Thế cờ|the co|The co)\s*:\s*/i, '')
+    .replace(/^["']|["']$/g, '')
+    .trim()
+}
+
 export function isLikelyFen(str: string): boolean {
   if (!str || typeof str !== 'string') return false
-  const trimmed = str.trim()
-  const parts = trimmed.split(' ')
+  const cleaned = cleanFen(str)
+  if (!cleaned) return false
+  const parts = cleaned.split(' ')
   // Standard FEN has 6 space-separated fields, but board-only position has 8 slash-separated rows
   const boardPart = parts[0]
   const rows = boardPart.split('/')
   return rows.length === 8 && /^[rnbqkpRNBQKP1-8]+$/.test(rows[0])
 }
 
-function parseTurn(str: string): 'w' | 'b' | 'auto' {
+export function parseTurn(str: string): 'w' | 'b' | 'auto' {
   if (!str) return 'auto'
-  const lower = str.toLowerCase().trim()
+  const cleaned = cleanFen(str)
+  const lower = cleaned.toLowerCase().trim()
   if (lower === 'w' || lower === 'white' || lower === 'trắng') return 'w'
   if (lower === 'b' || lower === 'black' || lower === 'đen') return 'b'
   // Try extracting from full FEN (2nd token)
-  const parts = str.trim().split(' ')
+  const parts = cleaned.trim().split(' ')
   if (parts.length >= 2) {
     if (parts[1] === 'w') return 'w'
     if (parts[1] === 'b') return 'b'
