@@ -36,6 +36,20 @@ func (s *Server) previewReverseProxy() (*httputil.ReverseProxy, error) {
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	baseDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		baseDirector(req)
+		// tinymist's preview server only binds to 127.0.0.1 and rejects
+		// (silently closes) requests whose Host header isn't a local
+		// address, as anti-DNS-rebinding protection -- a common pattern for
+		// localhost-only dev servers. httputil.ReverseProxy's default
+		// Director rewrites req.URL for dialing but leaves the Host header
+		// as whatever the public-facing request had (e.g. typst.dsc.edu.vn),
+		// which tinymist then rejects with an immediate connection close
+		// (surfaces here as "proxy error: EOF", and in the browser as a
+		// WebSocket connect/close loop -- reproduced live in production).
+		req.Host = targetURL.Host
+	}
 	proxy.ModifyResponse = injectBaseHref
 	return proxy, nil
 }
