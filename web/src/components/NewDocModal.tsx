@@ -334,19 +334,19 @@ Nội dung phân tích chi tiết thế trận...
   arrows: ("c4-f7", "d1-h5"),
   caption: "Tượng c4 ngắm f7, Hậu d1 sẵn sàng tiến công h5."
 )
-\`,
+`,
   },
   {
     id: 'blank',
     name: 'Tài Liệu Typst Tối Giản',
     desc: 'Tài liệu trắng chỉ kèm khai báo thư viện cờ vua',
     icon: 'file-text',
-    content: \`\${CHESSBOOK_IMPORT}
+    content: `${CHESSBOOK_IMPORT}
 
 = Tiêu đề tài liệu
 
 Bắt đầu viết nội dung của bạn tại đây...
-\`,
+`,
   },
 ]
 
