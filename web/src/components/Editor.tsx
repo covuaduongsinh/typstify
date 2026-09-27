@@ -34,8 +34,10 @@ interface EditorProps {
   onSave?: (content: string) => Promise<void> | void
   /** Reports a failed save (message) or a later successful one (null). */
   onSaveError?: (message: string | null) => void
-  /** 1-based line/column of the main cursor, for the status bar. */
-  onCursorChange?: (pos: { line: number; col: number }) => void
+  /** 1-based line/column of the main cursor and total document lines. */
+  onCursorChange?: (pos: { line: number; col: number; totalLines: number }) => void
+  /** Triggered when document content changes in the editor. */
+  onDocChange?: (content: string) => void
   /** Error/warning counts of the latest LSP diagnostics for this file. */
   onDiagnosticsChange?: (counts: { errors: number; warnings: number }) => void
 }
@@ -78,7 +80,7 @@ function toCmDiagnostics(doc: Text, diags: LspDiagnostic[]): CmDiagnostic[] {
  * completion/hover/diagnostics sourced from the tinymist LSP over
  * /ws/lsp (see server/lsp_ws.go and lib/lspClient.ts). */
 export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
-  { path, initialContent, onDirtyChange, onSave, onSaveError, onCursorChange, onDiagnosticsChange },
+  { path, initialContent, onDirtyChange, onSave, onSaveError, onCursorChange, onDocChange, onDiagnosticsChange },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -239,7 +241,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     const reportCursor = (state: EditorState) => {
       const head = state.selection.main.head
       const line = state.doc.lineAt(head)
-      onCursorChange?.({ line: line.number, col: head - line.from + 1 })
+      onCursorChange?.({ line: line.number, col: head - line.from + 1, totalLines: state.doc.lines })
     }
 
     const extensions: Extension[] = [
@@ -261,7 +263,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         },
       ]),
       EditorView.updateListener.of((update) => {
-        if (update.docChanged) scheduleChange(update.state.doc.toString())
+        if (update.docChanged) {
+          const docStr = update.state.doc.toString()
+          scheduleChange(docStr)
+          onDocChange?.(docStr)
+        }
         if (update.docChanged || update.selectionSet) reportCursor(update.state)
       }),
     ]

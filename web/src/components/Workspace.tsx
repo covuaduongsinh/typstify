@@ -94,7 +94,9 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const [savingForNav, setSavingForNav] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [cursor, setCursor] = useState<{ line: number; col: number } | null>(null)
+  const [cursor, setCursor] = useState<{ line: number; col: number; totalLines: number } | null>(null)
+  const [liveContent, setLiveContent] = useState<string | null>(null)
+  const liveDebounceRef = useRef<number | undefined>(undefined)
   const [diagnostics, setDiagnostics] = useState<DiagnosticCounts>({ errors: 0, warnings: 0 })
   const [sidePanel, setSidePanel] = useState<SidePanel>('agent')
   const [previewVersion, setPreviewVersion] = useState(0)
@@ -191,6 +193,8 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     setDirty(false)
     setCursor(null)
     setContent(null)
+    setLiveContent(null)
+    window.clearTimeout(liveDebounceRef.current)
     setLoadError(null)
     setSaveError(null)
     if (!activePath) return
@@ -250,11 +254,19 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     // on failure the dialog stays open and the status bar shows the error
   }
 
+  const handleDocChange = (newDoc: string) => {
+    window.clearTimeout(liveDebounceRef.current)
+    liveDebounceRef.current = window.setTimeout(() => {
+      setLiveContent(newDoc)
+    }, 300)
+  }
+
   const saveActiveFile = async (newContent: string) => {
     if (!activePath) return
     await api.put(`/api/workspace/file?path=${encodeURIComponent(activePath)}`, newContent)
     setLastSaved(new Date())
     setSaveError(null)
+    setLiveContent(newContent)
 
     if (activePath.endsWith('.typ')) {
       await api.post('/api/preview/restart', { entryFile: activePath })
@@ -267,6 +279,11 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   // variable" as soon as it compiles.
   const handleInsertText = (text: string) => {
     editorRef.current?.insertChessSnippet(text)
+    const doc = editorRef.current?.getContent()
+    if (doc) {
+      window.clearTimeout(liveDebounceRef.current)
+      setLiveContent(doc)
+    }
   }
 
   const handleAutoFix = () => {
@@ -464,6 +481,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     path={activePath}
                     initialContent={content}
                     onDirtyChange={setDirty}
+                    onDocChange={handleDocChange}
                     onSave={saveActiveFile}
                     onSaveError={setSaveError}
                     onCursorChange={setCursor}
@@ -551,7 +569,12 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 maxWidth: `${(1 - editorRatio) * 100}%`,
               }}
             >
-              <PreviewPane path={activePath} version={previewVersion} />
+              <PreviewPane
+                path={activePath}
+                version={previewVersion}
+                liveContent={liveContent}
+                cursor={cursor}
+              />
             </section>
           )}
         </div>
