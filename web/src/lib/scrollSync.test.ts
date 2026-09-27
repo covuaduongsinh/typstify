@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateLineRatio, calculateScrollTarget } from './scrollSync'
+import { buildPageLineMap, calculateLineRatio, calculateScrollTarget, cursorLineToPageRatio } from './scrollSync'
 
 describe('scrollSync', () => {
   describe('calculateLineRatio', () => {
@@ -18,6 +18,56 @@ describe('scrollSync', () => {
       expect(calculateLineRatio(51, 101)).toBeCloseTo(0.5, 5)
       expect(calculateLineRatio(26, 101)).toBeCloseTo(0.25, 5)
       expect(calculateLineRatio(76, 101)).toBeCloseTo(0.75, 5)
+    })
+  })
+
+  describe('buildPageLineMap', () => {
+    it('returns [0] for single page', () => {
+      const map = buildPageLineMap('line1\nline2\nline3', 1)
+      expect(map).toEqual([0])
+    })
+
+    it('returns empty for 0 pages', () => {
+      expect(buildPageLineMap('content', 0)).toEqual([])
+    })
+
+    it('detects explicit #pagebreak() to build accurate map', () => {
+      const content = 'intro\n#pagebreak()\ncontent page 2\n#pagebreak()\ncontent page 3'
+      const map = buildPageLineMap(content, 3)
+      expect(map).toHaveLength(3)
+      expect(map[0]).toBe(0)   // Page 1 starts at line 0
+      expect(map[1]).toBe(2)   // Page 2 starts after #pagebreak() at line 1
+      expect(map[2]).toBe(4)   // Page 3 starts after second #pagebreak() at line 3
+    })
+
+    it('falls back to uniform distribution when no page breaks found', () => {
+      const content = Array.from({ length: 100 }, (_, i) => `line ${i + 1}`).join('\n')
+      const map = buildPageLineMap(content, 4)
+      expect(map).toHaveLength(4)
+      expect(map[0]).toBe(0)    // Page 1 at line 0
+      expect(map[1]).toBe(25)   // Page 2 at 25% of 100 lines
+      expect(map[2]).toBe(50)   // Page 3 at 50%
+      expect(map[3]).toBe(75)   // Page 4 at 75%
+    })
+  })
+
+  describe('cursorLineToPageRatio', () => {
+    it('maps cursor to correct page ratio with explicit breaks', () => {
+      // 3 pages: page1=[0,2), page2=[2,4), page3=[4,5)
+      const map = [0, 2, 4] // 3 pages, total 5 lines
+      const totalLines = 5
+
+      // Line 1 (idx 0) → page 0 → ratio = 0/3 = 0
+      expect(cursorLineToPageRatio(1, map, totalLines)).toBeCloseTo(0, 3)
+      // Line 3 (idx 2) → page 1 → ratio = 1/3
+      expect(cursorLineToPageRatio(3, map, totalLines)).toBeCloseTo(1 / 3, 2)
+      // Line 5 (idx 4) → page 2 → ratio = 2/3
+      expect(cursorLineToPageRatio(5, map, totalLines)).toBeCloseTo(2 / 3, 2)
+    })
+
+    it('returns 0 for empty or single-page map', () => {
+      expect(cursorLineToPageRatio(50, [], 100)).toBe(0)
+      expect(cursorLineToPageRatio(50, [0], 100)).toBe(0)
     })
   })
 

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { calculateLineRatio, calculateScrollTarget, type PageLayoutInfo } from '../lib/scrollSync'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { buildPageLineMap, calculateLineRatio, calculateScrollTarget, cursorLineToPageRatio, type PageLayoutInfo } from '../lib/scrollSync'
 import { extractSvgDimensions, scopeSvgIds } from '../lib/svgHelper'
 import { Icon } from './Icon'
 
@@ -118,15 +118,34 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
   const manualScrollTimerRef = useRef<number | undefined>(undefined)
   const isUserScrollingRef = useRef<boolean>(false)
   const lastRenderedContentRef = useRef<string | null>(null)
+  // Debounce cursor scroll: only scroll after cursor is idle for 600ms
+  const cursorScrollTimerRef = useRef<number | undefined>(undefined)
 
   const isTyp = !!path && path.endsWith('.typ')
+
+  // Build accurate page→line map from source content and page count
+  const pageLineMap = useMemo(() => {
+    return buildPageLineMap(liveContent ?? '', pageCount)
+  }, [liveContent, pageCount])
+
+  // Calculate line ratio using the accurate page line map (falls back to linear)
+  const getLineRatio = useCallback(
+    (line: number, totalLines: number): number => {
+      if (pageLineMap.length >= 2) {
+        return cursorLineToPageRatio(line, pageLineMap, totalLines)
+      }
+      return calculateLineRatio(line, totalLines)
+    },
+    [pageLineMap],
+  )
 
   // Calculate active page based on cursor
   const activePageIndex = useMemo(() => {
     if (!cursor || !pageCount) return 0
-    const ratio = calculateLineRatio(cursor.line, cursor.totalLines)
+    const ratio = getLineRatio(cursor.line, cursor.totalLines)
     return Math.min(pageCount - 1, Math.floor(ratio * pageCount))
-  }, [cursor, pageCount])
+  }, [cursor, pageCount, getLineRatio])
+
 
   // Fetch / render live SVG or PDF
   useEffect(() => {
@@ -216,35 +235,48 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
     return () => ctrl.abort()
   }, [path, version, liveContent, nonce, viewMode])
 
-  // Sync scroll to cursor position
+  // Sync scroll to cursor position — debounced 600ms so it only fires when cursor is idle
   useEffect(() => {
-    if (!syncScroll || !cursor || !scrollContainerRef.current || viewMode !== 'svg' || pages.length === 0) return
-    if (isUserScrollingRef.current) return // User is actively scrolling manually
+    if (!syncScroll || !cursor || viewMode !== 'svg' || pages.length === 0) return
 
-    const container = scrollContainerRef.current
-    const lineRatio = calculateLineRatio(cursor.line, cursor.totalLines)
+    // Clear any pending debounce
+    window.clearTimeout(cursorScrollTimerRef.current)
 
-    // Gather rendered page bounds
-    const pageLayouts: PageLayoutInfo[] = []
-    for (let i = 0; i < pages.length; i++) {
-      const el = pageRefs.current[i]
-      if (el) {
-        pageLayouts.push({ top: el.offsetTop, height: el.offsetHeight })
+    cursorScrollTimerRef.current = window.setTimeout(() => {
+      // After debounce: check if user just manually scrolled
+      if (isUserScrollingRef.current) return
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      const lineRatio = getLineRatio(cursor.line, cursor.totalLines)
+
+      // Gather rendered page bounds
+      const pageLayouts: PageLayoutInfo[] = []
+      for (let i = 0; i < pages.length; i++) {
+        const el = pageRefs.current[i]
+        if (el) {
+          pageLayouts.push({ top: el.offsetTop, height: el.offsetHeight })
+        }
       }
-    }
 
-    const targetY = calculateScrollTarget(
-      lineRatio,
-      pageLayouts,
-      container.clientHeight,
-      container.scrollHeight,
-    )
+      const targetY = calculateScrollTarget(
+        lineRatio,
+        pageLayouts,
+        container.clientHeight,
+        container.scrollHeight,
+      )
 
-    container.scrollTo({
-      top: targetY,
-      behavior: 'smooth',
-    })
-  }, [cursor, syncScroll, pages.length, viewMode])
+      // Only scroll if we're more than half a viewport away from the target
+      const currentY = container.scrollTop
+      if (Math.abs(currentY - targetY) > container.clientHeight * 0.5) {
+        container.scrollTo({ top: targetY, behavior: 'smooth' })
+      } else if (Math.abs(currentY - targetY) > 80) {
+        container.scrollTo({ top: targetY, behavior: 'smooth' })
+      }
+    }, 600)
+
+    return () => window.clearTimeout(cursorScrollTimerRef.current)
+  }, [cursor, syncScroll, pages.length, viewMode, getLineRatio])
 
   // Track manual scroll by user to avoid jumping while reading
   const handleScroll = () => {
@@ -260,6 +292,7 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
     return () => {
       if (pdfUrl) URL.revokeObjectURL(pdfUrl)
       window.clearTimeout(manualScrollTimerRef.current)
+      window.clearTimeout(cursorScrollTimerRef.current)
     }
   }, [path, pdfUrl])
 
