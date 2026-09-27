@@ -271,15 +271,17 @@ describe('applyGlobalColumns', () => {
   it('inserts #set page(columns: 2) at document header when setting 2 columns', () => {
     const doc = `${CHESSBOOK_IMPORT}\n\n= Chapter 1\n`
     const updated = applyGlobalColumns(doc, 2)
-    expect(updated).toContain('#set page(columns: 2, gutter: 14pt)')
+    expect(updated).toContain('#set page(columns: 2)')
+    expect(updated).not.toContain('gutter:')
     expect(updated.indexOf('#set page(columns: 2')).toBeLessThan(updated.indexOf('= Chapter 1'))
   })
 
-  it('updates existing #set page columns from 2 to 1', () => {
+  it('updates existing #set page columns from 2 to 1 and removes invalid gutter', () => {
     const doc = `${CHESSBOOK_IMPORT}\n#set page(columns: 2, gutter: 14pt)\n\n= Chapter 1`
     const updated = applyGlobalColumns(doc, 1)
     expect(updated).toContain('#set page(columns: 1)')
     expect(updated).not.toContain('columns: 2')
+    expect(updated).not.toContain('gutter:')
   })
 
   it('cleans up stray #set page(columns: 2) in body when switching to 1 column', () => {

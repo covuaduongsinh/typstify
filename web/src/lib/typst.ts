@@ -202,10 +202,21 @@ export function repairEmbeddedChessBlocks(doc: string): string {
   return res
 }
 
+/**
+ * sanitizeTypstDirectives cleans up common invalid Typst syntax such as `gutter` on `#set page(...)`.
+ */
+export function sanitizeTypstDirectives(doc: string): string {
+  // `#set page(...)` does not take `gutter`. Remove any `gutter: ...` from `#set page(...)`
+  return doc.replace(/(#set\s+page\s*\([^)]*?)\b,\s*gutter\s*:\s*[^,\)]+/gi, '$1')
+    .replace(/(#set\s+page\s*\([^)]*?)\bgutter\s*:\s*[^,\)]+,\s*/gi, '$1')
+    .replace(/(#set\s+page\s*\([^)]*?)\bgutter\s*:\s*[^,\)]+\s*\)/gi, '$1)')
+}
+
 /** repairChessImports ensures that if a document uses chess functions:
  *  1. Any mock `#let` definitions that shadow the library are removed.
  *  2. Any misplaced or duplicate `#import` lines are hoisted to line 1.
- *  3. Any residual Markdown chess blocks (```chessboard, ```fen) are converted to #teaching-diagram. */
+ *  3. Any residual Markdown chess blocks (```chessboard, ```fen) are converted to #teaching-diagram.
+ *  4. Any invalid directives like `#set page(..., gutter: ...)` are sanitized. */
 export function repairChessImports(doc: string): string {
   // Step 1: strip mock #let definitions that override chessbook functions.
   let result = stripChessbookMockDefinitions(doc)
@@ -215,6 +226,9 @@ export function repairChessImports(doc: string): string {
 
   // Step 3: hoist/ensure chessbook import is at the very top (line 1).
   result = hoistChessbookImport(result)
+
+  // Step 4: sanitize invalid directives (e.g. gutter in #set page)
+  result = sanitizeTypstDirectives(result)
 
   return result
 }
@@ -290,10 +304,11 @@ export function applyGlobalFontSize(doc: string, sizePt: number | string): strin
 /**
  * applyGlobalColumns updates or inserts the global `#set page(columns: ...)`
  * at the top of the document, and removes orphan `#set page(columns: ...)`
- * scattered down in the body.
+ * scattered down in the body. Note: in Typst, `#set page(...)` takes `columns: 1 | 2`
+ * but does NOT take `gutter`.
  */
-export function applyGlobalColumns(doc: string, columns: 1 | 2, gutter: string = '14pt'): string {
-  let result = doc
+export function applyGlobalColumns(doc: string, columns: 1 | 2): string {
+  let result = sanitizeTypstDirectives(doc)
 
   // 1. Remove any stray `#set page(columns: ...)` lines deeper in the body
   const lines = result.split('\n')
@@ -307,15 +322,10 @@ export function applyGlobalColumns(doc: string, columns: 1 | 2, gutter: string =
     if (isSetPageCols) {
       if (!foundTopSetPage && i < 25) {
         // Update top-level set page
-        let updated = line
-        if (columns === 2) {
-          updated = updated.replace(/columns\s*:\s*\d+/i, `columns: 2`)
-          if (!updated.includes('gutter:')) {
-            updated = updated.replace(/columns\s*:\s*2/i, `columns: 2, gutter: ${gutter}`)
-          }
-        } else {
-          updated = updated.replace(/columns\s*:\s*\d+(?:\s*,\s*gutter\s*:\s*[^,\)]+)?/i, `columns: 1`)
-        }
+        let updated = line.replace(/columns\s*:\s*\d+/i, `columns: ${columns}`)
+        updated = updated.replace(/,\s*gutter\s*:\s*[^,\)]+/gi, '')
+          .replace(/gutter\s*:\s*[^,\)]+,\s*/gi, '')
+          .replace(/gutter\s*:\s*[^,\)]+/gi, '')
         cleanedLines.push(updated)
         foundTopSetPage = true
       } else {
@@ -331,9 +341,7 @@ export function applyGlobalColumns(doc: string, columns: 1 | 2, gutter: string =
 
   // 2. If no top-level #set page was found, insert it at the proper header position
   if (!foundTopSetPage) {
-    const colDirective = columns === 2
-      ? `#set page(columns: 2, gutter: ${gutter})`
-      : `#set page(columns: 1)`
+    const colDirective = `#set page(columns: ${columns})`
     result = insertAtDocumentHeader(result, colDirective)
   }
 
