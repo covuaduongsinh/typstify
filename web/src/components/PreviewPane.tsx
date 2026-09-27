@@ -4,7 +4,7 @@ import { extractSvgDimensions, scopeSvgIds } from '../lib/svgHelper'
 import { Icon } from './Icon'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
-type ViewMode = 'svg' | 'pdf'
+type ViewMode = 'svg' | 'pdf' | 'tinymist'
 
 interface PreviewPaneProps {
   path: string | null
@@ -112,6 +112,7 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
   const [fitWidth, setFitWidth] = useState<boolean>(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
+  const [tinymistReady, setTinymistReady] = useState(false)
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const pageRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -123,10 +124,14 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
 
   const isTyp = !!path && path.endsWith('.typ')
 
-  // Build accurate page→line map from source content and page count
+  // Build accurate page→line map from source content and page count. Uses the
+  // content that was actually compiled to produce pageCount (lastRenderedContentRef),
+  // not the live editor content — liveContent can already be ahead (user kept typing
+  // while the compile request was in flight), which would misalign line offsets.
   const pageLineMap = useMemo(() => {
-    return buildPageLineMap(liveContent ?? '', pageCount)
-  }, [liveContent, pageCount])
+    return buildPageLineMap(lastRenderedContentRef.current ?? liveContent ?? '', pageCount)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageCount])
 
   // Calculate line ratio using the accurate page line map (falls back to linear)
   const getLineRatio = useCallback(
@@ -147,9 +152,11 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
   }, [cursor, pageCount, getLineRatio])
 
 
-  // Fetch / render live SVG or PDF
+  // Fetch / render live SVG or PDF. The tinymist-native mode needs neither —
+  // it's driven entirely by the /preview/ iframe + /api/preview/restart (see
+  // Workspace.tsx), so status just tracks readiness there instead.
   useEffect(() => {
-    if (!path || !path.endsWith('.typ')) return
+    if (!path || !path.endsWith('.typ') || viewMode === 'tinymist') return
     const ctrl = new AbortController()
 
     void (async () => {
@@ -278,6 +285,55 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
     return () => window.clearTimeout(cursorScrollTimerRef.current)
   }, [cursor, syncScroll, pages.length, viewMode, getLineRatio])
 
+  // Tinymist-native view mode: poll readiness before mounting the iframe (the
+  // preview server is (re)started by Workspace's /api/preview/restart call on
+  // file open/save; starting it takes a moment, so avoid a proxy 503 flash).
+  useEffect(() => {
+    if (viewMode !== 'tinymist') {
+      setTinymistReady(false)
+      return
+    }
+    let cancelled = false
+    let timer: number | undefined
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/preview/status', { credentials: 'include' })
+        const data = await res.json()
+        if (cancelled) return
+        if (data.ready) {
+          setTinymistReady(true)
+          return
+        }
+      } catch {
+        // ignore, retry below
+      }
+      if (!cancelled) timer = window.setTimeout(poll, 500)
+    }
+    void poll()
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [viewMode, path])
+
+  // Tinymist-native view mode: forward cursor changes so tinymist's own preview
+  // server can scroll to the exact rendered position — the same call the
+  // desktop editor makes on every selection change.
+  useEffect(() => {
+    if (viewMode !== 'tinymist' || !syncScroll || !cursor) return
+    const timer = window.setTimeout(() => {
+      void fetch('/api/preview/cursor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ line: cursor.line, character: cursor.col }),
+      }).catch(() => {
+        // best-effort: a missed cursor update just skips one scroll sync tick
+      })
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [cursor, syncScroll, viewMode])
+
   // Track manual scroll by user to avoid jumping while reading
   const handleScroll = () => {
     isUserScrollingRef.current = true
@@ -327,28 +383,42 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
     <div className="preview-pane">
       <div className="preview-toolbar">
         {/* Status indicator */}
-        <span className={`preview-status preview-status-${status}`}>
-          {status === 'loading' && (
-            <>
-              <span className="spinner" /> Đang cập nhật…
-            </>
-          )}
-          {status === 'ready' && (
-            <>
-              <Icon name="check" size={13} /> {viewMode === 'svg' ? `Xem trực tiếp (${pageCount} trang)` : 'Bản xem trước PDF'}
-            </>
-          )}
-          {status === 'error' && (
-            <>
-              <Icon name="error" size={13} /> Lỗi biên dịch
-            </>
-          )}
-        </span>
+        {viewMode === 'tinymist' ? (
+          <span className={`preview-status preview-status-${tinymistReady ? 'ready' : 'loading'}`}>
+            {tinymistReady ? (
+              <>
+                <Icon name="check" size={13} /> Đồng bộ chính xác (tinymist)
+              </>
+            ) : (
+              <>
+                <span className="spinner" /> Đang khởi động preview…
+              </>
+            )}
+          </span>
+        ) : (
+          <span className={`preview-status preview-status-${status}`}>
+            {status === 'loading' && (
+              <>
+                <span className="spinner" /> Đang cập nhật…
+              </>
+            )}
+            {status === 'ready' && (
+              <>
+                <Icon name="check" size={13} /> {viewMode === 'svg' ? `Xem trực tiếp (${pageCount} trang)` : 'Bản xem trước PDF'}
+              </>
+            )}
+            {status === 'error' && (
+              <>
+                <Icon name="error" size={13} /> Lỗi biên dịch
+              </>
+            )}
+          </span>
+        )}
 
         <span className="preview-toolbar-spacer" />
 
         {/* Scroll Sync Toggle */}
-        {viewMode === 'svg' && (
+        {(viewMode === 'svg' || viewMode === 'tinymist') && (
           <button
             className={`btn-ghost preview-tool preview-tool-btn${syncScroll ? ' active' : ''}`}
             title={syncScroll ? 'Đang bật đồng bộ cuộn theo con trỏ (Bấm để tắt)' : 'Đang tắt đồng bộ cuộn (Bấm để bật)'}
@@ -415,28 +485,39 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
           >
             PDF
           </button>
+          <button
+            className={`btn-ghost preview-tool preview-mode-btn${viewMode === 'tinymist' ? ' active' : ''}`}
+            title="Đồng bộ cuộn qua tinymist (giao diện riêng, không tùy biến được). Đã kiểm chứng: chỉ tự cuộn khi bạn GÕ PHÍM tại vị trí mới — click chuột hoặc dùng phím mũi tên để di chuyển con trỏ mà không gõ gì thì KHÔNG cuộn theo (giới hạn của tinymist, không phải lỗi)"
+            onClick={() => setViewMode('tinymist')}
+          >
+            Đồng bộ chính xác
+          </button>
         </div>
 
         {/* Reload */}
-        <button
-          className="btn-ghost preview-tool"
-          title="Biên dịch lại ngay"
-          aria-label="Biên dịch lại"
-          onClick={() => setNonce((n) => n + 1)}
-          disabled={status === 'loading'}
-        >
-          <Icon name="refresh" size={14} />
-        </button>
+        {viewMode !== 'tinymist' && (
+          <button
+            className="btn-ghost preview-tool"
+            title="Biên dịch lại ngay"
+            aria-label="Biên dịch lại"
+            onClick={() => setNonce((n) => n + 1)}
+            disabled={status === 'loading'}
+          >
+            <Icon name="refresh" size={14} />
+          </button>
+        )}
 
         {/* Open PDF in new tab */}
-        <button
-          className="btn-ghost preview-tool"
-          title="Mở PDF trong tab mới để in ấn"
-          aria-label="Mở PDF trong tab mới"
-          onClick={() => window.open(`/api/preview/pdf?path=${encodeURIComponent(path)}`, '_blank')}
-        >
-          <Icon name="external" size={14} />
-        </button>
+        {viewMode !== 'tinymist' && (
+          <button
+            className="btn-ghost preview-tool"
+            title="Mở PDF trong tab mới để in ấn"
+            aria-label="Mở PDF trong tab mới"
+            onClick={() => window.open(`/api/preview/pdf?path=${encodeURIComponent(path)}`, '_blank')}
+          >
+            <Icon name="external" size={14} />
+          </button>
+        )}
       </div>
 
       <div className="preview-body">
@@ -488,8 +569,35 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
           </div>
         )}
 
-        {/* Error notification banner / popup */}
-        {errorMessage && (
+        {/* Tinymist-native preview mode (exact scroll sync, tinymist's own UI) */}
+        {viewMode === 'tinymist' && (
+          <div className="preview-tinymist-wrapper-outer">
+            {tinymistReady && (
+              <div className="preview-tinymist-hint" role="note">
+                Chỉ tự cuộn khi bạn <strong>gõ phím</strong> tại vị trí mới — click chuột/di chuyển con trỏ mà không gõ gì sẽ không cuộn theo (giới hạn của tinymist).
+              </div>
+            )}
+            <div className="preview-tinymist-wrapper">
+              {tinymistReady ? (
+                <iframe
+                  key={path ?? undefined}
+                  src="/preview/"
+                  className="preview-tinymist-frame"
+                  title="Xem trước đồng bộ chính xác (tinymist)"
+                />
+              ) : (
+                <div className="preview-loading">
+                  <span className="spinner spinner-lg" />
+                  <span>Đang khởi động preview đồng bộ…</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Error notification banner / popup (not applicable to tinymist mode,
+            which surfaces its own compile errors inside its iframe) */}
+        {errorMessage && viewMode !== 'tinymist' && (
           <div className="preview-error-banner" role="alert">
             <div className="preview-error-header">
               <Icon name="error" size={15} />

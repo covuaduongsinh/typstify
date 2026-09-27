@@ -196,6 +196,7 @@ func (s *Server) routes() {
 	// Preview: reverse-proxied to tinymist's own preview server.
 	s.handle("GET /api/preview/status", s.handlePreviewStatus)
 	s.handle("POST /api/preview/restart", s.handlePreviewRestart)
+	s.handle("POST /api/preview/cursor", s.handlePreviewCursor)
 	s.mux.Handle(previewPathPrefix, s.auth.require(s.handlePreviewProxy))
 
 	if s.opts.StaticDir != "" {

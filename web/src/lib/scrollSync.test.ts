@@ -40,6 +40,29 @@ describe('scrollSync', () => {
       expect(map[2]).toBe(4)   // Page 3 starts after second #pagebreak() at line 3
     })
 
+    it('distributes implicit page overflow proportionally, not dumped into the last segment', () => {
+      // 3 explicit segments of very different length: 10 / 100 / 10 lines, 5 pages total
+      // (2 "hidden" pages beyond the 3 explicit #pagebreak() segments). The old buggy
+      // implementation always attributed every hidden page to the LAST segment
+      // regardless of where the overflow actually happened, which would have produced
+      // [0, 11, 112, 115, 118] here (2 extra pages wrongly stuffed into the tiny last
+      // segment). The fix must instead give the extra pages to the segment that is
+      // actually long enough to contain them (segment 1, the 100-line one).
+      const seg0 = Array.from({ length: 10 }, (_, i) => `intro line ${i}`).join('\n')
+      const seg1 = Array.from({ length: 100 }, (_, i) => `body line ${i}`).join('\n')
+      const seg2 = Array.from({ length: 10 }, (_, i) => `outro line ${i}`).join('\n')
+      const content = `${seg0}\n#pagebreak()\n${seg1}\n#pagebreak()\n${seg2}`
+
+      const map = buildPageLineMap(content, 5)
+
+      expect(map).toEqual([0, 11, 44, 78, 112])
+      // Segment 0 (short) starts exactly at its explicit break and gets only 1 page.
+      expect(map[1]).toBe(11)
+      // Segment 2 (short, last) starts exactly at its explicit break, line 112 —
+      // it must NOT have absorbed the 2 hidden pages meant for the long segment.
+      expect(map[4]).toBe(112)
+    })
+
     it('falls back to uniform distribution when no page breaks found', () => {
       const content = Array.from({ length: 100 }, (_, i) => `line ${i + 1}`).join('\n')
       const map = buildPageLineMap(content, 4)

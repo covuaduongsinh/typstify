@@ -1017,6 +1017,40 @@ button.btn-danger {
   border: none;
 }
 
+/* Tinymist-native preview (exact scroll sync, own UI). Verified: only scrolls
+   on text edits (didChange), not on pure cursor movement/clicks. */
+.preview-tinymist-wrapper-outer {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-tinymist-hint {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #92400e;
+  background: #fffbeb;
+  border-bottom: 1px solid #fde68a;
+}
+
+.preview-tinymist-wrapper {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+}
+
+.preview-tinymist-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  flex: 1;
+}
+
 .preview-loading {
   display: flex;
   flex-direction: column;

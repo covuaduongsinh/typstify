@@ -161,3 +161,30 @@ func (s *Server) handlePreviewRestart(w http.ResponseWriter, r *http.Request) {
 	s.appSrv.RestartPreviewWithEntry(r.Context(), entryFile, nil)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
+
+type cursorPositionRequest struct {
+	Line      int `json:"line"`
+	Character int `json:"character"`
+}
+
+// handlePreviewCursor forwards an editor cursor-position change to tinymist's
+// preview server, the same call the desktop editor makes on every selection
+// change (see PreviewService.ScrollOnSelectionChange). This drives the "Đồng
+// bộ chính xác" (tinymist-native) view mode in the web frontend, which embeds
+// /preview/ directly rather than re-deriving page positions heuristically.
+func (s *Server) handlePreviewCursor(w http.ResponseWriter, r *http.Request) {
+	var req cursorPositionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	previewSrv := s.appSrv.PreviewService()
+	if previewSrv == nil {
+		writeError(w, http.StatusServiceUnavailable, errPreviewNotReady.Error())
+		return
+	}
+
+	previewSrv.ScrollOnSelectionChange(r.Context())
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}

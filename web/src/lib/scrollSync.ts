@@ -52,17 +52,40 @@ export function buildPageLineMap(content: string, pageCount: number): number[] {
   }
 
   // If we found some breaks but not all (e.g. implicit breaks from long content),
-  // distribute the remaining pages evenly within each segment between explicit breaks
+  // distribute the remaining pages across segments proportionally to each segment's
+  // line count (largest-remainder method), instead of dumping them all into the last
+  // segment — a long/heavy segment (e.g. a chess diagram or table) in the *middle* of
+  // the document is just as likely to contain implicit page breaks as the last one.
   if (breakLines.length > 1 && breakLines.length < pageCount) {
     const result: number[] = []
-    const explicitSegments = breakLines.length // number of explicit segments
-    const extraPages = pageCount - explicitSegments // pages without explicit breaks
+    const segLengths = breakLines.map((start, i) =>
+      (i + 1 < breakLines.length ? breakLines[i + 1] : totalLines) - start,
+    )
+    const totalSegLines = segLengths.reduce((a, b) => a + b, 0) || 1
+    const rawShares = segLengths.map((len) => (pageCount * len) / totalSegLines)
+    const pagesPerSeg = rawShares.map((s) => Math.max(1, Math.floor(s)))
+
+    // Adjust so the total exactly equals pageCount, giving extra pages to the
+    // segments with the largest fractional remainder first.
+    let diff = pageCount - pagesPerSeg.reduce((a, b) => a + b, 0)
+    const remainderOrder = rawShares
+      .map((s, i) => ({ i, frac: s - Math.floor(s) }))
+      .sort((a, b) => b.frac - a.frac)
+    for (let k = 0; diff !== 0; k = (k + 1) % remainderOrder.length) {
+      const idx = remainderOrder[k].i
+      if (diff > 0) {
+        pagesPerSeg[idx] += 1
+        diff -= 1
+      } else if (pagesPerSeg[idx] > 1) {
+        pagesPerSeg[idx] -= 1
+        diff += 1
+      }
+    }
 
     for (let seg = 0; seg < breakLines.length; seg++) {
       const segStart = breakLines[seg]
       const segEnd = seg + 1 < breakLines.length ? breakLines[seg + 1] : totalLines
-
-      const pagesInSeg = 1 + (seg === breakLines.length - 1 ? extraPages : 0)
+      const pagesInSeg = pagesPerSeg[seg]
 
       result.push(segStart)
       if (pagesInSeg > 1) {
