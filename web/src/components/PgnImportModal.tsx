@@ -143,7 +143,8 @@ export function PgnImportModal({ isOpen, onClose, onInsertCode }: PgnImportModal
               style={{
                 marginTop: '12px',
                 padding: '8px 12px',
-                background: 'var(--color-bg-subtle, #f1f5f9)',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
                 borderRadius: '6px',
                 fontSize: '12px',
               }}
