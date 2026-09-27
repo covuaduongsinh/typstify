@@ -6,7 +6,7 @@
 FROM node:22-slim AS frontend
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
-RUN npm ci
+RUN npm install
 COPY web/ ./
 RUN npm run build
 
