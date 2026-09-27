@@ -7,6 +7,7 @@ interface ChessToolbarProps {
   onOpenBoard: () => void
   onOpenPgn: () => void
   onOpenDataImport?: () => void
+  onOpenMarkdownImport?: () => void
 }
 
 const PIECES = [
@@ -273,7 +274,7 @@ type Menu = 'pieces' | 'nags' | 'templates' | null
 
 const POPOVER_WIDTH: Record<Exclude<Menu, null>, number> = { pieces: 344, nags: 372, templates: 340 }
 
-export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn, onOpenDataImport }: ChessToolbarProps) {
+export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn, onOpenDataImport, onOpenMarkdownImport }: ChessToolbarProps) {
   const [menu, setMenu] = useState<Menu>(null)
   const [anchor, setAnchor] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
   const barRef = useRef<HTMLDivElement>(null)
@@ -340,6 +341,16 @@ export function ChessToolbar({ onInsertText, onOpenBoard, onOpenPgn, onOpenDataI
             onClick={onOpenDataImport}
           >
             <Icon name="layout-grid" size={14} /> <span className="tb-label">Nhập dữ liệu</span>
+          </button>
+        )}
+        {onOpenMarkdownImport && (
+          <button
+            className="chess-tool-btn"
+            aria-label="Nhập Markdown"
+            title="Chuyển đổi văn bản hoặc tệp Markdown (.md) sang Typst có tích hợp cờ vua"
+            onClick={onOpenMarkdownImport}
+          >
+            <Icon name="file-text" size={14} /> <span className="tb-label">Nhập Markdown</span>
           </button>
         )}
       </div>

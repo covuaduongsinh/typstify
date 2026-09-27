@@ -25,6 +25,7 @@ const SettingsPanel = lazy(() => import('./SettingsPanel').then((m) => ({ defaul
 const ChessBoardModal = lazy(() => import('./ChessBoardModal').then((m) => ({ default: m.ChessBoardModal })))
 const PgnImportModal = lazy(() => import('./PgnImportModal').then((m) => ({ default: m.PgnImportModal })))
 const DataImportModal = lazy(() => import('./DataImportModal').then((m) => ({ default: m.DataImportModal })))
+const MarkdownImportModal = lazy(() => import('./MarkdownImportModal').then((m) => ({ default: m.MarkdownImportModal })))
 const DropboxSyncModal = lazy(() => import('./DropboxSyncModal').then((m) => ({ default: m.DropboxSyncModal })))
 
 function PanelLoading() {
@@ -100,11 +101,16 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const [isBoardOpen, setIsBoardOpen] = useState(false)
   const [isPgnOpen, setIsPgnOpen] = useState(false)
   const [isDataImportOpen, setIsDataImportOpen] = useState(false)
+  const [isMarkdownOpen, setIsMarkdownOpen] = useState(false)
   // Once opened, the chess dialogs stay mounted (hidden) so the position
   // being set up survives closing and reopening.
   const [boardUsed, setBoardUsed] = useState(false)
   const [pgnUsed, setPgnUsed] = useState(false)
   const [dataImportUsed, setDataImportUsed] = useState(false)
+  const [markdownUsed, setMarkdownUsed] = useState(false)
+  const [initialMarkdown, setInitialMarkdown] = useState<string | undefined>(undefined)
+  const [initialMdFileName, setInitialMdFileName] = useState<string | undefined>(undefined)
+
   const openBoard = () => {
     setBoardUsed(true)
     setIsBoardOpen(true)
@@ -116,6 +122,21 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const openDataImport = () => {
     setDataImportUsed(true)
     setIsDataImportOpen(true)
+  }
+  const openMarkdown = (initialText?: string, fileName?: string) => {
+    setInitialMarkdown(initialText)
+    setInitialMdFileName(fileName)
+    setMarkdownUsed(true)
+    setIsMarkdownOpen(true)
+  }
+  const handleConvertMarkdownFile = async (path: string) => {
+    try {
+      const text = await api.get<string>(`/api/workspace/file?path=${encodeURIComponent(path)}`)
+      const baseName = path.split('/').pop() || 'document.typ'
+      openMarkdown(text, baseName)
+    } catch {
+      openMarkdown(undefined, path)
+    }
   }
   const [isNewDocOpen, setIsNewDocOpen] = useState(false)
   const [isDropboxOpen, setIsDropboxOpen] = useState(false)
@@ -397,6 +418,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 else if (activePath?.startsWith(`${from}/`)) setActivePath(to + activePath.slice(from.length))
                 setTreeVersion((v) => v + 1)
               }}
+              onConvertMarkdown={handleConvertMarkdownFile}
             />
           </aside>
         )}
@@ -431,6 +453,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     onOpenBoard={openBoard}
                     onOpenPgn={openPgn}
                     onOpenDataImport={openDataImport}
+                    onOpenMarkdownImport={() => openMarkdown()}
                   />
                 )}
                 <Suspense fallback={<PanelLoading />}>
@@ -495,6 +518,9 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     </button>
                     <button className="welcome-btn" onClick={openDataImport}>
                       <Icon name="table" /> Nhập CSDL bài tập
+                    </button>
+                    <button className="welcome-btn" onClick={() => openMarkdown()}>
+                      <Icon name="file-text" /> Nhập Markdown
                     </button>
                   </div>
                 </div>
@@ -579,6 +605,16 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
             onCreateNewDoc={createNewDoc}
           />
         )}
+        {markdownUsed && (
+          <MarkdownImportModal
+            isOpen={isMarkdownOpen}
+            onClose={() => setIsMarkdownOpen(false)}
+            onInsertCode={handleInsertText}
+            onCreateNewDoc={createNewDoc}
+            initialMarkdown={initialMarkdown}
+            initialFileName={initialMdFileName}
+          />
+        )}
         {isDropboxOpen && (
           <DropboxSyncModal
             isOpen={isDropboxOpen}
@@ -618,6 +654,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
           isOpen={isNewDocOpen}
           onClose={() => setIsNewDocOpen(false)}
           onCreate={createNewDoc}
+          onOpenMarkdownImport={() => openMarkdown()}
         />
       )}
     </div>

@@ -11,6 +11,7 @@ function iconFor(entry: TreeEntry, expanded: boolean): IconName {
   if (entry.isDir) return expanded ? 'folder-open' : 'folder'
   if (entry.name.endsWith('.typ')) return 'file-text'
   if (entry.name.endsWith('.pgn')) return 'scroll'
+  if (entry.name.endsWith('.md') || entry.name.endsWith('.markdown')) return 'file-text'
   if (IMAGE_EXT.test(entry.name)) return 'image'
   return 'file'
 }
@@ -143,6 +144,7 @@ export function FileTree({
   onOpenFile,
   onPathRemoved,
   onPathRenamed,
+  onConvertMarkdown,
 }: {
   activePath: string
   onOpenFile: (path: string) => void
@@ -150,6 +152,8 @@ export function FileTree({
   onPathRemoved?: (path: string) => void
   /** Called after a rename, so an open editor can follow the file. */
   onPathRenamed?: (from: string, to: string) => void
+  /** Called when user chooses to convert a .md file to .typ */
+  onConvertMarkdown?: (path: string) => void
 }) {
   const [roots, setRoots] = useState<TreeEntry[]>([])
   const [version, setVersion] = useState(0)
@@ -279,6 +283,9 @@ export function FileTree({
           style={{ left: Math.min(menu.x, window.innerWidth - 200), top: Math.min(menu.y, window.innerHeight - 180) }}
         >
           {!menu.entry.isDir && menuItem('Mở', 'file-text', () => onOpenFile(menu.entry.path))}
+          {!menu.entry.isDir &&
+            (menu.entry.name.endsWith('.md') || menu.entry.name.endsWith('.markdown')) &&
+            menuItem('Chuyển sang Typst (.typ)', 'sparkles', () => onConvertMarkdown?.(menu.entry.path))}
           {menu.entry.isDir &&
             menuItem('Tạo file trong thư mục', 'file-plus', () =>
               setDialog({ kind: 'create', isDir: false, parent: menu.entry.path }),

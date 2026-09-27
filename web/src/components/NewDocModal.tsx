@@ -354,10 +354,12 @@ export function NewDocModal({
   isOpen,
   onClose,
   onCreate,
+  onOpenMarkdownImport,
 }: {
   isOpen: boolean
   onClose: () => void
   onCreate: (fileName: string, content: string) => void
+  onOpenMarkdownImport?: () => void
 }) {
   const [fileName, setFileName] = useState('chess_document.typ')
   const [selectedTemplateId, setSelectedTemplateId] = useState('book')
@@ -421,13 +423,30 @@ export function NewDocModal({
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
-          <button type="button" className="btn-ghost" onClick={onClose}>
-            Hủy
-          </button>
-          <button type="submit" className="btn-primary" disabled={!fileName.trim()}>
-            <Icon name="check" size={14} /> Tạo tài liệu
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+          <div>
+            {onOpenMarkdownImport && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => {
+                  onClose()
+                  onOpenMarkdownImport()
+                }}
+                style={{ fontSize: '12px' }}
+              >
+                <Icon name="file-text" size={14} /> Hoặc chuyển từ file Markdown (.md)
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button type="button" className="btn-ghost" onClick={onClose}>
+              Hủy
+            </button>
+            <button type="submit" className="btn-primary" disabled={!fileName.trim()}>
+              <Icon name="check" size={14} /> Tạo tài liệu
+            </button>
+          </div>
         </div>
       </form>
     </Modal>
