@@ -34,6 +34,8 @@ const PATHS: Record<string, string> = {
   'cloud-download': 'M8 17l4 4 4-4M12 12v9M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3',
   sync: 'M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67',
   dropbox: 'M4 6l4-2.5 4 2.5-4 2.5zm8 0l4-2.5 4 2.5-4 2.5zm-8 5l4-2.5 4 2.5-4 2.5zm8 0l4-2.5 4 2.5-4 2.5zm-4 4.5l4-2.5 4 2.5-4 2.5z',
+  type: 'M4 7V4h16v3M9 20h6M12 4v16',
+  columns: 'M4 4h7v16H4zM13 4h7v16h-7z',
 }
 
 export type IconName = keyof typeof PATHS

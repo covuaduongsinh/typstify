@@ -1747,6 +1747,143 @@ button.btn-danger {
   background: var(--brand-soft);
 }
 
+.font-size-popover,
+.columns-popover {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.popover-title-row {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.font-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.font-preset-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 11.5px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.12s ease;
+}
+
+.font-preset-btn:hover {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.font-custom-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.columns-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.column-option-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.column-option-btn:hover {
+  border-color: var(--brand);
+  background: var(--hover);
+}
+
+.column-icon-preview {
+  display: flex;
+  gap: 4px;
+  width: 44px;
+  height: 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px;
+  justify-content: center;
+  align-items: center;
+}
+
+.col-bar {
+  background: var(--brand);
+  opacity: 0.6;
+  border-radius: 2px;
+  height: 100%;
+}
+
+.col-bar.full {
+  width: 100%;
+}
+
+.col-bar.half {
+  width: 50%;
+}
+
+.column-sub-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+.column-action-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.column-action-link:hover {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
 .nag-glyph {
   min-width: 26px;
   text-align: center;

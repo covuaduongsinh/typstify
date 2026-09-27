@@ -28,19 +28,38 @@ Công cụ này giúp bạn chuyển đổi nhanh chóng bất kỳ bài giảng
    - **Worksheet A4**: Khổ phiếu bài tập chuẩn in văn phòng cho học sinh.
    - **Tạp chí A4**: Bố cục tạp chí 2 cột cho các bài bình luận.
    - **Đoạn trích thuần**: Chỉ chuyển đổi cú pháp, không thêm bìa sách hay header toàn cục.
-4. **Xem trước mã Typst sinh ra**:
+4. **Tùy Chỉnh Cỡ Chữ & Bố Cục Số Cột Tùy Ý**:
+   - **Cỡ chữ văn bản**: Lựa chọn nhanh từ `9pt`, `10pt`, `10.5pt` (chuẩn sách), `11pt` (mặc định), `12pt`, `13pt`, `14pt` hoặc nhập số pt tùy ý (tự động xuất `#set text(size: ...)`).
+   - **Số cột (1 - 2 Cột)**: Tùy chọn xuất bản trang đơn (1 cột) hoặc chia 2 cột song song chuẩn tạp chí báo chí (tự động xuất `#set page(columns: 2)`).
+5. **Xem trước mã Typst sinh ra**:
    - Chuyển sang tab **Xem trước Typst sinh ra** để kiểm tra mã nguồn trước khi chèn vào tệp hiện tại hoặc tạo tệp `.typ` mới.
 
 ---
 
-## 2. Nhập Dữ Liệu Bài Tập (Excel / CSV / JSON / FEN)
+## 2. Công Cụ Định Dạng Cỡ Chữ & Số Cột Trực Tiếp Trên Toolbar
+
+Trên thanh công cụ chính (Chess Toolbar), bạn có thể dễ dàng định dạng tài liệu đang soạn thảo:
+
+1. **Công cụ Cỡ Chữ (`Cỡ chữ` / Icon `type`)**:
+   - Nút tăng giảm nhanh **A-** / **A+** để điều chỉnh kích thước chữ linh hoạt theo bước 0.5pt.
+   - Các mức kích thước tiêu chuẩn: `9pt` (Nhỏ), `10pt` (Vừa), `10.5pt` (Chuẩn in sách), `11pt` (Mặc định), `12pt` (Lớn), `14pt` (Tiêu đề).
+   - Ô nhập kích thước tùy ý (VD: `11.5pt`, `13pt`) kèm nút bấm chèn lệnh `#set text(size: ...)` vào tài liệu.
+2. **Công cụ Số Cột (`Số cột` / Icon `columns`)**:
+   - **1 Cột (Đơn)**: Chèn `#set page(columns: 1)` để hiển thị văn bản liền mạch toàn trang.
+   - **2 Cột (Song song)**: Chèn `#set page(columns: 2)` để chia trang thành 2 cột song song chuẩn báo chí / tạp chí.
+   - **Khối 2 Cột theo đoạn (Grid)**: Chèn `#grid(columns: (1fr, 1fr), ...)` để chia 2 cột cho một đoạn văn bản cụ thể.
+   - **Khối 2 Cột (Lý thuyết + Bàn cờ)**: Chèn `#grid(columns: (1fr, auto), ...)` tiện lợi để xếp bài giảng lý thuyết bên trái và hình bàn cờ bên phải.
+
+---
+
+## 3. Nhập Dữ Liệu Bài Tập (Excel / CSV / JSON / FEN)
 
 Công cụ cho phép bạn nhập hàng chục, hàng trăm thế cờ từ file Excel/CSV, JSON hoặc danh sách FEN và tự động dàn trang sách bài tập.
 
-### 2.1. Cách mở công cụ
+### 3.1. Cách mở công cụ
 - Trên thanh công cụ chính (Toolbar), chọn **Nhập dữ liệu** (biểu tượng bảng).
 
-### 2.2. Định dạng dữ liệu được hỗ trợ
+### 3.2. Định dạng dữ liệu được hỗ trợ
 
 #### A. Định dạng CSV (Khuyên dùng khi xuất từ Excel/Google Sheets)
 Tệp CSV cần có dòng tiêu đề (header) gồm các cột: `fen`, `title`, `turn`, `difficulty`, `hint`, `solution`.
@@ -81,7 +100,7 @@ r1bqk2r/pppp1ppp/2n5/4p3/1bB1n3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 0 6
 r1b1k2r/ppppqppp/2n5/4P3/2B2Bn1/2P2N2/P4PPP/R2Q1RK1 b kq - 0 10
 ```
 
-### 2.3. Bố cục dàn trang & Tùy chọn xuất bản
+### 3.3. Bố cục dàn trang & Tùy chọn xuất bản
 1. **Khổ giấy & Lưới bài tập**:
    - **Khổ A4 (12 bài/trang)**: Sắp xếp dạng lưới 3 cột x 4 hàng, tự động ngắt trang vừa vặn với kích thước ô cờ `13.5pt`.
    - **Sách 16x24cm (6 bài/trang)**: Sắp xếp dạng lưới 2 cột x 3 hàng, kích thước ô cờ `15pt` chuẩn in sách xuất bản.
@@ -91,7 +110,7 @@ r1b1k2r/ppppqppp/2n5/4P3/2B2Bn1/2P2N2/P4PPP/R2Q1RK1 b kq - 0 10
 
 ---
 
-## 3. Nhập Ván Cờ Từ PGN (`PgnImportModal`)
+## 4. Nhập Ván Cờ Từ PGN (`PgnImportModal`)
 
 Dễ dàng chuyển đổi các biên bản ván đấu PGN chuẩn FIDE sang Typst:
 - Chọn nút **Nhập PGN** trên Toolbar.
@@ -102,7 +121,7 @@ Dễ dàng chuyển đổi các biên bản ván đấu PGN chuẩn FIDE sang Ty
 
 ---
 
-## 4. Xếp Bàn Cờ Trực Quan (`ChessBoardModal`)
+## 5. Xếp Bàn Cờ Trực Quan (`ChessBoardModal`)
 
 Biên soạn thế cờ tương tác:
 - Chọn nút **Xếp bàn cờ** trên Toolbar.
@@ -113,7 +132,7 @@ Biên soạn thế cờ tương tác:
 
 ---
 
-## 5. Quy Trình Xuất Bản Tài Liệu Hoàn Chỉnh
+## 6. Quy Trình Xuất Bản Tài Liệu Hoàn Chỉnh
 
 ```mermaid
 flowchart LR

@@ -271,9 +271,24 @@ const TEMPLATES = [
 
 const QUICK_NAGS = NAGS.slice(0, 6)
 
-type Menu = 'pieces' | 'nags' | 'templates' | null
+type Menu = 'pieces' | 'nags' | 'templates' | 'fontSize' | 'columns' | null
 
-const POPOVER_WIDTH: Record<Exclude<Menu, null>, number> = { pieces: 344, nags: 372, templates: 340 }
+const POPOVER_WIDTH: Record<Exclude<Menu, null>, number> = {
+  pieces: 344,
+  nags: 372,
+  templates: 340,
+  fontSize: 320,
+  columns: 320,
+}
+
+const FONT_PRESETS = [
+  { label: '9 pt', size: '9pt', desc: 'Nhỏ gọn' },
+  { label: '10 pt', size: '10pt', desc: 'Vừa vặn' },
+  { label: '10.5 pt', size: '10.5pt', desc: 'Chuẩn in sách' },
+  { label: '11 pt', size: '11pt', desc: 'Mặc định' },
+  { label: '12 pt', size: '12pt', desc: 'Cỡ lớn' },
+  { label: '14 pt', size: '14pt', desc: 'Tiêu đề' },
+]
 
 export function ChessToolbar({
   onInsertText,
@@ -285,6 +300,7 @@ export function ChessToolbar({
 }: ChessToolbarProps) {
   const [menu, setMenu] = useState<Menu>(null)
   const [anchor, setAnchor] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
+  const [customSize, setCustomSize] = useState('11')
   const barRef = useRef<HTMLDivElement>(null)
   const close = useCallback(() => setMenu(null), [])
   useDismiss(barRef, menu !== null, close)
@@ -305,6 +321,13 @@ export function ChessToolbar({
   const insert = (code: string) => {
     onInsertText(code)
     setMenu(null)
+  }
+
+  const adjustFontSize = (delta: number) => {
+    const current = parseFloat(customSize) || 11
+    const next = Math.max(6, Math.min(36, Math.round((current + delta) * 2) / 2))
+    setCustomSize(next.toString())
+    insert(`#set text(size: ${next}pt)\n`)
   }
 
   const trigger = (m: Exclude<Menu, null>, icon: IconName | string, label: string) => (
@@ -370,6 +393,169 @@ export function ChessToolbar({
           >
             <Icon name="sparkles" size={14} /> <span className="tb-label">Chuẩn hóa cờ</span>
           </button>
+        )}
+      </div>
+
+      <div className="chess-toolbar-divider" />
+
+      {/* Formatting tools: Font Size & Columns */}
+      <div className="chess-toolbar-group popover-anchor">
+        {trigger('fontSize', 'type', 'Cỡ chữ')}
+        {menu === 'fontSize' && (
+          <div className="chess-popover font-size-popover" role="menu" style={popoverStyle}>
+            <div className="popover-title-row">
+              <span>Thiết lập Cỡ Chữ (Font Size)</span>
+              <div style={{ display: 'flex', gap: '3px' }}>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  style={{ padding: '2px 6px', fontSize: '11px', fontWeight: 700 }}
+                  title="Giảm cỡ chữ (A-)"
+                  onClick={() => adjustFontSize(-0.5)}
+                >
+                  A-
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  style={{ padding: '2px 6px', fontSize: '12px', fontWeight: 700 }}
+                  title="Tăng cỡ chữ (A+)"
+                  onClick={() => adjustFontSize(0.5)}
+                >
+                  A+
+                </button>
+              </div>
+            </div>
+
+            <div className="font-preset-grid">
+              {FONT_PRESETS.map((fp) => (
+                <button
+                  key={fp.size}
+                  role="menuitem"
+                  className="font-preset-btn"
+                  onClick={() => insert(`#set text(size: ${fp.size})\n`)}
+                >
+                  <strong style={{ fontSize: '12px' }}>{fp.label}</strong>
+                  <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>{fp.desc}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="font-custom-row">
+              <input
+                type="number"
+                step="0.5"
+                min="6"
+                max="48"
+                value={customSize}
+                onChange={(e) => setCustomSize(e.target.value)}
+                className="control-input"
+                style={{ width: '80px', padding: '4px 6px', fontSize: '12px' }}
+                placeholder="pt"
+              />
+              <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>pt</span>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: '11.5px' }}
+                onClick={() => {
+                  const sz = customSize.trim() || '11'
+                  insert(`#set text(size: ${sz}pt)\n`)
+                }}
+              >
+                Chèn lệnh #set text
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="chess-toolbar-group popover-anchor">
+        {trigger('columns', 'columns', 'Số cột')}
+        {menu === 'columns' && (
+          <div className="chess-popover columns-popover" role="menu" style={popoverStyle}>
+            <div className="popover-title-row">
+              <span>Bố Cục Số Cột (1 - 2 Cột)</span>
+            </div>
+
+            <div className="columns-grid">
+              <button
+                type="button"
+                role="menuitem"
+                className="column-option-btn"
+                onClick={() => insert(`#set page(columns: 1)\n`)}
+              >
+                <div className="column-icon-preview">
+                  <div className="col-bar full" />
+                </div>
+                <strong>1 Cột (Đơn)</strong>
+                <span style={{ fontSize: '10.5px', color: 'var(--text-dim)' }}>Toàn trang liên tục</span>
+              </button>
+
+              <button
+                type="button"
+                role="menuitem"
+                className="column-option-btn"
+                onClick={() => insert(`#set page(columns: 2)\n`)}
+              >
+                <div className="column-icon-preview">
+                  <div className="col-bar half" />
+                  <div className="col-bar half" />
+                </div>
+                <strong>2 Cột (Song song)</strong>
+                <span style={{ fontSize: '10.5px', color: 'var(--text-dim)' }}>Báo chí, tạp chí</span>
+              </button>
+            </div>
+
+            <div className="column-sub-actions">
+              <button
+                type="button"
+                role="menuitem"
+                className="column-action-link"
+                onClick={() =>
+                  insert(
+                    `#grid(
+  columns: (1fr, 1fr),
+  gutter: 12pt,
+  [
+    *Cột 1:* Nội dung đoạn bên trái...
+  ],
+  [
+    *Cột 2:* Nội dung đoạn bên phải...
+  ]
+)\n`,
+                  )
+                }
+              >
+                <Icon name="columns" size={13} />
+                <span>Chèn khối 2 Cột theo đoạn (Grid)</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="column-action-link"
+                onClick={() =>
+                  insert(
+                    `#grid(
+  columns: (1fr, auto),
+  gutter: 14pt,
+  align: (left + top, center + top),
+  [
+    *Phân tích lý thuyết:*
+    - Nội dung giải thích chiến thuật bên trái.
+  ],
+  [
+    #chess-board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", size: 14pt)
+  ]
+)\n`,
+                  )
+                }
+              >
+                <Icon name="board" size={13} />
+                <span>Khối 2 Cột (Lý thuyết + Bàn cờ)</span>
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

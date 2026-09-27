@@ -13,6 +13,10 @@ export interface MarkdownToTypstOptions {
   subtitle?: string
   author?: string
   date?: string
+  /** Document font size (e.g. '9pt', '10pt', '10.5pt', '11pt', '12pt', '13pt', '14pt') */
+  fontSize?: string
+  /** Number of columns (1 or 2) */
+  columns?: 1 | 2
   /** Auto-detect and transform FEN/PGN/Chess blocks */
   enableChessFeatures?: boolean
   /** Auto-convert NAG notations (e.g. $14, (±), !?, ??) to #nag(...) */
@@ -237,7 +241,21 @@ export function convertMarkdownToTypst(markdown: string, options: MarkdownToTyps
 )\n\n`
   }
 
-  const fullDoc = header + body
+  let formattingRules = ''
+  if (options.fontSize && options.fontSize !== 'default' && options.fontSize !== 'auto') {
+    const sizeStr = options.fontSize.endsWith('pt') ? options.fontSize : `${options.fontSize}pt`
+    formattingRules += `#set text(size: ${sizeStr})\n`
+  }
+  if (options.columns && options.columns === 2) {
+    formattingRules += `#set page(columns: 2)\n`
+  } else if (options.columns === 1 && template === 'none') {
+    formattingRules += `#set page(columns: 1)\n`
+  }
+  if (formattingRules) {
+    formattingRules += '\n'
+  }
+
+  const fullDoc = header + formattingRules + body
 
   // Ensure line 1 has #import "@local/chessbook:0.1.0": * if chess elements are present
   return repairChessImports(fullDoc)

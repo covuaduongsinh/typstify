@@ -161,6 +161,8 @@ export function MarkdownImportModal({
   const [author, setAuthor] = useState('CLB Cờ vua Dương Sinh')
   const [enableChess, setEnableChess] = useState(true)
   const [convertNags, setConvertNags] = useState(true)
+  const [fontSize, setFontSize] = useState<string>('auto')
+  const [columns, setColumns] = useState<1 | 2>(1)
   const [fileName, setFileName] = useState(
     initialFileName ? initialFileName.replace(/\.md$/i, '.typ') : 'bai-giang.typ'
   )
@@ -174,10 +176,12 @@ export function MarkdownImportModal({
       title: title || undefined,
       subtitle: subtitle || undefined,
       author: author || undefined,
+      fontSize: fontSize !== 'auto' ? fontSize : undefined,
+      columns,
       enableChessFeatures: enableChess,
       convertNags,
     })
-  }, [markdownText, template, title, subtitle, author, enableChess, convertNags])
+  }, [markdownText, template, title, subtitle, author, fontSize, columns, enableChess, convertNags])
 
   // Count detected elements
   const stats = useMemo(() => {
@@ -465,6 +469,55 @@ export function MarkdownImportModal({
               onChange={(e) => setAuthor(e.target.value)}
               placeholder="Tác giả / Câu lạc bộ"
             />
+          </div>
+
+          <div className="control-group">
+            <label className="control-label">Định dạng & Bố cục</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                  Cỡ chữ văn bản:
+                </span>
+                <select
+                  className="control-input"
+                  value={fontSize}
+                  onChange={(e) => setFontSize(e.target.value)}
+                >
+                  <option value="auto">Mặc định (Theo mẫu)</option>
+                  <option value="9pt">9 pt (Nhỏ gọn)</option>
+                  <option value="10pt">10 pt (Vừa)</option>
+                  <option value="10.5pt">10.5 pt (Chuẩn sách 16x24)</option>
+                  <option value="11pt">11 pt (Chuẩn tài liệu)</option>
+                  <option value="12pt">12 pt (Lớn rõ nét)</option>
+                  <option value="13pt">13 pt (Bài giảng)</option>
+                  <option value="14pt">14 pt (Chữ lớn)</option>
+                </select>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-dim)', display: 'block', marginBottom: '4px' }}>
+                  Số cột (Columns):
+                </span>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    type="button"
+                    className={`btn-ghost${columns === 1 ? ' active' : ''}`}
+                    style={{ flex: 1, padding: '5px 4px', fontSize: '11.5px', border: '1px solid var(--border)' }}
+                    onClick={() => setColumns(1)}
+                  >
+                    1 Cột
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn-ghost${columns === 2 ? ' active' : ''}`}
+                    style={{ flex: 1, padding: '5px 4px', fontSize: '11.5px', border: '1px solid var(--border)' }}
+                    onClick={() => setColumns(2)}
+                  >
+                    2 Cột
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="control-group">
