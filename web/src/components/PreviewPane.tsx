@@ -74,10 +74,6 @@ function PreviewPageCard({
       }}
       className={`preview-page-card${isActive ? ' active-page' : ''}`}
       data-page={pageIndex + 1}
-      style={{
-        aspectRatio: `${dimensions.width} / ${dimensions.height}`,
-        minHeight: '280px',
-      }}
     >
       <div className="preview-page-header">
         <span>Trang {pageIndex + 1} / {pageCount}</span>
@@ -89,7 +85,13 @@ function PreviewPageCard({
             dangerouslySetInnerHTML={{ __html: scopedSvg }}
           />
         ) : (
-          <div className="preview-page-placeholder">
+          <div
+            className="preview-page-placeholder"
+            style={{
+              aspectRatio: `${dimensions.width} / ${dimensions.height}`,
+              minHeight: '320px',
+            }}
+          >
             <span className="spinner spinner-sm" />
             <span>Đang tải trang {pageIndex + 1}…</span>
           </div>

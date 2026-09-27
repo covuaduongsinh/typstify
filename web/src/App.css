@@ -965,22 +965,18 @@ button.btn-danger {
 }
 
 .preview-svg-content {
-  flex: 1;
   width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: block;
   background: #ffffff;
-  padding: 12px;
-  overflow: hidden;
+  padding: 0;
+  overflow: visible;
   box-sizing: border-box;
 }
 
 .preview-svg-inner {
   width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: block;
+  line-height: 0;
 }
 
 .preview-svg-inner svg,
