@@ -62,8 +62,6 @@ export function buildPageLineMap(content: string, pageCount: number): number[] {
       const segStart = breakLines[seg]
       const segEnd = seg + 1 < breakLines.length ? breakLines[seg + 1] : totalLines
 
-      // How many implicit pages does this segment get?
-      const implicitPagesInSeg = seg < breakLines.length - 1 ? 0 : extraPages
       const pagesInSeg = 1 + (seg === breakLines.length - 1 ? extraPages : 0)
 
       result.push(segStart)
