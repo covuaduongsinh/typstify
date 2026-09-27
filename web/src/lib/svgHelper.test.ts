@@ -13,6 +13,26 @@ describe('svgHelper', () => {
     expect(scoped).not.toContain('xlink:href="#g123"')
   })
 
+  it('scopes url(#...) references used in fill, clip-path, mask, filter', () => {
+    const rawSvg = `<svg><defs><clipPath id="cp1"><rect/></clipPath><linearGradient id="grad1"/></defs><rect clip-path="url(#cp1)" fill="url(#grad1)"/></svg>`
+    const scoped = scopeSvgIds(rawSvg, 5)
+
+    expect(scoped).toContain('id="p5_cp1"')
+    expect(scoped).toContain('id="p5_grad1"')
+    expect(scoped).toContain('clip-path="url(#p5_cp1)"')
+    expect(scoped).toContain('fill="url(#p5_grad1)"')
+    expect(scoped).not.toContain('url(#cp1)')
+    expect(scoped).not.toContain('url(#grad1)')
+  })
+
+  it('scopes single-quoted id attributes', () => {
+    const rawSvg = `<svg><defs><symbol id='sym1'></symbol></defs><use href='#sym1'/></svg>`
+    const scoped = scopeSvgIds(rawSvg, 2)
+
+    expect(scoped).toContain("id='p2_sym1'")
+    expect(scoped).toContain("href='#p2_sym1'")
+  })
+
   it('extracts aspect ratio and viewBox dimensions correctly', () => {
     const rawSvg = `<svg viewBox="0 0 450 600" width="450pt" height="600pt"></svg>`
     const dims = extractSvgDimensions(rawSvg)
