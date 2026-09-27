@@ -54,4 +54,28 @@ export interface AgentSettings {
 export interface AuthStatus {
   authRequired: boolean
   authenticated: boolean
+  username?: string
+  displayName?: string
+  hasUsers?: boolean
+}
+
+export interface User {
+  username: string
+  displayName?: string
+}
+
+export interface RegisterRequest {
+  username: string
+  password: string
+  displayName?: string
+}
+
+export interface LoginRequest {
+  username?: string
+  password: string
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
 }

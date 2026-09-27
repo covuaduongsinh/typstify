@@ -25,12 +25,12 @@
   box-shadow: var(--shadow-lg);
 }
 .login-form {
-  width: min(360px, 100%);
-  padding: 32px 28px 28px;
+  width: min(380px, 100%);
+  padding: 30px 26px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 .entry-title {
   margin: 4px 0 0;
@@ -39,11 +39,69 @@
   text-align: center;
 }
 .entry-slogan {
-  margin: -8px 0 8px;
+  margin: -6px 0 6px;
   color: var(--gold);
   font-weight: 600;
   letter-spacing: 0.04em;
 }
+
+.auth-tab-group {
+  display: flex;
+  width: 100%;
+  background: var(--surface-2);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  margin-bottom: 6px;
+  gap: 4px;
+}
+.auth-tab {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.auth-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.1));
+}
+
+.auth-fields-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.auth-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: -2px;
+}
+.auth-footer-switch {
+  margin-top: 4px;
+}
+.btn-link {
+  background: none;
+  border: none;
+  padding: 4px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.btn-link strong {
+  color: var(--brand);
+}
+.btn-link:hover strong {
+  text-decoration: underline;
+}
+
 .entry-field {
   width: 100%;
   display: flex;

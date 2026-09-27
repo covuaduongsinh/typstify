@@ -96,10 +96,14 @@ func (s *Server) SetActiveFile(absPath string, cursorPos int) {
 }
 
 func New(appSrv *service.ServiceFacade, opts Options) *Server {
+	var storageDir string
+	if appSrv != nil && appSrv.Settings() != nil && appSrv.Settings().General() != nil {
+		storageDir = appSrv.Settings().General().RootDir
+	}
 	s := &Server{
 		appSrv: appSrv,
 		opts:   opts,
-		auth:   newAuthManager(opts.Password),
+		auth:   newAuthManager(opts.Password, storageDir),
 		mux:    http.NewServeMux(),
 
 		compileSlots: make(chan struct{}, maxConcurrentCompiles),
@@ -119,11 +123,13 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) routes() {
-	// Unauthenticated.
+	// Unauthenticated / Auth routes.
 	s.mux.HandleFunc("GET /api/health", handleHealth)
+	s.mux.HandleFunc("POST /api/auth/register", s.auth.handleRegister)
 	s.mux.HandleFunc("POST /api/auth/login", s.auth.handleLogin)
 	s.mux.HandleFunc("POST /api/auth/logout", s.auth.handleLogout)
 	s.mux.HandleFunc("GET /api/auth/status", s.auth.handleStatus)
+	s.handle("POST /api/auth/change-password", s.auth.handleChangePassword)
 	s.mux.HandleFunc("POST /api/i18n", s.handleI18n)
 
 	// Workspace / project / file management.

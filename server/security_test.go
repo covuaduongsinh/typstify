@@ -98,7 +98,7 @@ func TestSameOrigin(t *testing.T) {
 }
 
 func TestPreviewRootWebSocketRequiresAuth(t *testing.T) {
-	s := &Server{auth: newAuthManager("secret")}
+	s := &Server{auth: newAuthManager("secret", "")}
 
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set("Connection", "Upgrade")
@@ -114,9 +114,9 @@ func TestPreviewRootWebSocketRequiresAuth(t *testing.T) {
 }
 
 func TestPreviewRootWebSocketRejectsCrossOrigin(t *testing.T) {
-	s := &Server{auth: newAuthManager("secret")}
+	s := &Server{auth: newAuthManager("secret", "")}
 	token, _ := newSessionToken()
-	s.auth.sessions[token] = session{expires: time.Now().Add(time.Hour), created: time.Now()}
+	s.auth.sessions[token] = session{Expires: time.Now().Add(time.Hour), Created: time.Now()}
 
 	r := httptest.NewRequest("GET", "http://typst.example.com/", nil)
 	r.Header.Set("Connection", "Upgrade")
@@ -132,7 +132,7 @@ func TestPreviewRootWebSocketRejectsCrossOrigin(t *testing.T) {
 }
 
 func TestLoginBodyTooLarge(t *testing.T) {
-	a := newAuthManager("secret")
+	a := newAuthManager("secret", "")
 	h := withBodyLimit(http.HandlerFunc(a.handleLogin))
 
 	body := `{"password":"` + strings.Repeat("x", defaultBodyLimit) + `"}`
@@ -145,7 +145,7 @@ func TestLoginBodyTooLarge(t *testing.T) {
 }
 
 func TestLoginSetsSecureCookieBehindHTTPSProxy(t *testing.T) {
-	a := newAuthManager("secret")
+	a := newAuthManager("secret", "")
 	r := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"password":"secret"}`))
 	r.RemoteAddr = "172.18.0.3:1234"
 	r.Header.Set("X-Forwarded-Proto", "https")
@@ -162,10 +162,10 @@ func TestLoginSetsSecureCookieBehindHTTPSProxy(t *testing.T) {
 }
 
 func TestSessionMaxAge(t *testing.T) {
-	a := newAuthManager("secret")
+	a := newAuthManager("secret", "")
 	a.sessions["old"] = session{
-		expires: time.Now().Add(time.Hour),
-		created: time.Now().Add(-sessionMaxAge - time.Hour),
+		Expires: time.Now().Add(time.Hour),
+		Created: time.Now().Add(-sessionMaxAge - time.Hour),
 	}
 	if a.validSession("old") {
 		t.Fatal("session older than sessionMaxAge still valid")

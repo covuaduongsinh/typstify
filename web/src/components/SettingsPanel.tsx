@@ -134,6 +134,8 @@ export function SettingsPanel() {
         trên trình duyệt này.
       </p>
 
+      <AccountSettingsSection />
+
       <Section<TypstSettings>
         title="Typst & font"
         path="/api/settings/typst"
@@ -364,6 +366,161 @@ function DropboxSettingsSection() {
           )}
         </div>
         {error && <div className="error">{error}</div>}
+      </div>
+    </details>
+  )
+}
+
+function AccountSettingsSection() {
+  const [authStatus, setAuthStatus] = useState<{
+    authRequired: boolean
+    authenticated: boolean
+    username?: string
+    displayName?: string
+  } | null>(null)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadStatus = () => {
+    api
+      .get<{
+        authRequired: boolean
+        authenticated: boolean
+        username?: string
+        displayName?: string
+      }>('/api/auth/status')
+      .then(setAuthStatus)
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    loadStatus()
+  }, [])
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    if (newPassword !== confirmPassword) {
+      setError('Mật khẩu mới và mật khẩu xác nhận không khớp')
+      return
+    }
+
+    if (newPassword.length < 4) {
+      setError('Mật khẩu mới phải có ít nhất 4 ký tự')
+      return
+    }
+
+    setBusy(true)
+    try {
+      await api.post('/api/auth/change-password', {
+        currentPassword,
+        newPassword,
+      })
+      setSaved(true)
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err: any) {
+      setError(err instanceof ApiError ? err.message : 'Không đổi được mật khẩu')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    if (!confirm('Bạn có chắc chắn muốn đăng xuất?')) return
+    try {
+      await api.post('/api/auth/logout', {})
+    } catch {
+    } finally {
+      window.location.reload()
+    }
+  }
+
+  return (
+    <details className="settings-section" open>
+      <summary>
+        <Icon name="chevron-right" size={14} className="settings-caret" />
+        Tài khoản & Bảo mật
+      </summary>
+      <div className="settings-section-body">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>
+              {authStatus?.displayName || authStatus?.username || 'Người dùng'}
+            </div>
+            {authStatus?.username && (
+              <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                Tài khoản: <code>{authStatus.username}</code>
+              </div>
+            )}
+          </div>
+          <button className="btn-secondary btn-sm" onClick={handleLogout} style={{ color: 'var(--error)' }}>
+            Đăng xuất
+          </button>
+        </div>
+
+        <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontWeight: 500, fontSize: 13, marginTop: 4 }}>Đổi mật khẩu:</div>
+          <label className="settings-field">
+            <span>Mật khẩu hiện tại</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              placeholder="Nhập mật khẩu đang dùng"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+            />
+          </label>
+
+          <div className="grid-2col">
+            <label className="settings-field">
+              <span>Mật khẩu mới</span>
+              <input
+                type="password"
+                autoComplete="new-password"
+                placeholder="Tối thiểu 4 ký tự"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+              />
+            </label>
+            <label className="settings-field">
+              <span>Xác nhận mật khẩu mới</span>
+              <input
+                type="password"
+                autoComplete="new-password"
+                placeholder="Nhập lại mật khẩu mới"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </label>
+          </div>
+
+          <div className="settings-actions" style={{ marginTop: 8 }}>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={busy || !currentPassword || !newPassword || !confirmPassword}
+            >
+              {busy ? 'Đang cập nhật…' : 'Cập nhật mật khẩu'}
+            </button>
+            {saved && (
+              <span className="settings-saved">
+                <Icon name="check" size={13} /> Đã đổi mật khẩu thành công
+              </span>
+            )}
+          </div>
+          {error && <div className="error">{error}</div>}
+        </form>
       </div>
     </details>
   )

@@ -343,3 +343,12 @@ npm run build
 docker-compose up -d --build
 ```
 Hệ thống sẽ chạy container backend kèm Caddy reverse proxy sẵn sàng cho môi trường production / VPS Dokploy. Image đã gồm sẵn thư viện `@local/chessbook`, gói `board-n-pieces` và font in; chi tiết cấu hình xem `docs/web-server.md`.
+
+---
+
+## 6. Quản Lý Tài Khoản & Bảo Mật
+
+Typstify Web hỗ trợ quản lý tài khoản độc lập, duy trì phiên đăng nhập và đổi mật khẩu an toàn:
+- **Tạo tài khoản & Đăng nhập**: Hỗ trợ đăng ký tài khoản cá nhân, tự động lưu phiên làm việc tới 30 ngày (không bị mất phiên khi restart container/VPS).
+- **Đổi mật khẩu**: Người dùng có thể đổi mật khẩu bất kỳ lúc nào trong phần **Cài đặt ⚙️ → Tài khoản & Bảo mật**.
+- Xem chi tiết tại: [docs/USER_AUTH_GUIDE.md](file:///D:/code/typstify/docs/USER_AUTH_GUIDE.md).

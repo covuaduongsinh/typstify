@@ -2,12 +2,17 @@ package server
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -21,35 +26,159 @@ const (
 	// failedLoginDelay slows every wrong-password response a little on top
 	// of the per-IP lockout in loginLimiter.
 	failedLoginDelay = 500 * time.Millisecond
+
+	usersFileName    = "auth_users.json"
+	sessionsFileName = "auth_sessions.json"
 )
 
-type session struct {
-	expires time.Time
-	created time.Time
+var validUsernamePattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]{3,32}$`)
+
+type User struct {
+	Username     string    `json:"username"`
+	DisplayName  string    `json:"displayName,omitempty"`
+	PasswordHash string    `json:"passwordHash"`
+	Salt         string    `json:"salt"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
-// authManager gates the server with a single shared password, matching the
-// self-hosted single-user deployment model in docs/plans/plan_web_version.md.
-// When Password is empty, auth is disabled entirely -- only safe for
-// loopback-only/dev use, never when exposed on a network.
+type session struct {
+	Username string    `json:"username"`
+	Expires  time.Time `json:"expires"`
+	Created  time.Time `json:"created"`
+}
+
 type authManager struct {
-	password string
+	password   string
+	storageDir string
 
 	mu       sync.Mutex
+	users    map[string]User
 	sessions map[string]session
 	limiter  *loginLimiter
 }
 
-func newAuthManager(password string) *authManager {
-	return &authManager{
-		password: password,
-		sessions: make(map[string]session),
-		limiter:  newLoginLimiter(),
+func newAuthManager(password string, storageDir string) *authManager {
+	a := &authManager{
+		password:   password,
+		storageDir: storageDir,
+		users:      make(map[string]User),
+		sessions:   make(map[string]session),
+		limiter:    newLoginLimiter(),
 	}
+	a.loadPersistentData()
+	return a
 }
 
 func (a *authManager) enabled() bool {
-	return a.password != ""
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.password != "" || len(a.users) > 0
+}
+
+func (a *authManager) usersCount() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return len(a.users)
+}
+
+func hashPassword(password, salt string) string {
+	h := sha256.New()
+	h.Write([]byte(salt))
+	h.Write([]byte(password))
+	h.Write([]byte("typstify-auth-salt-v1"))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func generateSalt() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
+}
+
+func verifyPassword(password, salt, expectedHash string) bool {
+	computed := hashPassword(password, salt)
+	return subtle.ConstantTimeCompare([]byte(computed), []byte(expectedHash)) == 1
+}
+
+func (a *authManager) loadPersistentData() {
+	if a.storageDir == "" {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	usersPath := filepath.Join(a.storageDir, usersFileName)
+	if data, err := os.ReadFile(usersPath); err == nil {
+		var usersList []User
+		if err := json.Unmarshal(data, &usersList); err == nil {
+			for _, u := range usersList {
+				a.users[strings.ToLower(u.Username)] = u
+			}
+		}
+	}
+
+	sessionsPath := filepath.Join(a.storageDir, sessionsFileName)
+	if data, err := os.ReadFile(sessionsPath); err == nil {
+		var sessMap map[string]session
+		if err := json.Unmarshal(data, &sessMap); err == nil {
+			now := time.Now()
+			for token, sess := range sessMap {
+				if !now.After(sess.Expires) && now.Sub(sess.Created) <= sessionMaxAge {
+					a.sessions[token] = sess
+				}
+			}
+		}
+	}
+}
+
+func (a *authManager) saveUsersLocked() error {
+	if a.storageDir == "" {
+		return nil
+	}
+	if err := os.MkdirAll(a.storageDir, 0700); err != nil {
+		return err
+	}
+
+	usersList := make([]User, 0, len(a.users))
+	for _, u := range a.users {
+		usersList = append(usersList, u)
+	}
+
+	data, err := json.MarshalIndent(usersList, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	target := filepath.Join(a.storageDir, usersFileName)
+	tmp := filepath.Join(a.storageDir, fmt.Sprintf(".%s.%d.tmp", usersFileName, time.Now().UnixNano()))
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, target)
+}
+
+func (a *authManager) saveSessionsLocked() error {
+	if a.storageDir == "" {
+		return nil
+	}
+	if err := os.MkdirAll(a.storageDir, 0700); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(a.sessions, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	target := filepath.Join(a.storageDir, sessionsFileName)
+	tmp := filepath.Join(a.storageDir, fmt.Sprintf(".%s.%d.tmp", sessionsFileName, time.Now().UnixNano()))
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, target)
 }
 
 // require wraps an http.HandlerFunc so it only runs for authenticated
@@ -82,22 +211,48 @@ func (a *authManager) validSession(token string) bool {
 
 	now := time.Now()
 	sess, ok := a.sessions[token]
-	if !ok || now.After(sess.expires) || now.Sub(sess.created) > sessionMaxAge {
-		delete(a.sessions, token)
+	if !ok || now.After(sess.Expires) || now.Sub(sess.Created) > sessionMaxAge {
+		if ok {
+			delete(a.sessions, token)
+			_ = a.saveSessionsLocked()
+		}
 		return false
 	}
 
-	sess.expires = now.Add(sessionTTL) // sliding expiry
+	sess.Expires = now.Add(sessionTTL) // sliding expiry
 	a.sessions[token] = sess
+	_ = a.saveSessionsLocked()
 	return true
+}
+
+func (a *authManager) getSession(r *http.Request) (session, bool) {
+	c, err := r.Cookie(sessionCookieName)
+	if err != nil || c.Value == "" {
+		return session{}, false
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	now := time.Now()
+	sess, ok := a.sessions[c.Value]
+	if !ok || now.After(sess.Expires) || now.Sub(sess.Created) > sessionMaxAge {
+		return session{}, false
+	}
+	return sess, true
 }
 
 // sweepExpired drops expired sessions. Caller holds a.mu.
 func (a *authManager) sweepExpired(now time.Time) {
+	modified := false
 	for token, sess := range a.sessions {
-		if now.After(sess.expires) || now.Sub(sess.created) > sessionMaxAge {
+		if now.After(sess.Expires) || now.Sub(sess.Created) > sessionMaxAge {
 			delete(a.sessions, token)
+			modified = true
 		}
+	}
+	if modified {
+		_ = a.saveSessionsLocked()
 	}
 }
 
@@ -110,12 +265,116 @@ func newSessionToken() (string, error) {
 }
 
 type loginRequest struct {
+	Username string `json:"username,omitempty"`
 	Password string `json:"password"`
+}
+
+type registerRequest struct {
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	DisplayName string `json:"displayName,omitempty"`
+}
+
+type changePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
+func (a *authManager) handleRegister(w http.ResponseWriter, r *http.Request) {
+	ip := clientIP(r)
+	if ok, wait := a.limiter.allowed(ip); !ok {
+		minutes := int(math.Ceil(wait.Minutes()))
+		w.Header().Set("Retry-After", fmt.Sprint(int(math.Ceil(wait.Seconds()))))
+		writeError(w, http.StatusTooManyRequests,
+			fmt.Sprintf("Quá nhiều yêu cầu. Thử lại sau %d phút.", minutes))
+		return
+	}
+
+	var req registerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeBodyError(w, err)
+		return
+	}
+
+	username := strings.ToLower(strings.TrimSpace(req.Username))
+	if !validUsernamePattern.MatchString(username) {
+		writeError(w, http.StatusBadRequest, "Tên tài khoản không hợp lệ (3-32 ký tự, chỉ gồm chữ, số, gạch ngang, chấm)")
+		return
+	}
+
+	if len(req.Password) < 4 {
+		writeError(w, http.StatusBadRequest, "Mật khẩu phải có ít nhất 4 ký tự")
+		return
+	}
+
+	displayName := strings.TrimSpace(req.DisplayName)
+	if displayName == "" {
+		displayName = username
+	}
+
+	a.mu.Lock()
+	if _, exists := a.users[username]; exists {
+		a.mu.Unlock()
+		writeError(w, http.StatusBadRequest, "Tên tài khoản đã tồn tại, vui lòng chọn tên khác")
+		return
+	}
+
+	salt, err := generateSalt()
+	if err != nil {
+		a.mu.Unlock()
+		writeError(w, http.StatusInternalServerError, "Lỗi tạo mã bảo mật")
+		return
+	}
+
+	now := time.Now()
+	user := User{
+		Username:     username,
+		DisplayName:  displayName,
+		PasswordHash: hashPassword(req.Password, salt),
+		Salt:         salt,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	a.users[username] = user
+	_ = a.saveUsersLocked()
+
+	// Automatically log in the newly registered user.
+	token, err := newSessionToken()
+	if err != nil {
+		a.mu.Unlock()
+		writeError(w, http.StatusInternalServerError, "Lỗi tạo phiên đăng nhập")
+		return
+	}
+
+	a.sweepExpired(now)
+	a.sessions[token] = session{
+		Username: username,
+		Expires:  now.Add(sessionTTL),
+		Created:  now,
+	}
+	_ = a.saveSessionsLocked()
+	a.mu.Unlock()
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   isHTTPS(r),
+		MaxAge:   int(sessionTTL.Seconds()),
+	})
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":          true,
+		"username":    username,
+		"displayName": displayName,
+	})
 }
 
 func (a *authManager) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if !a.enabled() {
-		writeJSON(w, http.StatusOK, map[string]bool{"authRequired": false, "ok": true})
+		writeJSON(w, http.StatusOK, map[string]any{"authRequired": false, "ok": true})
 		return
 	}
 
@@ -134,10 +393,44 @@ func (a *authManager) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if subtle.ConstantTimeCompare([]byte(req.Password), []byte(a.password)) != 1 {
+	username := strings.ToLower(strings.TrimSpace(req.Username))
+	var loggedInUser string
+	var displayName string
+	authenticated := false
+
+	a.mu.Lock()
+	if username != "" {
+		if u, ok := a.users[username]; ok {
+			if verifyPassword(req.Password, u.Salt, u.PasswordHash) {
+				authenticated = true
+				loggedInUser = u.Username
+				displayName = u.DisplayName
+			}
+		}
+	} else {
+		// Legacy login or single password check
+		if a.password != "" && subtle.ConstantTimeCompare([]byte(req.Password), []byte(a.password)) == 1 {
+			authenticated = true
+			loggedInUser = "admin"
+			displayName = "Quản trị viên"
+		} else if len(a.users) == 1 {
+			// If only one user exists, allow logging in with just password
+			for _, u := range a.users {
+				if verifyPassword(req.Password, u.Salt, u.PasswordHash) {
+					authenticated = true
+					loggedInUser = u.Username
+					displayName = u.DisplayName
+					break
+				}
+			}
+		}
+	}
+	a.mu.Unlock()
+
+	if !authenticated {
 		a.limiter.recordFailure(ip)
 		time.Sleep(failedLoginDelay)
-		writeError(w, http.StatusUnauthorized, "Mật khẩu không đúng")
+		writeError(w, http.StatusUnauthorized, "Tên đăng nhập hoặc mật khẩu không đúng")
 		return
 	}
 	a.limiter.recordSuccess(ip)
@@ -151,7 +444,12 @@ func (a *authManager) handleLogin(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	a.mu.Lock()
 	a.sweepExpired(now)
-	a.sessions[token] = session{expires: now.Add(sessionTTL), created: now}
+	a.sessions[token] = session{
+		Username: loggedInUser,
+		Expires:  now.Add(sessionTTL),
+		Created:  now,
+	}
+	_ = a.saveSessionsLocked()
 	a.mu.Unlock()
 
 	http.SetCookie(w, &http.Cookie{
@@ -164,13 +462,86 @@ func (a *authManager) handleLogin(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   int(sessionTTL.Seconds()),
 	})
 
-	writeJSON(w, http.StatusOK, map[string]bool{"authRequired": true, "ok": true})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"authRequired": true,
+		"ok":           true,
+		"username":     loggedInUser,
+		"displayName":  displayName,
+	})
+}
+
+func (a *authManager) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	sess, ok := a.getSession(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "Chưa đăng nhập")
+		return
+	}
+
+	var req changePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeBodyError(w, err)
+		return
+	}
+
+	if len(req.NewPassword) < 4 {
+		writeError(w, http.StatusBadRequest, "Mật khẩu mới phải có ít nhất 4 ký tự")
+		return
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	username := sess.Username
+	if u, exists := a.users[username]; exists {
+		if !verifyPassword(req.CurrentPassword, u.Salt, u.PasswordHash) {
+			writeError(w, http.StatusBadRequest, "Mật khẩu hiện tại không đúng")
+			return
+		}
+
+		newSalt, err := generateSalt()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Lỗi tạo mã bảo mật")
+			return
+		}
+		u.Salt = newSalt
+		u.PasswordHash = hashPassword(req.NewPassword, newSalt)
+		u.UpdatedAt = time.Now()
+		a.users[username] = u
+		_ = a.saveUsersLocked()
+	} else {
+		// Legacy admin / server password user
+		if subtle.ConstantTimeCompare([]byte(req.CurrentPassword), []byte(a.password)) != 1 {
+			writeError(w, http.StatusBadRequest, "Mật khẩu hiện tại không đúng")
+			return
+		}
+		a.password = req.NewPassword
+		// Also create a persistent user entry for this admin so it persists on disk
+		newSalt, err := generateSalt()
+		if err == nil {
+			now := time.Now()
+			a.users["admin"] = User{
+				Username:     "admin",
+				DisplayName:  "Quản trị viên",
+				PasswordHash: hashPassword(req.NewPassword, newSalt),
+				Salt:         newSalt,
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			}
+			_ = a.saveUsersLocked()
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"message": "Đổi mật khẩu thành công",
+	})
 }
 
 func (a *authManager) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookieName); err == nil {
 		a.mu.Lock()
 		delete(a.sessions, c.Value)
+		_ = a.saveSessionsLocked()
 		a.mu.Unlock()
 	}
 
@@ -188,8 +559,21 @@ func (a *authManager) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *authManager) handleStatus(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]bool{
+	sess, authenticated := a.getSession(r)
+	var displayName string
+	if authenticated && sess.Username != "" {
+		a.mu.Lock()
+		if u, ok := a.users[sess.Username]; ok {
+			displayName = u.DisplayName
+		}
+		a.mu.Unlock()
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
 		"authRequired":  a.enabled(),
-		"authenticated": !a.enabled() || a.validRequest(r),
+		"authenticated": !a.enabled() || authenticated,
+		"username":      sess.Username,
+		"displayName":   displayName,
+		"hasUsers":      a.usersCount() > 0,
 	})
 }
