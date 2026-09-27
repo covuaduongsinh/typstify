@@ -150,6 +150,98 @@ const TEMPLATES = [
 ]\n`,
   },
   {
+    label: 'Thế cờ giảng dạy',
+    title: 'Bàn cờ minh họa sau phân tích lý thuyết: có tiêu đề, lượt đi và chú thích',
+    code: `#teaching-diagram(
+  "r1bqk2r/pppp1ppp/2n5/4p3/1bB1P3/2NP1N2/PPP2PPP/R1BQK2R b KQkq - 0 5",
+  title: "Ví dụ: Tượng Đen ghim Mã Trắng",
+  turn: "b",
+  size: 16pt,
+  caption: "Tượng đen ở b4 ghim cứng Mã c3 vào Vua e1."
+)\n`,
+  },
+  {
+    label: 'Lý thuyết trái – Bàn cờ phải',
+    title: 'Bố cục 2 cột: Diễn giải lý thuyết bên trái, bàn cờ minh họa bên phải',
+    code: `#grid(
+  columns: (1fr, auto),
+  gutter: 14pt,
+  align: (left + top, center + top),
+  [
+    *Phân tích lý thuyết & Kế hoạch:*
+    - Sau khi Đen chơi \`5... Bb4\`, quân Mã tại c3 bị ghim vào Vua.
+    - *Kế hoạch của Trắng:* Nhập thành \`0-0\` để tháo ghim, hoặc chơi \`a3\` để chất vấn Tượng Đen.
+  ],
+  [
+    #teaching-diagram(
+      "r1bqk2r/pppp1ppp/2n5/4p3/1bB1P3/2NP1N2/PPP2PPP/R1BQK2R b KQkq - 0 5",
+      title: "Thế trận thực chiến",
+      turn: "b",
+      size: 14pt,
+      caption: "Đen tạo sức ép lên c3"
+    )
+  ]
+)\n`,
+  },
+  {
+    label: 'Bàn cờ trái – Lý thuyết phải',
+    title: 'Bố cục 2 cột: Bàn cờ minh họa bên trái, diễn giải lý thuyết bên phải',
+    code: `#grid(
+  columns: (auto, 1fr),
+  gutter: 14pt,
+  align: (center + top, left + top),
+  [
+    #teaching-diagram(
+      "r1bqk2r/pppp1ppp/2n5/4p3/1bB1P3/2NP1N2/PPP2PPP/R1BQK2R b KQkq - 0 5",
+      title: "Thế trận thực chiến",
+      turn: "b",
+      size: 14pt,
+      caption: "Đen tạo sức ép lên c3"
+    )
+  ],
+  [
+    *Phân tích lý thuyết & Kế hoạch:*
+    - Sau khi Đen chơi \`5... Bb4\`, quân Mã tại c3 bị ghim vào Vua.
+    - *Kế hoạch của Trắng:* Nhập thành \`0-0\` để tháo ghim, hoặc chơi \`a3\` để chất vấn Tượng Đen.
+  ]
+)\n`,
+  },
+  {
+    label: 'Khái niệm kèm Bàn cờ',
+    title: 'Khung lý thuyết đóng khung chứa cả diễn giải nguyên lý và bàn cờ minh họa',
+    code: `#concept-box(title: "Nguyên lý Khai thác Quân bị Ghim")[
+  #grid(
+    columns: (1fr, auto),
+    gutter: 12pt,
+    align: (left + horizon, center + horizon),
+    [
+      *Nguyên tắc vàng:* Tăng thêm sức ép tấn công vào quân đang bị ghim!
+      
+      Hãy nhanh chóng huy động thêm Tốt hoặc quân nhẹ để tấn công vào quân bị bất động.
+    ],
+    [
+      #chess-board(
+        "r1bqk2r/pppp1ppp/2n5/4p3/1bB1P3/2NP1N2/PPP2PPP/R1BQK2R b KQkq - 0 5",
+        size: 13pt,
+        numbers: true
+      )
+    ]
+  )
+]\n`,
+  },
+  {
+    label: 'Thế cờ có Mũi tên (Arrows)',
+    title: 'Bàn cờ có mũi tên chỉ hướng tấn công hoặc đòn phối hợp chiến thuật',
+    code: `#teaching-diagram(
+  "r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4",
+  title: "Đòn phối hợp tấn công điểm yếu f7",
+  turn: "w",
+  size: 16pt,
+  arrows: ("c4-f7", "d1-h5"),
+  caption: "Tượng c4 ngắm vào điểm f7, Hậu sẵn sàng tiến vào h5."
+)\n`,
+  },
+  {
     label: 'Hộp trích dẫn danh ngôn',
     title: 'Khung trích dẫn nhận định ván cờ hoặc câu nói nổi tiếng',
     code: `#chess-quote(author: "Garry Kasparov")[

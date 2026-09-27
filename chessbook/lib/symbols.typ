@@ -155,6 +155,23 @@
   none
 }
 
+// Chuẩn hóa định dạng mũi tên (hỗ trợ "c4-f7", "c4->f7", "c4 f7", "c4f7")
+#let normalize-arrows(arrs) = {
+  if type(arrs) != array { return () }
+  arrs.map(a => {
+    if type(a) == str {
+      let clean = a.replace("->", "").replace("-", "").replace(" ", "").trim()
+      if clean.len() == 4 {
+        clean
+      } else {
+        a
+      }
+    } else {
+      a
+    }
+  })
+}
+
 // Bàn cờ in sách. FEN sai hiện khung báo lỗi thay vì làm hỏng cả tài liệu.
 #let chess-board(
   fen-str,
@@ -182,6 +199,7 @@
       ]
     ]
   }
+  let safe-arrows = normalize-arrows(arrows)
   box(stroke: frame, fill: ds-paper, inset: 0pt)[
     #board(
       fen(fen-str),
@@ -190,7 +208,7 @@
       display-numbers: numbers,
       white-square-fill: ds-board-light,
       black-square-fill: dark-fill,
-      arrows: arrows,
+      arrows: safe-arrows,
       marked-squares: marked,
     )
   ]

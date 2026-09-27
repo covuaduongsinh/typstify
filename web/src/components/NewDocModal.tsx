@@ -243,16 +243,110 @@ Nội dung phân tích chi tiết thế trận...
 `,
   },
   {
+    id: 'theory_fen_samples',
+    name: 'Bài Giảng Lý Thuyết & Thế Cờ FEN (Khổ A4)',
+    desc: 'Mẫu giảng giải lý thuyết chuyên sâu: Bàn cờ căn giữa, song song 2 cột (trái/phải), khái niệm kèm bàn cờ và mũi tên chiến thuật',
+    icon: 'layout',
+    content: `${CHESSBOOK_IMPORT}
+
+#set page(
+  paper: "a4",
+  margin: (x: 1.8cm, top: 1.8cm, bottom: 1.8cm),
+  header: context [
+    #grid(
+      columns: (1fr, auto, 1fr),
+      align: (left + horizon, center + horizon, right + horizon),
+      [#text(8pt, weight: "bold", fill: rgb("#2b6cb0"))[CLB CỜ VUA - GIÁO TRÌNH HUẤN LUYỆN]],
+      [#text(7.5pt, fill: rgb("#a0aec0"))[| BÀI GIẢNG |]],
+      [#text(8pt, weight: "bold", fill: rgb("#2d3748"))[Trang #counter(page).display()]]
+    )
+    #v(2pt)
+    #line(length: 100%, stroke: 0.5pt + rgb("#cbd5e0"))
+  ]
+)
+
+#set text(font: font-sans, size: 9pt, lang: "vi")
+#set par(justify: true, leading: 0.55em)
+
+#lesson-header(
+  lesson-num: 1,
+  title: "ĐÒN GHIM QUÂN TRONG CHIẾN THUẬT CỜ VUA",
+  level: "Trình độ: Cơ bản & Nâng cao",
+  duration: "Thời lượng: 60 phút",
+  objective: "Học viên hiểu rõ khái niệm đòn ghim, phân biệt ghim tuyệt đối và ghim tương đối, nhận biết cơ hội trong thực chiến."
+)
+
+#v(8pt)
+
+// MẪU 1: BÀN CỜ CĂN GIỮA
+#concept-box(title: "1. Khái niệm Đòn Ghim Tuyệt đối")[
+  Đòn ghim tuyệt đối xảy ra khi một quân cờ đứng chắn giữa quân tấn công của đối phương và quân *Vua*. Quân bị ghim tuyệt đối không được phép di chuyển theo luật.
+]
+
+#v(6pt)
+
+#teaching-diagram(
+  "r1bqk2r/pppp1ppp/2n5/4p3/1bB1P3/2NP1N2/PPP2PPP/R1BQK2R b KQkq - 0 5",
+  title: "Ví dụ 1: Tượng Đen ghim Mã Trắng vào Vua",
+  turn: "b",
+  size: 16pt,
+  caption: "Tượng đen ở b4 ghim cứng Mã c3 vào Vua e1."
+)
+
+#v(10pt)
+
+// MẪU 2: SONG SONG 2 CỘT (LÝ THUYẾT TRÁI - BÀN CỜ PHẢI)
+#text(9.5pt, weight: "bold", fill: rgb("#2b6cb0"))[2. Kế hoạch Khai thác Quân bị Ghim]
+#v(4pt)
+
+#grid(
+  columns: (1fr, auto),
+  gutter: 14pt,
+  align: (left + top, center + top),
+  [
+    *Nguyên tắc Đại Kiện Tướng:*
+    - Gia tăng áp lực tấn công trực tiếp vào chính quân đang bị ghim!
+    - *Kế hoạch của Trắng:* Nhập thành \`0-0\` để thoát ghim, hoặc chơi \`a3\` để chất vấn Tượng Đen.
+    - *Lưu ý:* Tuyệt đối không di chuyển Hậu khi Vua chưa an toàn.
+  ],
+  [
+    #teaching-diagram(
+      "r1bqk2r/pppp1ppp/2n5/4p3/1bB1P3/2NP1N2/PPP2PPP/R1BQK2R b KQkq - 0 5",
+      title: "Thế trận thực chiến",
+      turn: "b",
+      size: 13.5pt,
+      caption: "Đen tạo sức ép lên c3"
+    )
+  ]
+)
+
+#v(10pt)
+
+// MẪU 3: BÀN CỜ CÓ MŨI TÊN CHIẾN THUẬT
+#text(9.5pt, weight: "bold", fill: rgb("#2b6cb0"))[3. Đòn Phối hợp Tấn công]
+#v(4pt)
+
+#teaching-diagram(
+  "r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4",
+  title: "Tấn công điểm yếu f7",
+  turn: "w",
+  size: 15pt,
+  arrows: ("c4-f7", "d1-h5"),
+  caption: "Tượng c4 ngắm f7, Hậu d1 sẵn sàng tiến công h5."
+)
+\`,
+  },
+  {
     id: 'blank',
     name: 'Tài Liệu Typst Tối Giản',
     desc: 'Tài liệu trắng chỉ kèm khai báo thư viện cờ vua',
     icon: 'file-text',
-    content: `${CHESSBOOK_IMPORT}
+    content: \`\${CHESSBOOK_IMPORT}
 
 = Tiêu đề tài liệu
 
 Bắt đầu viết nội dung của bạn tại đây...
-`,
+\`,
   },
 ]
 
