@@ -28,8 +28,12 @@ export class AgentClient {
   private lastErrorMessage: string | undefined
   sessionId: string | null = null
 
-  constructor() {
-    this.ws = new WebSocket(wsUrl('/ws/agent'))
+  /** loadSessionId: reattach to a past session (server/agent_ws.go) instead
+   * of starting a new one -- the full prior conversation replays back as the
+   * usual session/update messages (userMessage/agentMessage/toolCall/...). */
+  constructor(loadSessionId?: string) {
+    const url = loadSessionId ? `/ws/agent?sessionId=${encodeURIComponent(loadSessionId)}` : '/ws/agent'
+    this.ws = new WebSocket(wsUrl(url))
     this.ws.addEventListener('message', (ev) => {
       let msg: AgentServerMessage
       try {

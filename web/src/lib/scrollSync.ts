@@ -237,6 +237,49 @@ export function cursorLineToPageRatio(
 }
 
 /**
+ * Inverse of cursorLineToPageRatio's positioning convention: given the
+ * preview's current scrollTop, returns a normalized [0,1] ratio for where in
+ * the document that scroll position sits. Anchors at `scrollTop +
+ * containerHeight * 0.25`, matching the same offset calculateScrollTarget
+ * subtracts when scrolling *to* a ratio, so a scroll round-trip (editor line
+ * -> preview scroll -> back to editor line) settles instead of drifting.
+ */
+export function scrollTopToPageRatio(scrollTop: number, pages: PageLayoutInfo[], containerHeight: number): number {
+  if (pages.length === 0) return 0
+  const anchorY = scrollTop + containerHeight * 0.25
+
+  let pageIdx = 0
+  for (let i = 0; i < pages.length; i++) {
+    if (anchorY >= pages[i].top) pageIdx = i
+    else break
+  }
+
+  const page = pages[pageIdx]
+  const inPageRatio = page.height > 0 ? Math.max(0, Math.min(1, (anchorY - page.top) / page.height)) : 0
+  return (pageIdx + inPageRatio) / pages.length
+}
+
+/**
+ * Inverse of cursorLineToPageRatio: maps a normalized [0,1] page ratio back
+ * to a 1-based source line, using the same page->line map.
+ */
+export function pageRatioToLine(ratio: number, pageLineMap: number[], totalLines: number): number {
+  if (pageLineMap.length === 0) return 1
+  const pageCount = pageLineMap.length
+  const boundedRatio = Math.max(0, Math.min(1, ratio))
+  const scaled = boundedRatio * pageCount
+  const pageIdx = Math.min(pageCount - 1, Math.floor(scaled))
+  const inPageRatio = scaled - pageIdx
+
+  const pageStartLine = pageLineMap[pageIdx]
+  const pageEndLine = pageIdx + 1 < pageCount ? pageLineMap[pageIdx + 1] : totalLines
+  const linesInPage = Math.max(1, pageEndLine - pageStartLine)
+  const line0 = pageStartLine + inPageRatio * linesInPage
+
+  return Math.max(1, Math.min(totalLines, Math.round(line0) + 1))
+}
+
+/**
  * Calculates the target scrollTop within a preview container for multi-page layouts.
  * Aligns the view so the active section is positioned naturally in the upper-middle view.
  */

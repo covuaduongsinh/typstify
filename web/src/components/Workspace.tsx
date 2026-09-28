@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import type { TreeEntry } from '../api/types'
 import { useTranslations } from '../lib/i18n'
 import { useTheme } from '../lib/theme'
+import { effectiveKey, matchesCombo, SHORTCUT_ACTIONS, useShortcuts } from '../lib/shortcuts'
 import { CHESSBOOK_IMPORT } from '../lib/typst'
 import { BrandMark } from './BrandMark'
 import { ChessToolbar } from './ChessToolbar'
@@ -12,6 +13,7 @@ import { FileTree } from './FileTree'
 import { Icon, type IconName } from './Icon'
 import { Modal } from './Modal'
 import { NewDocModal } from './NewDocModal'
+import { OutlinePanel } from './OutlinePanel'
 import { PreviewPane } from './PreviewPane'
 import { Resizer } from './Resizer'
 import { StatusBar, type DiagnosticCounts } from './StatusBar'
@@ -38,7 +40,7 @@ function PanelLoading() {
 
 const I18N_KEYS = ['AI Assistant', 'Settings', 'Export']
 
-type SidePanel = 'agent' | 'packages' | 'settings' | null
+type SidePanel = 'agent' | 'outline' | 'packages' | 'settings' | null
 
 const FILETREE_DEFAULT = 230
 const FILETREE_MIN = 160
@@ -80,6 +82,16 @@ const NEW_DOC_TEMPLATE = `${CHESSBOOK_IMPORT}
 = Tiêu đề chương
 
 Nội dung bài viết…
+`
+
+// Inserted by the "Chèn nhanh khung bàn cờ" shortcut (lib/shortcuts.ts) --
+// a starting-position placeholder the user edits the FEN/caption of,
+// sparing a trip through the full visual board editor for a quick diagram.
+const QUICK_BOARD_INSERT = `#teaching-diagram(
+  "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  title: "",
+  turn: "w",
+)
 `
 
 export function Workspace({ projectPath, onCloseProject }: { projectPath: string; onCloseProject: () => void }) {
@@ -167,6 +179,48 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const editorRef = useRef<EditorHandle>(null)
   const t = useTranslations(I18N_KEYS)
   const [theme, toggleTheme] = useTheme()
+  const { overrides: shortcuts } = useShortcuts()
+
+  // Global keyboard-shortcut dispatcher (lib/shortcuts.ts) -- works
+  // regardless of which element has focus, unlike binding these inside
+  // CodeMirror's own keymap (which only fires with the editor focused).
+  // Save used to be a CodeMirror-only Mod-s keymap; it moved here so the
+  // same user-configurable key works everywhere and fires exactly once.
+  useEffect(() => {
+    const isTypDoc = !!activePath?.endsWith('.typ')
+    const onKeyDown = (e: KeyboardEvent) => {
+      for (const action of SHORTCUT_ACTIONS) {
+        if (!matchesCombo(e, effectiveKey(action, shortcuts))) continue
+        // openBoard/openPgn/insertBoard all end with "insert this into the
+        // open document" -- same guard ChessToolbar's own buttons use
+        // (only rendered for an open .typ file), so the shortcut can't open
+        // a dead-end modal with nowhere to put its result.
+        if (action.id !== 'save' && !isTypDoc) return
+        e.preventDefault()
+        switch (action.id) {
+          case 'save':
+            void editorRef.current?.save()
+            break
+          case 'openBoard':
+            openBoard()
+            break
+          case 'openPgn':
+            openPgn()
+            break
+          case 'insertBoard':
+            editorRef.current?.insertChessSnippet(QUICK_BOARD_INSERT)
+            break
+        }
+        return
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+    // openBoard/openPgn are plain setState wrappers redefined each render
+    // (not state themselves) -- re-binding on every render to chase them
+    // would be pointless churn, so they're deliberately left out of deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shortcuts, activePath])
 
   useEffect(() => savePref('typstify_show_filetree', String(showFileTree)), [showFileTree])
   useEffect(() => savePref('typstify_filetree_width', String(fileTreeWidth)), [fileTreeWidth])
@@ -313,6 +367,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
 
   const panelToggles: Array<{ id: Exclude<SidePanel, null>; icon: IconName; label: string }> = [
     { id: 'agent', icon: 'sparkles', label: t('AI Assistant') },
+    { id: 'outline', icon: 'outline', label: 'Dàn ý' },
     { id: 'packages', icon: 'package', label: 'Gói Typst' },
     { id: 'settings', icon: 'sliders', label: t('Settings') },
   ]
@@ -578,6 +633,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 content={content}
                 liveContent={liveContent}
                 cursor={cursor}
+                onScrollToLine={(line) => editorRef.current?.scrollToLine(line)}
               />
             </section>
           )}
@@ -601,6 +657,13 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
           <aside className="workspace-side-panel" style={{ width: sidePanelWidth }}>
             <Suspense fallback={<PanelLoading />}>
               {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
+              {sidePanel === 'outline' && (
+                <OutlinePanel
+                  path={activePath?.endsWith('.typ') ? activePath : null}
+                  fetchOutline={() => editorRef.current?.getOutline() ?? Promise.resolve([])}
+                  onSelect={(line, character) => editorRef.current?.goToPosition(line, character)}
+                />
+              )}
               {sidePanel === 'packages' && <PackageManager />}
               {sidePanel === 'settings' && <SettingsPanel />}
             </Suspense>

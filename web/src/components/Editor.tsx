@@ -1,12 +1,14 @@
-import { autocompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
+import { autocompletion, snippetCompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
 import { linter, lintGutter, setDiagnostics, type Diagnostic as CmDiagnostic } from '@codemirror/lint'
 import { EditorState, type Extension, type Text } from '@codemirror/state'
-import { EditorView, hoverTooltip, keymap } from '@codemirror/view'
+import { EditorView, hoverTooltip } from '@codemirror/view'
 import { basicSetup } from 'codemirror'
 import { typst_lezer } from 'codemirror-lang-typst/lezer'
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import ReactMarkdown from 'react-markdown'
 import { typstifyTheme } from '../lib/editorTheme'
-import { LspClient, type LspDiagnostic } from '../lib/lspClient'
+import { LspClient, type LspDiagnostic, type LspDocumentSymbol } from '../lib/lspClient'
 import {
   applyGlobalColumns,
   applyGlobalFontSize,
@@ -17,10 +19,10 @@ import {
   repairChessImports,
 } from '../lib/typst'
 
-// Exposes an imperative save() so a toolbar button can trigger the same
-// save path as the editor's own Ctrl+S keymap -- the shortcut alone isn't
-// discoverable (observed: a user who pasted content in couldn't find any
-// way to save it).
+// Exposes an imperative save() so a toolbar button (and the global
+// keyboard-shortcut dispatcher, see lib/shortcuts.ts) can trigger the same
+// save path -- a shortcut alone isn't discoverable (observed: a user who
+// pasted content in couldn't find any way to save it).
 export interface EditorHandle {
   /** Saves the document; resolves true once the server confirmed it. */
   save: () => Promise<boolean>
@@ -40,6 +42,15 @@ export interface EditorHandle {
   adjustGlobalFontSize: (delta: number) => void
   /** Gets active document formatting settings */
   getGlobalSettings: () => { fontSize: number; columns: 1 | 2 }
+  /** Fetches the document outline (LSP textDocument/documentSymbol). */
+  getOutline: () => Promise<LspDocumentSymbol[]>
+  /** Moves the caret to a 0-based line/character, scrolling it into view. */
+  goToPosition: (line: number, character: number) => void
+  /** Scrolls a 1-based line into view WITHOUT moving the caret or stealing
+   * focus -- used by preview->editor scroll sync, which must not fight the
+   * editor->preview direction (that one is driven by caret/selection
+   * changes; this one deliberately avoids touching either). */
+  scrollToLine: (line: number) => void
 }
 
 interface EditorProps {
@@ -56,6 +67,15 @@ interface EditorProps {
   onDocChange?: (content: string) => void
   /** Error/warning counts of the latest LSP diagnostics for this file. */
   onDiagnosticsChange?: (counts: { errors: number; warnings: number }) => void
+}
+
+// LSP snippets allow bare $1/$0 tabstops (e.g. "${1:name}(${2:args})$0");
+// CM6's snippet() only recognizes the braced ${1}/${1:default} form (or
+// #{...}), so normalize bare tabstops to braced ones. `${1:x}` is already
+// braced -- the digit there follows "{", not "$", so this regex (which only
+// matches a digit run directly after "$") leaves it untouched.
+function lspSnippetToCm6(template: string): string {
+  return template.replace(/\$(\d+)/g, (_, n: string) => `\${${n}}`)
 }
 
 function posFromLineChar(doc: Text, line: number, character: number): number {
@@ -91,6 +111,47 @@ function toCmDiagnostics(doc: Text, diags: LspDiagnostic[]): CmDiagnostic[] {
     .filter((d): d is CmDiagnostic => d !== null)
 }
 
+// tinymist hover content links a local resource (e.g. an image the doc
+// references) as `command:tinymist.open{Internal,External}?["file:///..."]`.
+// A browser can't open an arbitrary local path, so this just extracts a
+// readable path to show instead of a dead link (mirrors the extraction in
+// editor/hovertips.go's parseLink, minus the desktop-only "open it" part).
+function extractTinymistLocalPath(href: string): string {
+  const qIdx = href.indexOf('?')
+  if (qIdx === -1) return href
+  let raw = href.slice(qIdx + 1)
+  try {
+    raw = decodeURIComponent(raw)
+  } catch {
+    // leave raw as-is
+  }
+  raw = raw.replace(/^\[|\]$/g, '').replace(/^"|"$/g, '')
+  raw = raw.replace(/^file:\/\//, '')
+  return raw
+}
+
+function HoverLink({ href, children }: { href?: string; children?: React.ReactNode }) {
+  if (!href) return <>{children}</>
+  if (href.startsWith('http://') || href.startsWith('https://')) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    )
+  }
+  if (href.startsWith('command:tinymist.open')) {
+    const path = extractTinymistLocalPath(href)
+    return (
+      <span className="cm-typstify-hover-localpath" title={path}>
+        {children}
+      </span>
+    )
+  }
+  return <>{children}</>
+}
+
+const HOVER_MARKDOWN_COMPONENTS = { a: HoverLink }
+
 /** Editor is a CodeMirror 6 wrapper providing Typst syntax highlighting
  * (via codemirror-lang-typst's WASM-free Lezer grammar) plus live
  * completion/hover/diagnostics sourced from the tinymist LSP over
@@ -107,8 +168,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   // Flushes any pending debounced didChange synchronously so the LSP's
   // document cache (which didSave relies on) has the latest content, and so
   // the debounce timer doesn't fire afterwards and re-mark the file dirty
-  // right after this just cleared it. Shared by the Ctrl+S keymap below and
-  // the imperative handle a toolbar Save button drives.
+  // right after this just cleared it. Exposed via the imperative handle,
+  // driven by both a toolbar Save button and the global Ctrl+S shortcut
+  // (Workspace.tsx / lib/shortcuts.ts).
   //
   // The file only counts as saved once onSave resolves: a failed PUT keeps
   // it dirty and is reported through onSaveError instead of the UI claiming
@@ -249,6 +311,24 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         columns: detectDocumentColumns(doc),
       }
     },
+    getOutline: () => {
+      const lsp = lspRef.current
+      if (!lsp) return Promise.resolve([])
+      return lsp.documentSymbols(path)
+    },
+    goToPosition: (line: number, character: number) => {
+      const view = viewRef.current
+      if (!view) return
+      const pos = posFromLineChar(view.state.doc, line, character)
+      view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) })
+      view.focus()
+    },
+    scrollToLine: (line: number) => {
+      const view = viewRef.current
+      if (!view) return
+      const pos = posFromLineChar(view.state.doc, Math.max(0, line - 1), 0)
+      view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'center' }) })
+    },
   }))
 
   useEffect(() => {
@@ -271,11 +351,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         const items = await lsp.complete(path, line, character)
         return {
           from: word ? word.from : context.pos,
-          options: items.map((item) => ({
-            label: item.label,
-            detail: item.detail,
-            apply: item.insertText ?? item.label,
-          })),
+          options: items.map((item) =>
+            item.insertTextFormat === 2 && item.insertText
+              ? snippetCompletion(lspSnippetToCm6(item.insertText), { label: item.label, detail: item.detail })
+              : { label: item.label, detail: item.detail, apply: item.insertText ?? item.label },
+          ),
         }
       } catch {
         return null
@@ -295,9 +375,20 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         pos,
         create: () => {
           const dom = document.createElement('div')
-          dom.className = 'cm-typstify-hover'
-          dom.textContent = contents
-          return { dom }
+          dom.className = 'cm-typstify-hover chat-text-markdown'
+          let root: Root | null = createRoot(dom)
+          root.render(<ReactMarkdown components={HOVER_MARKDOWN_COMPONENTS}>{contents}</ReactMarkdown>)
+          return {
+            dom,
+            destroy: () => {
+              // Deferred: CodeMirror may call destroy() synchronously while
+              // still inside React's render/commit phase for this same
+              // tree, and unmounting a root mid-render throws.
+              const r = root
+              root = null
+              if (r) setTimeout(() => r.unmount(), 0)
+            },
+          }
         },
       }
     })
@@ -316,16 +407,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       hover,
       linter(() => []), // registers the lint state field; diagnostics are pushed via setDiagnostics below
       lintGutter(),
-      keymap.of([
-        {
-          key: 'Mod-s',
-          preventDefault: true,
-          run: () => {
-            void saveRef.current()
-            return true
-          },
-        },
-      ]),
+      // Save is bound globally (Workspace.tsx's shortcut dispatcher, see
+      // lib/shortcuts.ts) instead of here, so it works with the same
+      // user-configurable key regardless of whether the editor has focus,
+      // and so it fires exactly once instead of twice (a window-level
+      // listener still sees a keydown CodeMirror's own keymap already
+      // handled -- preventDefault() doesn't stop propagation).
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           const docStr = update.state.doc.toString()

@@ -89,6 +89,13 @@ export interface ImageAttachment {
   mimeType: string
 }
 
+// Mirrors server/agent_api.go's acpSessionSummary (GET /api/agent/sessions).
+export interface AcpSessionSummary {
+  sessionId: string
+  title: string
+  updatedAt?: string // RFC3339, absent if the agent didn't report one
+}
+
 export function contentBlockText(block: ContentBlock | undefined): string {
   if (!block) return ''
   if (block.type === 'text') return block.text ?? ''

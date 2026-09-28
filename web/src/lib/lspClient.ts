@@ -37,6 +37,18 @@ export interface CompletionItem {
   kind?: number
   detail?: string
   insertText?: string
+  // LSP InsertTextFormat: 1 = PlainText, 2 = Snippet (e.g. "${1:name}(${2:args})$0").
+  insertTextFormat?: number
+}
+
+// Mirrors lsp/protocol.DocumentSymbol (standard LSP textDocument/documentSymbol shape).
+export interface LspDocumentSymbol {
+  name: string
+  detail?: string
+  kind: number
+  range: { start: { line: number; character: number }; end: { line: number; character: number } }
+  selectionRange: { start: { line: number; character: number }; end: { line: number; character: number } }
+  children?: LspDocumentSymbol[]
 }
 
 type DiagnosticsListener = (path: string, diagnostics: LspDiagnostic[]) => void
@@ -199,6 +211,11 @@ export class LspClient {
   async hover(path: string, line: number, character: number): Promise<string | null> {
     const res = await this.request<IncomingMessage>({ type: 'hover', path, line, character })
     return res.hover?.contents ?? null
+  }
+
+  async documentSymbols(path: string): Promise<LspDocumentSymbol[]> {
+    const res = await this.request<IncomingMessage>({ type: 'documentSymbols', path })
+    return (res.symbols as LspDocumentSymbol[] | null | undefined) ?? []
   }
 
   close() {

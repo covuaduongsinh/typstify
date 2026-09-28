@@ -11,6 +11,7 @@ import {
   type SessionConfigOption,
   type ToolCall,
 } from '../lib/acpTypes'
+import { AgentSessionHistory } from './AgentSessionHistory'
 import { AuthCard } from './AuthCard'
 import { Icon } from './Icon'
 import { QuickActions } from './QuickActions'
@@ -67,11 +68,20 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
   const [pendingImages, setPendingImages] = useState<ImageAttachment[]>([])
   const [retryToken, setRetryToken] = useState(0)
   const [hasDisconnectedOnce, setHasDisconnectedOnce] = useState(false)
+  const [sessionToLoad, setSessionToLoad] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
   const clientRef = useRef<AgentClient | null>(null)
   const streamingAgentId = useRef<string | null>(null)
   const streamingThoughtId = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const prevProjectPathRef = useRef<string | null>(null)
+  const prevSessionRef = useRef<string | null>(null)
+  // True while replaying a loaded session's prior turns: userMessage events
+  // in that window are historical and must render. Once the user sends a
+  // live prompt (see sendPrompt), this flips off -- from then on
+  // userMessage is once again just an agent echo of what the client already
+  // rendered optimistically (see the 'userMessage' case below).
+  const isReplayingRef = useRef(false)
 
   const append = (entry: ChatEntry) => setEntries((prev) => [...prev, entry])
 
@@ -93,17 +103,20 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
   }
 
   useEffect(() => {
-    // Only wipe the transcript when the open project actually changed --
-    // not when this effect re-ran because the user clicked "Retry
-    // connection" (retryToken), so a manual retry keeps the conversation
-    // visible instead of silently discarding it.
-    if (prevProjectPathRef.current !== projectPath) {
+    // Wipe the transcript when the open project changed, or when switching
+    // to a different session (a freshly picked history item, or back to
+    // null for "new conversation") -- but not when this effect re-ran only
+    // because the user clicked "Retry connection" (retryToken), so a manual
+    // retry keeps the current conversation visible instead of discarding it.
+    if (prevProjectPathRef.current !== projectPath || prevSessionRef.current !== sessionToLoad) {
       setEntries([])
       setHasDisconnectedOnce(false)
       prevProjectPathRef.current = projectPath
+      prevSessionRef.current = sessionToLoad
     }
+    isReplayingRef.current = !!sessionToLoad
     setWaiting(false)
-    const client = new AgentClient()
+    const client = new AgentClient(sessionToLoad ?? undefined)
     clientRef.current = client
 
     const unsubscribe = client.on((msg) => {
@@ -120,10 +133,16 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
           break
         case 'userMessage':
           // Most agents don't echo the user's own prompt back (observed:
-          // Antigravity never sends this, Claude Code does) -- the client
-          // already renders its own copy optimistically in submit()/
-          // sendPrompt() below, so this is just a streaming-state reset,
-          // never a second render of the same text.
+          // Antigravity never sends this, Claude Code does) -- for a live
+          // prompt the client already rendered its own copy optimistically
+          // in sendPrompt() below, so this is normally just a
+          // streaming-state reset, never a second render of the same text.
+          // While replaying a loaded session (isReplayingRef), though, these
+          // *are* the only copy of the user's past turns -- there was no
+          // optimistic render for them -- so render each one.
+          if (isReplayingRef.current) {
+            append({ kind: 'user', id: `e${nextEntryId++}`, text: contentBlockText((msg.data as MessageChunk).content) })
+          }
           streamingAgentId.current = null
           streamingThoughtId.current = null
           break
@@ -201,7 +220,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
       client.close()
       setConnected(false)
     }
-  }, [projectPath, retryToken])
+  }, [projectPath, retryToken, sessionToLoad])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -228,6 +247,7 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
   const sendPrompt = (text: string, images: ImageAttachment[] = []) => {
     const trimmed = text.trim()
     if ((!trimmed && images.length === 0) || !clientRef.current) return
+    isReplayingRef.current = false
     append({
       kind: 'user',
       id: `e${nextEntryId++}`,
@@ -315,12 +335,45 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
         <span className="agent-chat-status-text">
           {connected ? 'Trợ lý AI đã sẵn sàng' : hasDisconnectedOnce ? 'Mất kết nối' : 'Đang kết nối trợ lý AI…'}
         </span>
+        {sessionToLoad && (
+          <button
+            className="btn-ghost preview-tool-btn"
+            title="Bắt đầu cuộc trò chuyện mới"
+            onClick={() => {
+              setSessionToLoad(null)
+              setShowHistory(false)
+            }}
+          >
+            <Icon name="sparkles" size={13} />
+            <span className="preview-tool-label">Mới</span>
+          </button>
+        )}
+        <button
+          className={`btn-ghost preview-tool-btn${showHistory ? ' active' : ''}`}
+          title="Xem lại các cuộc trò chuyện trước"
+          aria-pressed={showHistory}
+          onClick={() => setShowHistory((v) => !v)}
+        >
+          <Icon name="outline" size={13} />
+          <span className="preview-tool-label">Lịch sử</span>
+        </button>
         {!connected && hasDisconnectedOnce && (
           <button className="chat-retry-btn btn-primary" onClick={() => setRetryToken((n) => n + 1)}>
             <Icon name="refresh" size={12} /> Kết nối lại
           </button>
         )}
       </div>
+
+      {showHistory ? (
+        <AgentSessionHistory
+          onSelect={(id) => {
+            setSessionToLoad(id)
+            setShowHistory(false)
+          }}
+          onClose={() => setShowHistory(false)}
+        />
+      ) : (
+        <>
       <div className="agent-chat-log" ref={scrollRef} role="log" aria-live="polite">
         {entries.length === 0 && (
           <div className="chat-empty">
@@ -447,6 +500,8 @@ export function AgentChat({ projectPath }: { projectPath: string }) {
           </button>
         </div>
       </div>
+        </>
+      )}
     </div>
   )
 }

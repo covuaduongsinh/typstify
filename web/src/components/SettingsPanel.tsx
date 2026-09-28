@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ApiError, api } from '../api/client'
-import type { AgentSettings, GeneralSettings, LspSettings, TypstSettings } from '../api/types'
+import type { AgentSettings, FontFileInfo, GeneralSettings, LspSettings, TypstSettings } from '../api/types'
+import { describeCombo, effectiveKey, keyComboFromEvent, SHORTCUT_ACTIONS, useShortcuts } from '../lib/shortcuts'
 import { AgentRegistryPicker } from './AgentRegistryPicker'
 import { Icon } from './Icon'
 
@@ -147,6 +148,10 @@ export function SettingsPanel() {
         ]}
       />
 
+      <FontsSection />
+
+      <ShortcutsSection />
+
       <details className="settings-section" open>
         <summary>
           <Icon name="chevron-right" size={14} className="settings-caret" />
@@ -183,8 +188,306 @@ export function SettingsPanel() {
 
       <DropboxSettingsSection />
 
-      <Section<LspSettings> title="Nâng cao: LSP" path="/api/settings/lsp" fields={[]} description="Chưa có tùy chọn nào cho bản web." />
+      <LspSettingsSection />
     </div>
+  )
+}
+
+// LspSettings mixes int-as-bool (EnableLSPLogs/EnablePowerSaving, kept as 0/1
+// for compatibility with the desktop app's Gio widget.Bool save path) and a
+// real bool (EnablePartialRenderPreview) -- the generic string-keyed
+// Section<T> above can't express either without corrupting the PUT payload
+// (server/settings_api.go decodes strictly into the typed Go struct), so
+// this section is hand-written instead.
+function LspSettingsSection() {
+  const [value, setValue] = useState<LspSettings | null>(null)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    api
+      .get<LspSettings>('/api/settings/lsp')
+      .then(setValue)
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Không tải được cài đặt'))
+  }, [])
+
+  const save = async () => {
+    if (!value) return
+    setError(null)
+    setBusy(true)
+    try {
+      const updated = await api.putJson<LspSettings>('/api/settings/lsp', value)
+      setValue(updated)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1500)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Không lưu được cài đặt')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <details className="settings-section">
+      <summary>
+        <Icon name="chevron-right" size={14} className="settings-caret" />
+        Nâng cao: LSP
+      </summary>
+      <div className="settings-section-body">
+        {!value && !error && <p className="settings-hint">Đang tải…</p>}
+        {value && (
+          <>
+            <div className="checkbox-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={value.enablePowerSaving !== 0}
+                  onChange={(e) => setValue({ ...value, enablePowerSaving: e.target.checked ? 1 : 0 })}
+                />
+                <span>Chế độ tiết kiệm tài nguyên</span>
+              </label>
+              <small className="settings-hint">
+                Khi bật, LSP chỉ kiểm tra cú pháp và gợi ý cơ bản; chẩn đoán lỗi và xem trước ở chế độ "Đồng bộ chính
+                xác" sẽ không hoạt động. Cần mở lại tệp để áp dụng.
+              </small>
+            </div>
+
+            <div className="checkbox-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2, marginTop: 10 }}>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={value.enablePartialRenderPreview}
+                  onChange={(e) => setValue({ ...value, enablePartialRenderPreview: e.target.checked })}
+                />
+                <span>Xem trước từng phần (chế độ "Đồng bộ chính xác")</span>
+              </label>
+              <small className="settings-hint">
+                Chỉ dựng các trang trong khung nhìn thay vì toàn bộ tài liệu — cải thiện tốc độ với tài liệu dài.
+              </small>
+            </div>
+
+            <div className="checkbox-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2, marginTop: 10 }}>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={value.enableLspLogs !== 0}
+                  onChange={(e) => setValue({ ...value, enableLspLogs: e.target.checked ? 1 : 0 })}
+                />
+                <span>Ghi log gỡ lỗi LSP</span>
+              </label>
+              <small className="settings-hint">
+                Ghi log chi tiết của LSP (tinymist) ra log máy chủ — hữu ích khi cần báo lỗi. Cần khởi động lại máy
+                chủ để áp dụng.
+              </small>
+            </div>
+
+            <div className="settings-actions" style={{ marginTop: 12 }}>
+              <button className="btn-primary" onClick={save} disabled={busy}>
+                {busy ? 'Đang lưu…' : 'Lưu'}
+              </button>
+              {saved && (
+                <span className="settings-saved">
+                  <Icon name="check" size={13} /> Đã lưu
+                </span>
+              )}
+            </div>
+          </>
+        )}
+        {error && <div className="error">{error}</div>}
+      </div>
+    </details>
+  )
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// FontsSection uploads/lists/deletes font files (server/fonts_api.go),
+// which land in whatever directory the "Thư mục font bổ sung" field above
+// already points to (or a managed default the server creates the first
+// time you upload one) -- so this is a drag-and-drop-free alternative to
+// manually copying files into that folder, not a separate mechanism.
+function FontsSection() {
+  const [fonts, setFonts] = useState<FontFileInfo[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const load = () => {
+    api
+      .get<FontFileInfo[]>('/api/settings/fonts')
+      .then(setFonts)
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Không tải được danh sách font'))
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  const upload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    setError(null)
+    setUploading(true)
+    try {
+      for (const file of Array.from(files)) {
+        await api.postBinary(`/api/settings/fonts?filename=${encodeURIComponent(file.name)}`, file)
+      }
+      load()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Tải lên font thất bại')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const remove = async (name: string) => {
+    setError(null)
+    try {
+      await api.del(`/api/settings/fonts/${encodeURIComponent(name)}`)
+      load()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Xóa font thất bại')
+    }
+  }
+
+  return (
+    <details className="settings-section">
+      <summary>
+        <Icon name="chevron-right" size={14} className="settings-caret" />
+        Font đã tải lên
+      </summary>
+      <div className="settings-section-body">
+        <p className="settings-hint">
+          Tải lên font .ttf/.otf/.ttc (ví dụ font tiếng Việt hoặc ký hiệu quân cờ). Mở lại tài liệu hoặc bấm biên dịch
+          lại để bản xem trước dùng font mới.
+        </p>
+
+        {!fonts && !error && <p className="settings-hint">Đang tải…</p>}
+        {fonts && fonts.length === 0 && <p className="settings-hint">Chưa có font nào được tải lên.</p>}
+        {fonts && fonts.length > 0 && (
+          <ul className="fonts-list">
+            {fonts.map((f) => (
+              <li key={f.name} className="fonts-list-item">
+                <span className="fonts-list-item-name">{f.name}</span>
+                <span className="fonts-list-item-size">{formatFileSize(f.size)}</span>
+                <button className="btn-ghost btn-sm" title="Xóa font" onClick={() => remove(f.name)}>
+                  <Icon name="x" size={13} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="settings-actions">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".ttf,.otf,.ttc"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(e) => upload(e.target.files)}
+          />
+          <button className="btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+            {uploading ? 'Đang tải lên…' : 'Tải font lên'}
+          </button>
+        </div>
+        {error && <div className="error">{error}</div>}
+      </div>
+    </details>
+  )
+}
+
+// ShortcutsSection lets the user remap the handful of app-level chess
+// shortcuts (lib/shortcuts.ts) -- everything else in the app is either
+// CodeMirror's own bundled keymap or a local widget convention (Escape
+// closes a modal) that isn't meaningfully "app-customizable", so this list
+// is deliberately short rather than a generic keymap editor.
+function ShortcutsSection() {
+  const { overrides, setShortcut, resetShortcut } = useShortcuts()
+  const [listeningFor, setListeningFor] = useState<string | null>(null)
+  const [conflict, setConflict] = useState<string | null>(null)
+
+  const captureNext = (e: React.KeyboardEvent, actionId: string) => {
+    e.preventDefault()
+    if (e.key === 'Escape') {
+      setListeningFor(null)
+      return
+    }
+    const combo = keyComboFromEvent(e)
+    if (!combo) return // bare modifier, or missing Ctrl/Cmd -- keep listening
+
+    const takenBy = SHORTCUT_ACTIONS.find(
+      (a) => a.id !== actionId && effectiveKey(a, overrides) === combo,
+    )
+    if (takenBy) {
+      setConflict(`"${describeCombo(combo)}" đang dùng cho "${takenBy.label}". Chọn tổ hợp khác.`)
+      return
+    }
+
+    setConflict(null)
+    setShortcut(actionId, combo)
+    setListeningFor(null)
+  }
+
+  return (
+    <details className="settings-section">
+      <summary>
+        <Icon name="chevron-right" size={14} className="settings-caret" />
+        Phím tắt
+      </summary>
+      <div className="settings-section-body">
+        <p className="settings-hint">
+          Phím tắt cho các thao tác cờ vua hay dùng. Luôn cần giữ Ctrl (⌘ trên Mac) để không xung đột với gõ văn bản
+          bình thường.
+        </p>
+
+        <ul className="shortcuts-list">
+          {SHORTCUT_ACTIONS.map((action) => {
+            const listening = listeningFor === action.id
+            const isDefault = !(action.id in overrides)
+            return (
+              <li key={action.id} className="shortcuts-list-item">
+                <span className="shortcuts-list-item-label">{action.label}</span>
+                {listening ? (
+                  <input
+                    autoFocus
+                    className="shortcuts-capture-input"
+                    readOnly
+                    value="Nhấn tổ hợp phím mới… (Esc để hủy)"
+                    onKeyDown={(e) => captureNext(e, action.id)}
+                    onBlur={() => setListeningFor(null)}
+                  />
+                ) : (
+                  <>
+                    <kbd className="shortcuts-combo">{describeCombo(effectiveKey(action, overrides))}</kbd>
+                    <button
+                      className="btn-ghost btn-sm"
+                      onClick={() => {
+                        setConflict(null)
+                        setListeningFor(action.id)
+                      }}
+                    >
+                      Đổi
+                    </button>
+                    {!isDefault && (
+                      <button className="btn-ghost btn-sm" title="Khôi phục mặc định" onClick={() => resetShortcut(action.id)}>
+                        <Icon name="refresh" size={12} />
+                      </button>
+                    )}
+                  </>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+        {conflict && <div className="error">{conflict}</div>}
+      </div>
+    </details>
   )
 }
 

@@ -17,7 +17,12 @@
   --radius: 6px;
   --radius-lg: 10px;
   --font-sans: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* 'Noto Sans Math'/'Noto Emoji' are loaded as fallbacks (see index.html)
+   * for the same reason the desktop app embeds NotoSansMath-Regular.ttf and
+   * NotoEmoji-VariableFont_wght.ttf (fonts/fonts.go): without them, a math
+   * symbol or emoji typed into a .typ file renders as a system-dependent
+   * (sometimes missing/tofu) glyph instead of a consistent one. */
+  --font-mono: 'Roboto Mono', 'Noto Sans Math', 'Noto Emoji', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Light palette */
   color-scheme: light;

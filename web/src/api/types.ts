@@ -1,3 +1,9 @@
+// Mirrors server/fonts_api.go's fontFileInfo.
+export interface FontFileInfo {
+  name: string
+  size: number
+}
+
 export interface TreeEntry {
   name: string
   path: string

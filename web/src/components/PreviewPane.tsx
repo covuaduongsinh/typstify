@@ -5,6 +5,8 @@ import {
   calculateScrollTarget,
   cursorLineToPageRatio,
   findHeadingLines,
+  pageRatioToLine,
+  scrollTopToPageRatio,
   type PageAnchor,
   type PageLayoutInfo,
 } from '../lib/scrollSync'
@@ -25,6 +27,11 @@ interface PreviewPaneProps {
   content?: string | null
   liveContent?: string | null
   cursor?: { line: number; col: number; totalLines: number } | null
+  /** Called (debounced) when the user manually scrolls the SVG preview, with
+   * the corresponding 1-based source line -- the preview->editor half of
+   * scroll sync. Not called for programmatic scrolls the editor->preview
+   * direction itself triggers (see isUserScrollingRef). */
+  onScrollToLine?: (line: number) => void
 }
 
 interface PageCardProps {
@@ -115,7 +122,7 @@ function PreviewPageCard({
   )
 }
 
-export function PreviewPane({ path, version, content, liveContent, cursor }: PreviewPaneProps) {
+export function PreviewPane({ path, version, content, liveContent, cursor, onScrollToLine }: PreviewPaneProps) {
   // The best known source text at any given moment: live unsaved edits, or
   // else the file as loaded from disk. Never the empty string liveContent
   // defaults to before the user's first edit.
@@ -140,6 +147,13 @@ export function PreviewPane({ path, version, content, liveContent, cursor }: Pre
   const lastRenderedContentRef = useRef<string | null>(null)
   // Debounce cursor scroll: only scroll after cursor is idle for 600ms
   const cursorScrollTimerRef = useRef<number | undefined>(undefined)
+  // True while a scrollTo() from the editor->preview effect above is
+  // (likely still) animating, so the preview->editor handler below can tell
+  // "the preview scrolled because the user scrolled it" apart from "the
+  // preview scrolled because we just told it to".
+  const programmaticScrollRef = useRef<boolean>(false)
+  const programmaticScrollTimerRef = useRef<number | undefined>(undefined)
+  const reverseScrollTimerRef = useRef<number | undefined>(undefined)
   // Tracks the heading-line "shape" (joined line indices) the anchors state
   // was last fetched for, so a re-render with an unchanged heading structure
   // doesn't trigger a redundant /api/preview/anchors call (that query costs
@@ -364,9 +378,15 @@ export function PreviewPane({ path, version, content, liveContent, cursor }: Pre
 
       // Only scroll if we're more than half a viewport away from the target
       const currentY = container.scrollTop
-      if (Math.abs(currentY - targetY) > container.clientHeight * 0.5) {
-        container.scrollTo({ top: targetY, behavior: 'smooth' })
-      } else if (Math.abs(currentY - targetY) > 80) {
+      if (Math.abs(currentY - targetY) > container.clientHeight * 0.5 || Math.abs(currentY - targetY) > 80) {
+        // Marks the scroll events this triggers as programmatic so the
+        // preview->editor half of sync (below) doesn't treat them as the
+        // user scrolling and bounce a redundant line back at the editor.
+        programmaticScrollRef.current = true
+        window.clearTimeout(programmaticScrollTimerRef.current)
+        programmaticScrollTimerRef.current = window.setTimeout(() => {
+          programmaticScrollRef.current = false
+        }, 700)
         container.scrollTo({ top: targetY, behavior: 'smooth' })
       }
     }, 600)
@@ -423,13 +443,39 @@ export function PreviewPane({ path, version, content, liveContent, cursor }: Pre
     return () => window.clearTimeout(timer)
   }, [cursor, syncScroll, viewMode])
 
-  // Track manual scroll by user to avoid jumping while reading
+  // Track manual scroll by user to avoid jumping while reading, and (svg
+  // mode) sync the editor's viewport to wherever the user scrolled to --
+  // the preview->editor half of scroll sync. Skipped while
+  // programmaticScrollRef is set, i.e. while the *editor*->preview effect's
+  // own scrollTo() is (likely still) animating, so that doesn't bounce
+  // straight back as a redundant scrollToLine call.
   const handleScroll = () => {
     isUserScrollingRef.current = true
     window.clearTimeout(manualScrollTimerRef.current)
     manualScrollTimerRef.current = window.setTimeout(() => {
       isUserScrollingRef.current = false
     }, 1200)
+
+    if (!syncScroll || !onScrollToLine || viewMode !== 'svg' || pages.length === 0) return
+
+    window.clearTimeout(reverseScrollTimerRef.current)
+    reverseScrollTimerRef.current = window.setTimeout(() => {
+      if (programmaticScrollRef.current) return
+      const container = scrollContainerRef.current
+      if (!container) return
+
+      const pageLayouts: PageLayoutInfo[] = []
+      for (let i = 0; i < pages.length; i++) {
+        const el = pageRefs.current[i]
+        if (el) pageLayouts.push({ top: el.offsetTop, height: el.offsetHeight })
+      }
+      if (pageLayouts.length === 0) return
+
+      const ratio = scrollTopToPageRatio(container.scrollTop, pageLayouts, container.clientHeight)
+      const totalLines = cursor?.totalLines ?? (lastRenderedContentRef.current ?? effectiveContent ?? '').split('\n').length
+      const line = pageRatioToLine(ratio, pageLineMap, totalLines)
+      onScrollToLine(line)
+    }, 300)
   }
 
   // Cleanup blob URL on unmount or file switch
@@ -438,6 +484,8 @@ export function PreviewPane({ path, version, content, liveContent, cursor }: Pre
       if (pdfUrl) URL.revokeObjectURL(pdfUrl)
       window.clearTimeout(manualScrollTimerRef.current)
       window.clearTimeout(cursorScrollTimerRef.current)
+      window.clearTimeout(programmaticScrollTimerRef.current)
+      window.clearTimeout(reverseScrollTimerRef.current)
     }
   }, [path, pdfUrl])
 
@@ -520,8 +568,12 @@ export function PreviewPane({ path, version, content, liveContent, cursor }: Pre
           </button>
         )}
 
-        {/* Zoom controls for SVG mode */}
-        {viewMode === 'svg' && (
+        {/* Zoom controls -- SVG mode supports fit-width too; PDF mode is
+            skipped because the browser's native PDF viewer already has its
+            own zoom/page/print toolbar (verified live: Chrome's embedded
+            PDF.js UI), so a second zoom control here would just be a
+            redundant, out-of-sync duplicate. */}
+        {(viewMode === 'svg' || viewMode === 'tinymist') && (
           <div className="preview-zoom-group">
             <button
               className="btn-ghost preview-tool"
@@ -537,7 +589,7 @@ export function PreviewPane({ path, version, content, liveContent, cursor }: Pre
               aria-label="Cỡ chuẩn 100%"
               onClick={handleZoomReset}
             >
-              {fitWidth ? 'Vừa khung' : `${zoom}%`}
+              {fitWidth && viewMode === 'svg' ? 'Vừa khung' : `${zoom}%`}
             </button>
             <button
               className="btn-ghost preview-tool"
@@ -547,14 +599,16 @@ export function PreviewPane({ path, version, content, liveContent, cursor }: Pre
             >
               <Icon name="zoom-in" size={14} />
             </button>
-            <button
-              className={`btn-ghost preview-tool${fitWidth ? ' active' : ''}`}
-              title="Vừa chiều rộng khung nhìn"
-              aria-label="Vừa chiều rộng"
-              onClick={handleToggleFit}
-            >
-              <Icon name="maximize-2" size={14} />
-            </button>
+            {viewMode === 'svg' && (
+              <button
+                className={`btn-ghost preview-tool${fitWidth ? ' active' : ''}`}
+                title="Vừa chiều rộng khung nhìn"
+                aria-label="Vừa chiều rộng"
+                onClick={handleToggleFit}
+              >
+                <Icon name="maximize-2" size={14} />
+              </button>
+            )}
           </div>
         )}
 
@@ -666,7 +720,10 @@ export function PreviewPane({ path, version, content, liveContent, cursor }: Pre
                 Chỉ tự cuộn khi bạn <strong>gõ phím</strong> tại vị trí mới — click chuột/di chuyển con trỏ mà không gõ gì sẽ không cuộn theo (giới hạn của tinymist).
               </div>
             )}
-            <div className="preview-tinymist-wrapper">
+            <div
+              className="preview-tinymist-wrapper"
+              style={{ '--tinymist-zoom': zoom / 100 } as React.CSSProperties}
+            >
               {tinymistReady ? (
                 <iframe
                   key={path ?? undefined}

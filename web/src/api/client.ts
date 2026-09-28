@@ -43,6 +43,10 @@ export const api = {
   put: <T>(path: string, body: string) => request<T>(path, { method: 'PUT', body }),
   putJson: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
+  /** Uploads a raw binary body (not multipart/form-data) -- the server reads
+   * it as-is (e.g. POST /api/settings/fonts). */
+  postBinary: <T>(path: string, body: Blob) =>
+    request<T>(path, { method: 'POST', body, headers: { 'Content-Type': 'application/octet-stream' } }),
   del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 }
 
