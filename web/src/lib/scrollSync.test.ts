@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { buildPageLineMap, calculateLineRatio, calculateScrollTarget, cursorLineToPageRatio } from './scrollSync'
+import {
+  buildPageLineMap,
+  buildPageLineMapFromAnchors,
+  calculateLineRatio,
+  calculateScrollTarget,
+  cursorLineToPageRatio,
+  findHeadingLines,
+} from './scrollSync'
 
 describe('scrollSync', () => {
   describe('calculateLineRatio', () => {
@@ -71,6 +78,86 @@ describe('scrollSync', () => {
       expect(map[1]).toBe(25)   // Page 2 at 25% of 100 lines
       expect(map[2]).toBe(50)   // Page 3 at 50%
       expect(map[3]).toBe(75)   // Page 4 at 75%
+    })
+  })
+
+  describe('findHeadingLines', () => {
+    it('finds heading lines of any level, ignoring non-heading = usage', () => {
+      const content = 'intro\n= Chapter One\ntext\n== Sub A\nmore\n=== Sub Sub\nend'
+      expect(findHeadingLines(content)).toEqual([1, 3, 5])
+    })
+
+    it('does not match a bare "=" line with no heading text', () => {
+      const content = 'a\n=\nb\n== \nc'
+      expect(findHeadingLines(content)).toEqual([])
+    })
+
+    it('returns empty array for content with no headings', () => {
+      expect(findHeadingLines('just some\nplain text\nno headings here')).toEqual([])
+    })
+  })
+
+  describe('buildPageLineMapFromAnchors', () => {
+    it('places exactly the known number of page-starts between consecutive anchors', () => {
+      // Anchor at line 10 is on page 1, anchor at line 20 jumps to page 3 (2 page
+      // starts must fall strictly between them), anchor at line 80 is page 4 (1
+      // page start in between), then pageCount=5 implies 1 more page start after
+      // line 80 (virtual end anchor at page 6). Splits divide each gap into
+      // (pagesToPlace + 1) equal parts, since neither endpoint of a gap is
+      // itself a known page boundary.
+      const anchors = [
+        { line: 10, page: 1 },
+        { line: 20, page: 3 },
+        { line: 80, page: 4 },
+      ]
+      const map = buildPageLineMapFromAnchors(anchors, 5, 100)
+      expect(map).toEqual([0, 13, 16, 50, 86])
+    })
+
+    it('places no page-start between two anchors on the same page', () => {
+      const anchors = [
+        { line: 5, page: 1 },
+        { line: 8, page: 1 }, // same page as previous anchor -> no split needed here
+        { line: 50, page: 2 },
+      ]
+      const map = buildPageLineMapFromAnchors(anchors, 2, 100)
+      // The two page-1 anchors (5, 8) contribute no page-start between them.
+      // The single split for page 2 falls within (8, 50], at its midpoint
+      // (8 + 42/2 = 29) since neither end of that gap is itself a known
+      // page boundary -- only that page 2 starts somewhere inside it.
+      expect(map).toEqual([0, 29])
+    })
+
+    it('ignores out-of-range anchors instead of corrupting the map', () => {
+      const anchors = [
+        { line: -1, page: 1 },
+        { line: 50, page: 999 }, // page out of [1, pageCount]
+        { line: 60, page: 2 },
+      ]
+      const map = buildPageLineMapFromAnchors(anchors, 3, 100)
+      expect(map[0]).toBe(0)
+      expect(map).toHaveLength(3)
+    })
+  })
+
+  describe('buildPageLineMap with real anchors', () => {
+    it('uses anchors instead of the #pagebreak() heuristic when anchors are provided', () => {
+      const content = Array.from({ length: 100 }, (_, i) => `line ${i + 1}`).join('\n')
+      const anchors = [
+        { line: 10, page: 1 },
+        { line: 20, page: 3 },
+      ]
+      const withAnchors = buildPageLineMap(content, 3, anchors)
+      const withoutAnchors = buildPageLineMap(content, 3)
+      expect(withAnchors).toEqual(buildPageLineMapFromAnchors(anchors, 3, 100))
+      // Sanity: this should differ from the no-anchor uniform fallback, proving
+      // anchors actually took priority instead of being silently ignored.
+      expect(withAnchors).not.toEqual(withoutAnchors)
+    })
+
+    it('falls back to the existing heuristic when anchors is an empty array (safety gate tripped)', () => {
+      const content = Array.from({ length: 100 }, (_, i) => `line ${i + 1}`).join('\n')
+      expect(buildPageLineMap(content, 4, [])).toEqual(buildPageLineMap(content, 4))
     })
   })
 

@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { buildPageLineMap, calculateLineRatio, calculateScrollTarget, cursorLineToPageRatio, type PageLayoutInfo } from '../lib/scrollSync'
+import {
+  buildPageLineMap,
+  calculateLineRatio,
+  calculateScrollTarget,
+  cursorLineToPageRatio,
+  findHeadingLines,
+  type PageAnchor,
+  type PageLayoutInfo,
+} from '../lib/scrollSync'
 import { extractSvgDimensions, scopeSvgIds } from '../lib/svgHelper'
 import { Icon } from './Icon'
 
@@ -9,6 +17,12 @@ type ViewMode = 'svg' | 'pdf' | 'tinymist'
 interface PreviewPaneProps {
   path: string | null
   version: number
+  // The file's loaded-from-disk content. Used as the compile/query source
+  // whenever liveContent hasn't been populated yet (liveContent stays null
+  // until the user's first edit — see Workspace.tsx), so a freshly opened,
+  // unedited file still gets an accurate scroll-sync map instead of one
+  // built from an empty string.
+  content?: string | null
   liveContent?: string | null
   cursor?: { line: number; col: number; totalLines: number } | null
 }
@@ -101,7 +115,11 @@ function PreviewPageCard({
   )
 }
 
-export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneProps) {
+export function PreviewPane({ path, version, content, liveContent, cursor }: PreviewPaneProps) {
+  // The best known source text at any given moment: live unsaved edits, or
+  // else the file as loaded from disk. Never the empty string liveContent
+  // defaults to before the user's first edit.
+  const effectiveContent = liveContent ?? content ?? null
   const [status, setStatus] = useState<Status>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pages, setPages] = useState<string[]>([])
@@ -113,6 +131,7 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
   const [tinymistReady, setTinymistReady] = useState(false)
+  const [headingAnchors, setHeadingAnchors] = useState<PageAnchor[] | null>(null)
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const pageRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -121,6 +140,12 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
   const lastRenderedContentRef = useRef<string | null>(null)
   // Debounce cursor scroll: only scroll after cursor is idle for 600ms
   const cursorScrollTimerRef = useRef<number | undefined>(undefined)
+  // Tracks the heading-line "shape" (joined line indices) the anchors state
+  // was last fetched for, so a re-render with an unchanged heading structure
+  // doesn't trigger a redundant /api/preview/anchors call (that query costs
+  // roughly as much as a full compile).
+  const lastAnchorHeadingKeyRef = useRef<string>('')
+  const anchorsDebounceTimerRef = useRef<number | undefined>(undefined)
 
   const isTyp = !!path && path.endsWith('.typ')
 
@@ -129,9 +154,9 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
   // not the live editor content — liveContent can already be ahead (user kept typing
   // while the compile request was in flight), which would misalign line offsets.
   const pageLineMap = useMemo(() => {
-    return buildPageLineMap(lastRenderedContentRef.current ?? liveContent ?? '', pageCount)
+    return buildPageLineMap(lastRenderedContentRef.current ?? effectiveContent ?? '', pageCount, headingAnchors ?? undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageCount])
+  }, [pageCount, headingAnchors])
 
   // Calculate line ratio using the accurate page line map (falls back to linear)
   const getLineRatio = useCallback(
@@ -170,7 +195,7 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
             signal: ctrl.signal,
             body: JSON.stringify({
               path,
-              content: liveContent ?? undefined,
+              content: effectiveContent ?? undefined,
               format: 'svg',
             }),
           })
@@ -197,7 +222,7 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
               setPageCount(data.pageCount || data.pages.length)
               setErrorMessage(null)
               setStatus('ready')
-              lastRenderedContentRef.current = liveContent ?? ''
+              lastRenderedContentRef.current = effectiveContent ?? ''
             } else {
               setErrorMessage(data.error || 'Biên dịch không thành công')
               setStatus('error')
@@ -240,7 +265,71 @@ export function PreviewPane({ path, version, liveContent, cursor }: PreviewPaneP
     })()
 
     return () => ctrl.abort()
-  }, [path, version, liveContent, nonce, viewMode])
+  }, [path, version, effectiveContent, nonce, viewMode])
+
+  // Switching files invalidates any anchors fetched for the previous
+  // document -- reset so a coincidental same heading count/shape doesn't
+  // silently reuse stale page numbers.
+  useEffect(() => {
+    lastAnchorHeadingKeyRef.current = ''
+    setHeadingAnchors(null)
+  }, [path])
+
+  // Fetch real heading→page anchors (via Typst's own query() introspection)
+  // whenever a fresh render lands with a heading structure we haven't
+  // already fetched anchors for. Debounced and gated on the heading "shape"
+  // (not on every render) because this query costs roughly as much as a
+  // full compile -- see server/preview_anchors.go.
+  useEffect(() => {
+    if (viewMode !== 'svg' || !path || !path.endsWith('.typ')) return
+    const content = lastRenderedContentRef.current
+    if (content == null) return
+
+    const headingLines = findHeadingLines(content)
+    const key = headingLines.join(',')
+    if (key === lastAnchorHeadingKeyRef.current) return
+
+    window.clearTimeout(anchorsDebounceTimerRef.current)
+    const ctrl = new AbortController()
+
+    anchorsDebounceTimerRef.current = window.setTimeout(() => {
+      lastAnchorHeadingKeyRef.current = key
+      if (headingLines.length === 0) {
+        setHeadingAnchors(null)
+        return
+      }
+      void (async () => {
+        try {
+          const res = await fetch('/api/preview/anchors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            signal: ctrl.signal,
+            body: JSON.stringify({ path, content }),
+          })
+          const data = await res.json()
+          // Safety gate: only trust the anchors when the backend saw exactly
+          // as many headings as we found in the source. A mismatch (e.g. a
+          // puzzle collection generating extra headings programmatically)
+          // means the two lists can't be correlated by position -- silently
+          // fall back to the existing #pagebreak()/proportional heuristic
+          // rather than risk pairing a heading with the wrong page.
+          if (!ctrl.signal.aborted && data.ok && Array.isArray(data.pages) && data.pages.length === headingLines.length) {
+            setHeadingAnchors(headingLines.map((line, i) => ({ line, page: data.pages[i] })))
+          } else if (!ctrl.signal.aborted) {
+            setHeadingAnchors(null)
+          }
+        } catch {
+          if (!ctrl.signal.aborted) setHeadingAnchors(null)
+        }
+      })()
+    }, 1200)
+
+    return () => {
+      window.clearTimeout(anchorsDebounceTimerRef.current)
+      ctrl.abort()
+    }
+  }, [pageCount, path, viewMode])
 
   // Sync scroll to cursor position — debounced 600ms so it only fires when cursor is idle
   useEffect(() => {

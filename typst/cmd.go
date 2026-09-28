@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"os/exec"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -53,8 +55,64 @@ func InitCmd(template string, dir string, opts *InitCmdOptions) error {
 	return err
 }
 
-func QueryCmd() []string {
-	return nil
+// QueryEvalCmd runs `typst eval <expr> --in <file> --format json`, using the
+// same root/font-path/package-path/features a compile of the same file would
+// use, and returns the raw JSON stdout. This lets callers introspect the
+// compiled document (e.g. real page positions via query()+location().page())
+// through Typst's own stable CLI, instead of tinymist's undocumented internal
+// preview protocol.
+func QueryEvalCmd(ctx context.Context, opts *CompileCmdOptions, inputFile string, expr string) ([]byte, error) {
+	args := []string{"eval", expr, "--in", inputFile, "--format", "json"}
+
+	if opts.RootDir != "" {
+		args = append(args, "--root", opts.RootDir)
+	}
+	for _, fontPath := range opts.FontPaths {
+		if fontPath != "" {
+			args = append(args, "--font-path", fontPath)
+		}
+	}
+	if opts.PackagePath != "" {
+		args = append(args, "--package-path", opts.PackagePath)
+	}
+	if opts.PackageCachePath != "" {
+		args = append(args, "--package-cache-path", opts.PackageCachePath)
+	}
+	if opts.Features != "" {
+		args = append(args, "--features", opts.Features)
+	}
+	for k, v := range opts.Input {
+		args = append(args, fmt.Sprintf("--input=%s=%s", k, v))
+	}
+
+	cmd := cmdBuilder.Build(ctx, args...)
+	log.Println("executing command: ", cmd.String())
+
+	out, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return nil, fmt.Errorf("typst eval failed: %w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
+		}
+		return nil, err
+	}
+	return out, nil
+}
+
+// QueryHeadingPages returns the physical page number (1-based) of every
+// heading in the document, in document order -- via query(heading) +
+// location().page(), which gives the true physical page regardless of any
+// display-numbering reset (unlike counter(page).at(...)).
+func QueryHeadingPages(ctx context.Context, opts *CompileCmdOptions, inputFile string) ([]int, error) {
+	out, err := QueryEvalCmd(ctx, opts, inputFile, "query(heading).map(h => h.location().page())")
+	if err != nil {
+		return nil, err
+	}
+
+	pages := make([]int, 0)
+	if err := json.Unmarshal(out, &pages); err != nil {
+		return nil, fmt.Errorf("parse heading pages: %w", err)
+	}
+	return pages, nil
 }
 
 type FontVariant struct {

@@ -151,6 +151,7 @@ func (s *Server) routes() {
 	// WebSocket-based /preview/ proxy below.
 	s.handle("GET /api/preview/pdf", s.handlePreviewPdf)
 	s.handle("POST /api/preview/render", s.handlePreviewRender)
+	s.handle("POST /api/preview/anchors", s.handlePreviewAnchors)
 
 	// Typst package manager (Tpix).
 	s.handle("GET /api/packages/search", s.handlePkgSearch)

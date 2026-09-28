@@ -17,6 +17,91 @@ export function calculateLineRatio(line: number, totalLines: number): number {
 }
 
 /**
+ * A real anchor: a source line known (via Typst's own query() introspection,
+ * not a guess) to fall on a given physical page. Headings are the natural
+ * anchor source — see findHeadingLines.
+ */
+export interface PageAnchor {
+  line: number // 0-based source line
+  page: number // 1-based physical page
+}
+
+/**
+ * Scans Typst source for heading lines (`=`, `==`, `===`, ...), returning
+ * their 0-based line indices in document order. Used to correlate against
+ * page numbers queried from the compiled document (see PreviewPane's anchors
+ * fetch) — the Nth heading found here should be the Nth heading Typst's
+ * query(heading) returns, PROVIDED the document doesn't programmatically
+ * generate extra headings (e.g. chessbook's render-puzzle-collection does,
+ * via #heading(...) calls with no literal "=" line). Callers must verify the
+ * counts match before trusting any correlation built from this list.
+ */
+export function findHeadingLines(content: string): number[] {
+  const lines = content.split('\n')
+  const headingLines: number[] = []
+  const headingPattern = /^=+\s+\S/
+  for (let i = 0; i < lines.length; i++) {
+    if (headingPattern.test(lines[i])) {
+      headingLines.push(i)
+    }
+  }
+  return headingLines
+}
+
+/**
+ * Builds a page→line map from real (line, page) anchors — e.g. heading
+ * positions queried from the compiled document via Typst's query() — instead
+ * of guessing. Between two consecutive anchors, the exact number of page
+ * starts to place is known (the difference in their page numbers), so each
+ * segment only needs even distribution *within itself*, not the cross-
+ * segment largest-remainder balancing buildPageLineMap needs for
+ * #pagebreak()-only detection (where per-segment page counts aren't known).
+ *
+ * anchors need not be sorted or deduplicated; virtual anchors at line 0
+ * (page 1) and totalLines (page pageCount+1) bound the real ones.
+ */
+export function buildPageLineMapFromAnchors(
+  anchors: PageAnchor[],
+  pageCount: number,
+  totalLines: number,
+): number[] {
+  const sorted = [...anchors]
+    .filter((a) => a.line >= 0 && a.line <= totalLines && a.page >= 1 && a.page <= pageCount)
+    .sort((a, b) => a.line - b.line)
+
+  const bounded: PageAnchor[] = [{ line: 0, page: 1 }, ...sorted, { line: totalLines, page: pageCount + 1 }]
+
+  const pageLineMap = new Array<number>(pageCount).fill(0)
+  let lastPage = 1 // pages are non-decreasing in document order; guard against noise
+  for (let i = 0; i < bounded.length - 1; i++) {
+    const from = bounded[i]
+    const to = bounded[i + 1]
+    const fromPage = Math.max(from.page, lastPage)
+    const toPage = Math.max(to.page, fromPage)
+    const pagesToPlace = toPage - fromPage
+    if (pagesToPlace <= 0) continue
+
+    // Neither `from` nor `to` is a known page boundary (they're just lines
+    // confirmed to fall on fromPage/toPage respectively) -- so pagesToPlace
+    // new boundaries divide the interval into (pagesToPlace + 1) equal
+    // parts, not `pagesToPlace` parts. Dividing by pagesToPlace would anchor
+    // the *last* boundary exactly at `to.line`, which is systematically too
+    // late whenever pagesToPlace is small relative to a long gap between
+    // anchors (verified against a real multi-page document: with a single
+    // page-start needed across a 120-line gap, landing it at the very end
+    // put an entire page's worth of content on the wrong side of the split).
+    const segLines = Math.max(0, to.line - from.line)
+    for (let j = 1; j <= pagesToPlace; j++) {
+      const pageIdx = fromPage + j - 1 // 0-based index into pageLineMap
+      if (pageIdx >= pageCount) break
+      pageLineMap[pageIdx] = from.line + Math.floor((j / (pagesToPlace + 1)) * segLines)
+    }
+    lastPage = toPage
+  }
+  return pageLineMap
+}
+
+/**
  * Scans Typst source content and returns an array of source-line indices (0-based)
  * where each page begins. This allows more accurate cursor → page mapping by
  * detecting explicit `#pagebreak()` calls in the document.
@@ -24,13 +109,21 @@ export function calculateLineRatio(line: number, totalLines: number): number {
  * Returns an array of length `pageCount`, where element[i] is the 0-based source
  * line index that starts page i+1. Falls back gracefully to uniform distribution
  * if no page breaks are found.
+ *
+ * When `anchors` is provided (real page positions, e.g. from Typst's query()),
+ * it takes priority over the #pagebreak() heuristic entirely — see
+ * buildPageLineMapFromAnchors.
  */
-export function buildPageLineMap(content: string, pageCount: number): number[] {
+export function buildPageLineMap(content: string, pageCount: number, anchors?: PageAnchor[]): number[] {
   if (pageCount <= 0) return []
   if (!content || pageCount === 1) return [0]
 
   const lines = content.split('\n')
   const totalLines = lines.length
+
+  if (anchors && anchors.length > 0) {
+    return buildPageLineMapFromAnchors(anchors, pageCount, totalLines)
+  }
 
   // Find all lines containing explicit page breaks
   const breakLines: number[] = [0] // Page 1 always starts at line 0

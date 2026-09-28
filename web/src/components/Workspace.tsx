@@ -575,6 +575,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
               <PreviewPane
                 path={activePath}
                 version={previewVersion}
+                content={content}
                 liveContent={liveContent}
                 cursor={cursor}
               />
