@@ -169,6 +169,9 @@ func (s *Server) routes() {
 	s.handle("PUT /api/settings/lsp", settingsPutHandler(s.appSrv.Settings().Lsp))
 	s.handle("GET /api/settings/agent", settingsGetHandler(s.appSrv.Settings().AcpAgent))
 	s.handle("PUT /api/settings/agent", settingsPutHandler(s.appSrv.Settings().AcpAgent))
+	s.handle("GET /api/settings/fonts", s.handleFontsList)
+	s.handle("POST /api/settings/fonts", s.handleFontUpload)
+	s.handle("DELETE /api/settings/fonts/{name}", s.handleFontDelete)
 	// No /api/settings/tpix: it holds the package-registry API key, which
 	// the web UI never uses, so it is not exposed to the browser at all.
 
@@ -188,6 +191,7 @@ func (s *Server) routes() {
 	s.handle("POST /api/agent/auth/callback", s.handleAgentAuthCallback)
 	s.handle("POST /api/agent/auth/{methodId}", s.handleAgentAuth)
 	s.handle("POST /api/agent/preferred-config", s.handleSavePreferredConfig)
+	s.handle("GET /api/agent/sessions", s.handleAgentSessions)
 	s.handle("GET /api/console", s.handleConsole)
 
 	// LSP + AI agent, over WebSocket.

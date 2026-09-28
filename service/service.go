@@ -434,6 +434,49 @@ func (s *ServiceFacade) StartACPSession(ctx context.Context, projectDir string) 
 	return mgr.NewSession(ctx, projectDir)
 }
 
+// ListACPSessions lists past sessions the agent knows about for projectDir
+// (agent.SessionManager.ListSessions), starting the agent connection first
+// if it isn't already running -- browsing history shouldn't require a live
+// chat session to have been started first.
+func (s *ServiceFacade) ListACPSessions(ctx context.Context, projectDir string) ([]*agent.ACPSession, error) {
+	mgr, err := s.getOrCreateAcpSessionManager(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return mgr.ListSessions(ctx, projectDir)
+}
+
+// LoadOrResumeACPSession reattaches to a past session by ID -- Load replays
+// the full prior conversation to the caller via session/update
+// notifications, Resume does not (see agent.SessionManager). Mirrors
+// StartACPSession's agent-restart-on-config-change handling.
+func (s *ServiceFacade) LoadOrResumeACPSession(ctx context.Context, projectDir, sessionID string, resume bool) (*agent.ACPSession, error) {
+	as := s.settings.AcpAgent()
+
+	s.acpMu.Lock()
+	if mgr := s.acpSessionManager; mgr != nil && !configEqual(mgr.Config(), as) {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := mgr.Close(closeCtx); err != nil {
+			log.Printf("close old ACP session manager: %v", err)
+		}
+		s.acpSessionManager = nil
+		log.Println("agent config changed, restarting session manager...")
+	}
+	s.acpMu.Unlock()
+
+	mgr, err := s.getOrCreateAcpSessionManager(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	session := agent.NewACPSession(sessionID, projectDir)
+	if resume {
+		return mgr.ResumeSession(ctx, session)
+	}
+	return mgr.LoadSession(ctx, session)
+}
+
 // getOrCreateAcpSessionManager returns the current ACP session manager,
 // starting one if none exists. Concurrent callers that observe no manager
 // coordinate through acpCond so only one of them actually spawns the agent

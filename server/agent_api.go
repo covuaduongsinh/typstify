@@ -90,6 +90,46 @@ func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, agentSettings)
 }
 
+type acpSessionSummary struct {
+	SessionID string `json:"sessionId"`
+	Title     string `json:"title"`
+	// RFC3339, empty when the agent didn't report one.
+	UpdatedAt string `json:"updatedAt,omitempty"`
+}
+
+// handleAgentSessions lists past ACP sessions for the open project (same
+// agent.SessionManager.ListSessions the desktop app's session history panel
+// uses -- ui/assistant/sessions.go), so the web chat can offer a "past
+// conversations" list too. Starts the agent connection if it isn't already
+// running (browsing history shouldn't require a live chat to have been
+// started first), but does not create a new session.
+func (s *Server) handleAgentSessions(w http.ResponseWriter, r *http.Request) {
+	root, err := s.projectRoot()
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	sessions, err := s.appSrv.ListACPSessions(ctx, root)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+
+	out := make([]acpSessionSummary, 0, len(sessions))
+	for _, sn := range sessions {
+		var updatedAt string
+		if t := sn.UpdatedAt(); !t.IsZero() {
+			updatedAt = t.Format(time.RFC3339)
+		}
+		out = append(out, acpSessionSummary{SessionID: sn.SessionID, Title: sn.Title(), UpdatedAt: updatedAt})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 // handleAgentAuth drives the ACP Authenticate RPC for one auth method. It
 // blocks until the agent responds -- for an OAuth-device-flow method this
 // can take as long as the user needs to open the login link the agent

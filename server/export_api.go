@@ -9,13 +9,27 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"looz.ws/typstify/typst"
 	"looz.ws/typstify/typst/export"
 )
+
+// unsafeFilenameChars matches everything but the characters we allow in a
+// user-supplied export filename, so it can't escape the temp output dir or
+// smuggle a path separator into the Content-Disposition header.
+var unsafeFilenameChars = regexp.MustCompile(`[^\p{L}\p{N}_.\- ]`)
+
+func sanitizeExportFilename(name string) string {
+	name = filepath.Base(strings.TrimSpace(name))
+	name = strings.TrimSuffix(name, filepath.Ext(name))
+	name = unsafeFilenameChars.ReplaceAllString(name, "_")
+	return strings.Trim(name, "._ ")
+}
 
 // handleExport compiles a Typst document to PDF/PNG/SVG (reusing
 // typst/export.CompileHelper, the same helper the desktop app's export
@@ -44,7 +58,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		format = typst.PDF
 	}
 	switch format {
-	case typst.PDF, typst.PNG, typst.SVG:
+	case typst.PDF, typst.PNG, typst.SVG, typst.HTML:
 	default:
 		writeError(w, http.StatusBadRequest, "unsupported format: "+string(format))
 		return
@@ -58,6 +72,9 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	defer os.RemoveAll(outDir)
 
 	outName := strings.TrimSuffix(filepath.Base(targetFile), filepath.Ext(targetFile))
+	if custom := sanitizeExportFilename(r.URL.Query().Get("filename")); custom != "" {
+		outName = custom
+	}
 
 	ctx, release, ok := s.acquireCompile(w, r)
 	if !ok {
@@ -70,6 +87,20 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	helper.Format = format
 	helper.Pages = r.URL.Query().Get("pages")
 	helper.PPI = 144
+	if ppiStr := r.URL.Query().Get("ppi"); ppiStr != "" {
+		if ppi, err := strconv.Atoi(ppiStr); err == nil && ppi > 0 {
+			helper.PPI = ppi
+		}
+	}
+	// Full enum strings (e.g. "PDF 1.7", "PDF/A-2b") -- same values the
+	// desktop export dialog's radio buttons use (ui/dialog/export.go).
+	if v := r.URL.Query().Get("pdfVersion"); v != "" {
+		helper.PdfVersion = typst.PdfVersion(v)
+	}
+	if std := r.URL.Query().Get("pdfStandard"); std != "" {
+		helper.PdfStandard = typst.PdfStandard(std)
+	}
+	helper.NoPdfTags = r.URL.Query().Get("noPdfTags") == "1"
 
 	params, err := helper.BuildParams(targetFile, outName)
 	if err != nil {

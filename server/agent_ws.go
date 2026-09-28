@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -195,9 +196,26 @@ func (s *Server) agentAuthRequiredData() agentAuthRequiredData {
 // and/or the SetupIntent-style out-of-band login flow the agent itself
 // prints instructions for -- see GET /api/console) before trying again.
 // Returns (nil, false) if the connection closes/context is cancelled first.
-func (s *Server) startSessionOrRequireAuth(ctx context.Context, conn *websocket.Conn, root string) (*agent.ACPSession, bool) {
+// If sessionID is non-empty, reattaches to that past session instead of
+// starting a new one -- Load (resume=false) replays the full prior
+// conversation to the browser via the usual session/update messages,
+// Resume (resume=true) does not.
+func (s *Server) startSessionOrRequireAuth(ctx context.Context, conn *websocket.Conn, root, sessionID string, resume bool) (*agent.ACPSession, bool) {
 	for {
-		session, err := s.appSrv.StartACPSession(ctx, root)
+		var session *agent.ACPSession
+		var err error
+		if sessionID != "" {
+			session, err = s.appSrv.LoadOrResumeACPSession(ctx, root, sessionID, resume)
+			if err == nil && session == nil {
+				action := "loading"
+				if resume {
+					action = "resuming"
+				}
+				err = fmt.Errorf("the current agent does not support %s a past session", action)
+			}
+		} else {
+			session, err = s.appSrv.StartACPSession(ctx, root)
+		}
 		if err == nil {
 			return session, true
 		}
@@ -266,7 +284,10 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 	sessCtx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	session, ok := s.startSessionOrRequireAuth(sessCtx, conn, root)
+	sessionID := r.URL.Query().Get("sessionId")
+	resume := r.URL.Query().Get("resume") == "1"
+
+	session, ok := s.startSessionOrRequireAuth(sessCtx, conn, root, sessionID, resume)
 	if !ok {
 		return
 	}
