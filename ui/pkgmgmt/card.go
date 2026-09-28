@@ -5,6 +5,7 @@ import (
 	stdimg "image"
 	"io"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"gioui.org/font"
@@ -26,6 +27,7 @@ import (
 	gvwiget "github.com/oligo/gioview/widget"
 	"looz.ws/typstify/i18n"
 	"looz.ws/typstify/typst/pkg"
+	"looz.ws/typstify/widgets"
 )
 
 type PkgCard struct {
@@ -34,8 +36,19 @@ type PkgCard struct {
 	copyBtn     widget.Clickable
 	downloadBtn widget.Clickable
 	docBtn      widget.Clickable
+	versionBtn  widget.Clickable
 
-	onDownloadClicked func(pkgInfo *pkg.TypstPkg)
+	// detail/detailLoaded/detailErr hold the async result of onLoadDetail,
+	// fetched lazily the first time the user asks to pick a version rather
+	// than always downloading pkgInfo.LatestVersion. versionDD is built once
+	// detail arrives.
+	detail       atomic.Pointer[pkg.TypstPkg]
+	detailLoaded bool
+	detailErr    error
+	versionDD    *widgets.Dropdown
+
+	onDownloadClicked func(pkgInfo *pkg.TypstPkg, version string)
+	onLoadDetail      func(namespace, name string) (pkg.TypstPkg, error)
 }
 
 type PkgThumb struct {
@@ -46,10 +59,11 @@ type PkgThumb struct {
 	onClick   func(imgPath string)
 }
 
-func newPkgCard(pkg pkg.TypstPkg, onDownloadClicked func(pkgInfo *pkg.TypstPkg)) *PkgCard {
+func newPkgCard(pkg pkg.TypstPkg, onDownloadClicked func(pkgInfo *pkg.TypstPkg, version string), onLoadDetail func(namespace, name string) (pkg.TypstPkg, error)) *PkgCard {
 	return &PkgCard{
 		pkgInfo:           pkg,
 		onDownloadClicked: onDownloadClicked,
+		onLoadDetail:      onLoadDetail,
 	}
 }
 
@@ -58,13 +72,50 @@ func (c *PkgCard) update(gtx C) {
 		c.copyImportPath(gtx)
 	}
 
+	if c.versionBtn.Clicked(gtx) {
+		c.loadDetail()
+	}
+
+	if d := c.detail.Swap(nil); d != nil {
+		c.detailLoaded = true
+		opts := make(map[string]any, len(d.Versions))
+		for _, v := range d.Versions {
+			opts[v.Version] = v.Version
+		}
+		c.versionDD = widgets.NewDropDown(opts)
+		c.versionDD.SetSelected(c.pkgInfo.LatestVersion)
+	}
+	if c.versionDD != nil {
+		c.versionDD.Update(gtx)
+	}
+
 	if c.downloadBtn.Clicked(gtx) && c.onDownloadClicked != nil {
-		c.onDownloadClicked(&c.pkgInfo)
+		version := ""
+		if c.versionDD != nil {
+			version = c.versionDD.Value()
+		}
+		c.onDownloadClicked(&c.pkgInfo, version)
 	}
 
 	if c.docBtn.Clicked(gtx) {
 		c.openPkgDocPage()
 	}
+}
+
+// loadDetail fetches the full package detail (including its version list)
+// once, asynchronously, the first time the user opens the version picker.
+func (c *PkgCard) loadDetail() {
+	if c.detailLoaded || c.detailErr != nil || c.onLoadDetail == nil {
+		return
+	}
+	go func() {
+		detail, err := c.onLoadDetail(c.pkgInfo.Namespace, c.pkgInfo.Name)
+		if err != nil {
+			c.detailErr = err
+			return
+		}
+		c.detail.Store(&detail)
+	}()
 }
 
 func (c *PkgCard) Layout(gtx C, th *theme.Theme) D {
@@ -204,6 +255,18 @@ func (c *PkgCard) layout(gtx C, th *theme.Theme) D {
 
 							layout.Rigid(func(gtx C) D {
 								btn := material.Button(th.Theme, &c.copyBtn, "Copy import path")
+								btn.Inset = layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(4), Right: unit.Dp(4)}
+								return btn.Layout(gtx)
+							}),
+							layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
+
+							layout.Rigid(func(gtx C) D {
+								if c.versionDD != nil {
+									gtx.Constraints.Min.X = gtx.Dp(unit.Dp(90))
+									gtx.Constraints.Max.X = gtx.Dp(unit.Dp(120))
+									return c.versionDD.Layout(gtx, th)
+								}
+								btn := material.Button(th.Theme, &c.versionBtn, i18n.Translate("Choose version"))
 								btn.Inset = layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(4), Right: unit.Dp(4)}
 								return btn.Layout(gtx)
 							}),

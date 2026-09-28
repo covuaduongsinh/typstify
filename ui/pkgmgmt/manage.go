@@ -2,6 +2,7 @@ package pkgmgmt
 
 import (
 	"errors"
+	"fmt"
 	"sync/atomic"
 
 	"gioui.org/font"
@@ -47,6 +48,7 @@ type PkgListView struct {
 	lastFetched      atomic.Pointer[[]*PkgCard]
 	lastFetchedCount int
 	lastFetchErr     error
+	pullDepsBtn      widget.Clickable
 }
 
 func (vw *PkgListView) ID() view.ViewID {
@@ -160,6 +162,16 @@ func (vw *PkgListView) Layout(gtx C, th *theme.Theme) D {
 					layout.Rigid(layout.Spacer{Height: unit.Dp(24)}.Layout),
 
 					layout.Rigid(func(gtx C) D {
+						return layout.Center.Layout(gtx, func(gtx C) D {
+							btn := material.Button(th.Theme, &vw.pullDepsBtn, i18n.Translate("Pull all dependencies"))
+							btn.Inset = layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4), Left: unit.Dp(8), Right: unit.Dp(8)}
+							return btn.Layout(gtx)
+						})
+					}),
+
+					layout.Rigid(layout.Spacer{Height: unit.Dp(16)}.Layout),
+
+					layout.Rigid(func(gtx C) D {
 						gtx.Constraints.Min.X = gtx.Constraints.Max.X
 
 						var reqErr *api.RequestError
@@ -188,6 +200,9 @@ func (vw *PkgListView) update(gtx C) {
 	}
 	if vw.kindSelect.Update(gtx) {
 		reload = true
+	}
+	if vw.pullDepsBtn.Clicked(gtx) {
+		vw.pullDependencies()
 	}
 
 	if reload {
@@ -224,9 +239,13 @@ func (vw *PkgListView) loadData(kind string, category string, query string) {
 		vw.lastFetchErr = nil
 		for _, p := range results {
 			card := newPkgCard(p,
-				func(pkgInfo *pkg.TypstPkg) {
-					vw.downloadPkg(pkgInfo)
-				})
+				func(pkgInfo *pkg.TypstPkg, version string) {
+					vw.downloadPkg(pkgInfo, version)
+				},
+				func(namespace, name string) (pkg.TypstPkg, error) {
+					return vw.srv.PkgService().GetPkgDetail(fmt.Sprintf("@%s/%s", namespace, name))
+				},
+			)
 
 			cards = append(cards, card)
 		}
@@ -238,13 +257,16 @@ func (vw *PkgListView) loadData(kind string, category string, query string) {
 	}()
 }
 
-func (vw *PkgListView) downloadPkg(pkgInfo *pkg.TypstPkg) {
+func (vw *PkgListView) downloadPkg(pkgInfo *pkg.TypstPkg, version string) {
+	if version == "" {
+		version = pkgInfo.LatestVersion
+	}
 	go func() {
-		_, count, err := vw.srv.PkgService().Download(pkgInfo.Namespace, pkgInfo.Name, pkgInfo.LatestVersion)
+		_, count, err := vw.srv.PkgService().Download(pkgInfo.Namespace, pkgInfo.Name, version)
 		if err != nil {
 			vw.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: i18n.Translate("Download package failed: ") + err.Error(), Level: 2})
 		} else {
-			pkgSpec := pkgInfo.ImportPath()
+			pkgSpec := fmt.Sprintf("@%s/%s:%s", pkgInfo.Namespace, pkgInfo.Name, version)
 			var msg string
 			if count <= 1 {
 				msg = i18n.Translate("Downloaded package %s. ", pkgSpec)
@@ -253,6 +275,27 @@ func (vw *PkgListView) downloadPkg(pkgInfo *pkg.TypstPkg) {
 			}
 			vw.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: msg, Level: 0})
 		}
+	}()
+}
+
+// pullDependencies downloads every dependency #import'd by the currently
+// open project, via typst/pkg.TypstPkgService.PullDependencies -- exposed
+// in the UI for the first time here (the backend method already existed,
+// unused by any view).
+func (vw *PkgListView) pullDependencies() {
+	projectDir := vw.srv.CurrentProjectDir()
+	if projectDir == "" {
+		vw.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: i18n.Translate("No project is open."), Level: 2})
+		return
+	}
+
+	go func() {
+		vw.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: i18n.Translate("Pulling project dependencies...")})
+		if err := vw.srv.PkgService().PullDependencies(projectDir); err != nil {
+			vw.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: i18n.Translate("Pull dependencies failed: ") + err.Error(), Level: 2})
+			return
+		}
+		vw.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: i18n.Translate("All project dependencies pulled."), Level: 0})
 	}()
 }
 

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"path"
+	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -39,7 +40,23 @@ type Client struct {
 	docCache *documentCache
 	// Messages: they should be reset whenever they have been consumed.
 	diagnostics []*DocDiagnostics
+
+	// showDocMu/showDocHandlers route an incoming window/showDocument request
+	// (sent by tinymist's --preview-mode=document webview when the user
+	// clicks in the rendered preview, to jump back to source) to whichever
+	// open editor view owns that file. Keyed by filepath.Clean'd absolute
+	// path, mirroring documentCache's keying convention. A registry is used
+	// instead of a single callback because Client is a per-project
+	// singleton (see GetLspClient) -- with multiple tabs open in the same
+	// project, each editor view must only be navigated when the click was
+	// for its own file.
+	showDocMu       sync.Mutex
+	showDocHandlers map[string]ShowDocumentHandler
 }
+
+// ShowDocumentHandler is invoked when tinymist's preview asks the client to
+// reveal a location in the given file. line/col are 0-indexed.
+type ShowDocumentHandler func(line, col int)
 
 func newClient(server *Server) *Client {
 	return &Client{
@@ -324,6 +341,56 @@ func (c *Client) updateDiagnostics(diagnostics DocDiagnostics) {
 	}
 }
 
+// RegisterShowDocumentHandler associates filePath with a handler to invoke
+// when tinymist's preview sends window/showDocument for that file (i.e. the
+// user clicked a location in the rendered preview to jump back to source).
+// Call UnregisterShowDocumentHandler with the same filePath when the owning
+// editor view closes.
+func (c *Client) RegisterShowDocumentHandler(filePath string, handler ShowDocumentHandler) {
+	key := filepath.Clean(filePath)
+	c.showDocMu.Lock()
+	defer c.showDocMu.Unlock()
+	if c.showDocHandlers == nil {
+		c.showDocHandlers = make(map[string]ShowDocumentHandler)
+	}
+	c.showDocHandlers[key] = handler
+}
+
+// UnregisterShowDocumentHandler removes the handler registered for filePath.
+func (c *Client) UnregisterShowDocumentHandler(filePath string) {
+	key := filepath.Clean(filePath)
+	c.showDocMu.Lock()
+	defer c.showDocMu.Unlock()
+	delete(c.showDocHandlers, key)
+}
+
+// handleShowDocument dispatches a parsed ShowDocumentParams to the
+// registered handler for its file, if any editor currently has that file
+// open. Safe to call with any URI, including non-file (external) ones --
+// those are silently ignored since there is no source location to reveal.
+func (c *Client) handleShowDocument(params protocol.ShowDocumentParams) {
+	docURI, err := protocol.ParseDocumentURI(params.URI)
+	if err != nil || docURI == "" {
+		return
+	}
+	key := filepath.Clean(docURI.Path())
+
+	c.showDocMu.Lock()
+	handler := c.showDocHandlers[key]
+	c.showDocMu.Unlock()
+	if handler == nil {
+		c.logger.Debug("window/showDocument for a file with no registered handler", "path", key)
+		return
+	}
+
+	line, col := 0, 0
+	if params.Selection != nil {
+		line = int(params.Selection.Start.Line)
+		col = int(params.Selection.Start.Character)
+	}
+	handler(line, col)
+}
+
 // Handler implements jsonrpc2.Handler, and receives messages initiated by tinymist.
 func (c *Client) Handle(ctx context.Context, req *jsonrpc2.Request) (interface{}, error) {
 	switch req.Method {
@@ -339,6 +406,22 @@ func (c *Client) Handle(ctx context.Context, req *jsonrpc2.Request) (interface{}
 		var p protocol.LogMessageParams
 		json.Unmarshal(req.Params, &p)
 		c.logger.Info("[Tinymist log]", "message", p.Message)
+	case protocol.RPCMethodShowDocument:
+		var params protocol.ShowDocumentParams
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			c.logger.Error("Failed to parse ShowDocumentParams", "error", err)
+			if req.IsCall() {
+				return &protocol.ShowDocumentResult{Success: false}, nil
+			}
+			return nil, nil
+		}
+		c.handleShowDocument(params)
+		if req.IsCall() {
+			// window/showDocument is a request per LSP 3.17, not a one-way
+			// notification -- it must get a response or jsonrpc2 will
+			// synthesize a "produced no response" error back to tinymist.
+			return &protocol.ShowDocumentResult{Success: true}, nil
+		}
 
 	case protocol.RPCMethodPublishDiagnostics:
 		var params protocol.PublishDiagnosticsParams

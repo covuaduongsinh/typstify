@@ -196,6 +196,13 @@ func (te *TypstEditor) setupLsp(gtx layout.Context) {
 	}
 
 	te.srcEditor.SetupLsp(gtx, client)
+
+	client.RegisterShowDocumentHandler(te.targetFile, func(line, col int) {
+		te.srcEditor.NavigateToLine(line, col)
+		// This callback runs on the LSP dispatch goroutine, not the Gio UI
+		// goroutine, so the window must be told to redraw explicitly.
+		te.srv.RefreshWindow()
+	})
 }
 
 func (te *TypstEditor) headerActions() []editorHeaderAction {
@@ -572,6 +579,9 @@ func (te *TypstEditor) closeChat() {
 
 func (te *TypstEditor) OnFinish() {
 	te.BaseView.OnFinish()
+	if client := lsp.GetLspClient(te.srv.CurrentProjectDir(), te.srv.Settings()); client != nil {
+		client.UnregisterShowDocumentHandler(te.targetFile)
+	}
 	if te.srcEditor != nil {
 		te.srcEditor.Close()
 	}

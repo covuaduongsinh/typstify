@@ -78,6 +78,7 @@ func NewSettingsView(srv *service.ServiceFacade) *SettingsView {
 		&EditorView{setting: editor},
 		&TypstSettingsView{setting: srv.Settings().Typst()},
 		&LspSettingsView{setting: srv.Settings().Lsp()},
+		NewFontsSettingsView(srv),
 		&TpixSettingsView{srv: srv},
 		&AgentView{setting: srv.Settings().AcpAgent()},
 		&HelpView{updateCheck: &UpdateCheck{srv: srv}},
