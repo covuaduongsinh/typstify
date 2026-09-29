@@ -16,7 +16,7 @@ import (
 )
 
 type SessionConfigStyle struct {
-	Session *agent.ACPSession
+	Session agent.ChatSession
 	popups  map[string]*configCategoryPopup
 }
 
@@ -135,7 +135,7 @@ func (s *SessionConfigStyle) buildPopupItems(configs []acp.SessionConfigOption) 
 type configSelectItem struct {
 	opt      acp.SessionConfigSelectOption
 	configId acp.SessionConfigId
-	session  *agent.ACPSession
+	session  agent.ChatSession
 }
 
 func (c *configSelectItem) OnClicked() {
@@ -170,7 +170,7 @@ func (c *configSelectItem) Layout(gtx C, th *theme.Theme) D {
 // configBooleanItem implements widgets.PopupWidget for boolean options.
 type configBooleanItem struct {
 	opt     acp.SessionConfigOptionBoolean
-	session *agent.ACPSession
+	session agent.ChatSession
 }
 
 func (c *configBooleanItem) OnClicked() {

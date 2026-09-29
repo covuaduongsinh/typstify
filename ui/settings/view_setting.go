@@ -79,6 +79,7 @@ func NewSettingsView(srv *service.ServiceFacade) *SettingsView {
 		&TypstSettingsView{setting: srv.Settings().Typst()},
 		&LspSettingsView{setting: srv.Settings().Lsp()},
 		NewFontsSettingsView(srv),
+		NewSyncView(srv),
 		&TpixSettingsView{srv: srv},
 		&AgentView{setting: srv.Settings().AcpAgent()},
 		&HelpView{updateCheck: &UpdateCheck{srv: srv}},

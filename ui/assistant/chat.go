@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"sync"
 	"sync/atomic"
 
@@ -25,6 +26,8 @@ import (
 	"looz.ws/typstify/service"
 	"looz.ws/typstify/service/bus"
 	"looz.ws/typstify/service/mcp"
+	"looz.ws/typstify/service/remote"
+	"looz.ws/typstify/service/settings"
 	"looz.ws/typstify/ui/preview"
 	"looz.ws/typstify/utils"
 	appIcons "looz.ws/typstify/widgets/icons"
@@ -119,7 +122,7 @@ func (cv *AgentChatView) init() {
 	}
 
 	// If we already have a chat view for this project, just show it.
-	if cv.chat != nil && cv.chat.Session() != nil && cv.chat.Session().Cwd == projectDir {
+	if cv.chat != nil && cv.chat.Session() != nil && cv.chat.Session().WorkingDir() == projectDir {
 		return
 	}
 
@@ -131,7 +134,17 @@ func (cv *AgentChatView) init() {
 
 	if cv.chatReady.CompareAndSwap(false, true) {
 		go func() {
-			session, err := cv.srv.StartACPSession(context.Background(), projectDir)
+			var session agent.ChatSession
+			var err error
+
+			remoteSettings := cv.srv.Settings().Remote()
+			if remoteSettings.Enabled && remoteSettings.RemoteAgentEnabled {
+				session, err = cv.startRemoteSession(context.Background(), remoteSettings, projectDir)
+			} else {
+				var local *agent.ACPSession
+				local, err = cv.srv.StartACPSession(context.Background(), projectDir)
+				session = local
+			}
 			if err != nil {
 				log.Printf("chat: failed to start ACP session: %v", err)
 				cv.chatErr = err
@@ -148,6 +161,32 @@ func (cv *AgentChatView) init() {
 			cv.srv.RefreshWindow()
 		}()
 	}
+}
+
+// startRemoteSession connects to the currently configured remote server
+// instead of spawning a local agent process (Giai đoạn B, "Remote Agent
+// mode"). It resumes the most recently updated session already open on
+// that server for its current project, so a conversation started on the
+// web (or another desktop pointed at the same server) is continued here
+// rather than starting a second, independent one -- if listing fails or
+// finds nothing, it falls through to starting a brand new remote session.
+func (cv *AgentChatView) startRemoteSession(ctx context.Context, rs *settings.RemoteSettings, projectDir string) (agent.ChatSession, error) {
+	client := remote.NewClient(rs.ServerURL, rs.Token)
+
+	sessions, err := client.ListAgentSessions()
+	if err != nil {
+		log.Printf("chat: remote: failed to list sessions, starting fresh: %v", err)
+		sessions = nil
+	}
+
+	var sessionID, title string
+	if len(sessions) > 0 {
+		sort.Slice(sessions, func(i, j int) bool { return sessions[i].UpdatedAt > sessions[j].UpdatedAt })
+		sessionID = sessions[0].SessionID
+		title = sessions[0].Title
+	}
+
+	return agent.DialRemoteChatSession(ctx, rs.ServerURL, rs.Token, projectDir, sessionID, title, false)
 }
 
 func (cv *AgentChatView) loadExisting(sn *agent.ACPSession) {
@@ -342,7 +381,15 @@ func (cv *AgentChatView) closeChat() {
 	// Close chat view.
 	if cv.chat != nil {
 		cv.chat.Close()
-		cv.srv.CloseACPSession(context.Background(), cv.chat.Session().SessionID)
+		// A remote session (Giai đoạn B) has no local ACPSession for
+		// CloseACPSession to close -- disconnect its WebSocket instead. The
+		// server-side session itself is left running (other clients, e.g.
+		// the web browser, may still be attached to it).
+		if remote, ok := cv.chat.Session().(*agent.RemoteChatSession); ok {
+			remote.Close()
+		} else {
+			cv.srv.CloseACPSession(context.Background(), cv.chat.Session().ID())
+		}
 		cv.chat = nil
 	}
 }

@@ -37,3 +37,11 @@ func settingsPutHandler[T settings.Model](get func() T) http.HandlerFunc {
 		writeJSON(w, http.StatusOK, cur)
 	}
 }
+
+// handleSettingsMeta reports, for every settings section, when it was last
+// written -- used by the desktop<->web settings-sync feature to decide
+// which side of each section is newer, in one round trip instead of one
+// GET per section.
+func (s *Server) handleSettingsMeta(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.appSrv.Settings().Meta())
+}

@@ -20,6 +20,7 @@ import (
 	"looz.ws/typstify/service/bus"
 	"looz.ws/typstify/ui/dialog"
 	"looz.ws/typstify/ui/pkgmgmt"
+	"looz.ws/typstify/ui/remoteproject"
 	"looz.ws/typstify/widgets/icons"
 )
 
@@ -33,17 +34,19 @@ var (
 	createProjectIcon = icons.NewSvgIcon(icons.FolderPlus)
 	browseIcon        = icons.NewSvgIcon(icons.PackageSearch)
 	userIcon          = icons.NewSvgIcon(icons.User)
+	remoteProjectIcon = icons.NewSvgIcon(icons.FolderOpen)
 )
 
 type WelcomeView struct {
 	vm view.ViewManager
 	page.PageStyle
-	srv             *service.ServiceFacade
-	createBtn       widget.Clickable
-	openBtn         widget.Clickable
-	browsePkgBtn    widget.Clickable
-	tpixWebsiteLink widget.Clickable
-	typstifyLink    widget.Clickable
+	srv              *service.ServiceFacade
+	createBtn        widget.Clickable
+	openBtn          widget.Clickable
+	browsePkgBtn     widget.Clickable
+	remoteProjectBtn widget.Clickable
+	tpixWebsiteLink  widget.Clickable
+	typstifyLink     widget.Clickable
 }
 
 // func (vw *WelcomeView) ID() view.ViewID {
@@ -144,6 +147,11 @@ func (vw *WelcomeView) layoutMain(gtx C, th *theme.Theme) D {
 			layout.Rigid(func(gtx C) D {
 				return layoutOp(gtx, th, &vw.browsePkgBtn, i18n.Translate("Browse Packages/Templates..."), browseIcon)
 			}),
+			layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
+
+			layout.Rigid(func(gtx C) D {
+				return layoutOp(gtx, th, &vw.remoteProjectBtn, i18n.Translate("Remote Project..."), remoteProjectIcon)
+			}),
 
 			layout.Rigid(layout.Spacer{Height: unit.Dp(24)}.Layout),
 
@@ -237,6 +245,13 @@ func (vw *WelcomeView) update(gtx C) {
 	if vw.browsePkgBtn.Clicked(gtx) {
 		vw.vm.RequestSwitch(view.Intent{
 			Target:     pkgmgmt.PkgListViewID,
+			RequireNew: true,
+		})
+	}
+
+	if vw.remoteProjectBtn.Clicked(gtx) {
+		vw.vm.RequestSwitch(view.Intent{
+			Target:     remoteproject.RemoteProjectViewID,
 			RequireNew: true,
 		})
 	}

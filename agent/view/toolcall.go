@@ -24,7 +24,7 @@ var (
 )
 
 type ToolCallStyle struct {
-	session        *agent.ACPSession
+	session        agent.ChatSession
 	msg            *chatMessage
 	parsedDiff     []byte
 	titleSelection widget.Selectable

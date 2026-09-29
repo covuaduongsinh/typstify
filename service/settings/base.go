@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"time"
 )
 
 type baseModel struct {
@@ -31,6 +32,56 @@ func (m *baseModel) save(model Model) error {
 	// m.isDirty = false
 	if m.onSave != nil {
 		m.onSave(model)
+	}
+
+	return nil
+}
+
+// applyRemote persists model exactly as save does, but stamps its
+// last-updated meta entry with remoteUpdatedAt instead of time.Now() -- see
+// settingsStore.saveWithTimestamp for why that distinction matters for
+// settings sync between two machines.
+func (m *baseModel) applyRemote(model Model, remoteUpdatedAt time.Time) error {
+	if m.store == nil {
+		return errors.New("model is detached")
+	}
+
+	if err := m.store.saveWithTimestamp(m.name, model, remoteUpdatedAt); err != nil {
+		return err
+	}
+
+	if m.onSave != nil {
+		m.onSave(model)
+	}
+
+	return nil
+}
+
+// applyRemoteFields copies every field from src into dest, except fields
+// tagged `sync:"local"` -- machine-local values (absolute paths, device
+// IDs, paths to locally-installed binaries) that make no sense coming from
+// a different machine and must survive a settings-sync pull untouched.
+func applyRemoteFields(dest, src Model) error {
+	if reflect.TypeOf(dest) != reflect.TypeOf(src) {
+		return errors.New("model types unmatched")
+	}
+
+	destVal := reflect.ValueOf(dest).Elem()
+	srcVal := reflect.ValueOf(src).Elem()
+
+	for i := 0; i < destVal.NumField(); i++ {
+		field := destVal.Field(i)
+		if !field.CanSet() {
+			continue
+		}
+
+		if destVal.Type().Field(i).Tag.Get("sync") == "local" {
+			continue
+		}
+
+		if err := setFieldValue(field, srcVal.Field(i).Interface()); err != nil {
+			return err
+		}
 	}
 
 	return nil

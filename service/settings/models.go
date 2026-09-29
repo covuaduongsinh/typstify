@@ -1,8 +1,10 @@
 package settings
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"gioui.org/font"
 )
@@ -14,6 +16,17 @@ type Model interface {
 	// Keys() []string
 }
 
+// RemoteApplier is implemented by settings sections that support the
+// desktop<->web settings-sync feature: applying a value fetched from a
+// remote Typstify instance without treating machine-local fields (tagged
+// `sync:"local"`) as part of the sync, and without the timestamp ping-pong
+// a naive Save() would cause (see settingsStore.saveWithTimestamp).
+// Deliberately a separate interface from Model, not a new method on it, so
+// every existing Model call site is unaffected.
+type RemoteApplier interface {
+	ApplyRemote(raw json.RawMessage, remoteUpdatedAt time.Time) error
+}
+
 var (
 	_ Model = (*GeneralSettings)(nil)
 	_ Model = (*EditorSettings)(nil)
@@ -22,6 +35,11 @@ var (
 	_ Model = (*TpixSettings)(nil)
 	_ Model = (*AcpAgentSettings)(nil)
 	_ Model = (*DropboxSettings)(nil)
+
+	_ RemoteApplier = (*GeneralSettings)(nil)
+	_ RemoteApplier = (*EditorSettings)(nil)
+	_ RemoteApplier = (*TypstSettings)(nil)
+	_ RemoteApplier = (*LspSettings)(nil)
 )
 
 var (
@@ -36,16 +54,16 @@ type GeneralSettings struct {
 	baseModel
 
 	// root dir for user data
-	RootDir     string  `key:"rootDir" json:"rootDir"`
+	RootDir     string  `key:"rootDir" json:"rootDir" sync:"local"`
 	Language    string  `key:"language" json:"language"`
 	TextSize    float32 `key:"textSize" json:"textSize"`
 	TypeFace    string  `key:"fontType" json:"fontType"`
 	Theme       string  `key:"theme" json:"theme"`
 	CheckUpdate string  `key:"checkUpdate" json:"checkUpdate"`
-	DeviceID    string  `key:"deviceId" json:"deviceId"`
+	DeviceID    string  `key:"deviceId" json:"deviceId" sync:"local"`
 
-	ExternalTypst    string `key:"externalTypst" json:"externalTypst"`       // typst executable path
-	ExternalTinymist string `key:"externalTinymist" json:"externalTinymist"` // tinymist executable path
+	ExternalTypst    string `key:"externalTypst" json:"externalTypst" sync:"local"`       // typst executable path
+	ExternalTinymist string `key:"externalTinymist" json:"externalTinymist" sync:"local"` // tinymist executable path
 }
 
 type EditorSettings struct {
@@ -64,14 +82,14 @@ type EditorSettings struct {
 type TypstSettings struct {
 	baseModel
 	Version             string `key:"version" json:"version"`
-	PackageCacheDir     string `key:"cacheDir" json:"cacheDir"`
-	PackageDir          string `key:"localPkgDir" json:"localPkgDir"`
-	ExtraFontPath       string `key:"extraFontPath" json:"extraFontPath"`
+	PackageCacheDir     string `key:"cacheDir" json:"cacheDir" sync:"local"`
+	PackageDir          string `key:"localPkgDir" json:"localPkgDir" sync:"local"`
+	ExtraFontPath       string `key:"extraFontPath" json:"extraFontPath" sync:"local"`
 	UseSysInputs        int    `key:"useSysInputs" json:"useSysInputs"`
 	IgnoreSystemFonts   int    `key:"ignoreSystemFonts" json:"ignoreSystemFonts"`
 	IgnoreEmbeddedFonts int    `key:"ignoreEmbeddedFonts" json:"ignoreEmbeddedFonts"`
 	BuildDeps           int    `key:"buildDeps" json:"buildDeps"`
-	OutputDir           string `key:"outputDir" json:"outputDir"`
+	OutputDir           string `key:"outputDir" json:"outputDir" sync:"local"`
 }
 
 // EffectivePackageDir is the directory typst/tinymist search for
@@ -140,6 +158,21 @@ func (g *GeneralSettings) Load() error {
 	return g.baseModel.load(g, defaultGeneralSettings)
 }
 
+// ApplyRemote implements RemoteApplier -- see that interface's doc.
+func (g *GeneralSettings) ApplyRemote(raw json.RawMessage, remoteUpdatedAt time.Time) error {
+	incoming := &GeneralSettings{}
+	if err := json.Unmarshal(raw, incoming); err != nil {
+		return err
+	}
+	if err := applyRemoteFields(g, incoming); err != nil {
+		return err
+	}
+	if err := g.Validate(); err != nil {
+		return err
+	}
+	return g.baseModel.applyRemote(g, remoteUpdatedAt)
+}
+
 func (g *GeneralSettings) Validate() error {
 	// Load persisted values to determine what actually changed
 	persisted := &GeneralSettings{}
@@ -195,6 +228,21 @@ func (e *EditorSettings) Save() error {
 
 func (e *EditorSettings) Load() error {
 	return e.baseModel.load(e, defaultEditorSettings)
+}
+
+// ApplyRemote implements RemoteApplier -- see that interface's doc.
+func (e *EditorSettings) ApplyRemote(raw json.RawMessage, remoteUpdatedAt time.Time) error {
+	incoming := &EditorSettings{}
+	if err := json.Unmarshal(raw, incoming); err != nil {
+		return err
+	}
+	if err := applyRemoteFields(e, incoming); err != nil {
+		return err
+	}
+	if err := e.Validate(); err != nil {
+		return err
+	}
+	return e.baseModel.applyRemote(e, remoteUpdatedAt)
 }
 
 func (e *EditorSettings) Validate() error {
@@ -256,6 +304,21 @@ func (t *TypstSettings) Save() error {
 
 func (t *TypstSettings) Load() error {
 	return t.baseModel.load(t, defaultTypstSettings)
+}
+
+// ApplyRemote implements RemoteApplier -- see that interface's doc.
+func (t *TypstSettings) ApplyRemote(raw json.RawMessage, remoteUpdatedAt time.Time) error {
+	incoming := &TypstSettings{}
+	if err := json.Unmarshal(raw, incoming); err != nil {
+		return err
+	}
+	if err := applyRemoteFields(t, incoming); err != nil {
+		return err
+	}
+	if err := t.Validate(); err != nil {
+		return err
+	}
+	return t.baseModel.applyRemote(t, remoteUpdatedAt)
 }
 
 func (t *TypstSettings) Validate() error {
@@ -331,6 +394,21 @@ func (l *LspSettings) Validate() error {
 
 func (l *LspSettings) Load() error {
 	return l.baseModel.load(l, &LspSettings{})
+}
+
+// ApplyRemote implements RemoteApplier -- see that interface's doc.
+func (l *LspSettings) ApplyRemote(raw json.RawMessage, remoteUpdatedAt time.Time) error {
+	incoming := &LspSettings{}
+	if err := json.Unmarshal(raw, incoming); err != nil {
+		return err
+	}
+	if err := applyRemoteFields(l, incoming); err != nil {
+		return err
+	}
+	if err := l.Validate(); err != nil {
+		return err
+	}
+	return l.baseModel.applyRemote(l, remoteUpdatedAt)
 }
 
 func init() {

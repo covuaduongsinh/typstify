@@ -82,7 +82,7 @@ type InputBox struct {
 	mu          sync.Mutex
 }
 
-func newInputBox(session *agent.ACPSession) *InputBox {
+func newInputBox(session agent.ChatSession) *InputBox {
 	ed := &gvcode.Editor{}
 
 	ed.WithOptions(
@@ -104,7 +104,7 @@ func newInputBox(session *agent.ACPSession) *InputBox {
 	ed.WithOptions(gvcode.WithAutoCompletion(cm))
 
 	b := &InputBox{
-		rootDir:  session.Cwd,
+		rootDir:  session.WorkingDir(),
 		Editor:   ed,
 		cmdPopup: cmdPopup,
 		rsPopup:  rsPopup,
@@ -395,7 +395,7 @@ var _ gvcode.Completor = (*commandCompletor)(nil)
 var _ gvcode.Completor = (*resourceCompletor)(nil)
 
 type commandCompletor struct {
-	session *agent.ACPSession
+	session agent.ChatSession
 }
 
 func (c *commandCompletor) Trigger() gvcode.Trigger {
@@ -437,7 +437,7 @@ func (c *commandCompletor) FilterAndRank(pattern string, candidates []gvcode.Com
 }
 
 type resourceCompletor struct {
-	session *agent.ACPSession
+	session agent.ChatSession
 }
 
 func (r *resourceCompletor) Trigger() gvcode.Trigger {
@@ -452,7 +452,7 @@ func (r *resourceCompletor) Suggest(ctx gvcode.CompletionContext) []gvcode.Compl
 		return nil
 	}
 
-	root := r.session.Cwd
+	root := r.session.WorkingDir()
 	candidates := []gvcode.CompletionCandidate{}
 
 	err := filepath.WalkDir(root, func(path string, e os.DirEntry, err error) error {

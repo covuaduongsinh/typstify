@@ -40,6 +40,56 @@ type PermissionGrantRequest struct {
 	ResponseChan chan acp.PermissionOptionId
 }
 
+// ChatSession is the surface agent/view's chat UI needs from a session --
+// implemented by *ACPSession (a locally-spawned agent process) and, for
+// Giai đoạn B (remote agent mode), by a session that instead proxies
+// Prompt/Cancel/etc. over a WebSocket to a Typstify server running
+// elsewhere. Kept in this package (not ui/assistant) because agent/view
+// depends on it, and agent/view must not depend on ui/.
+//
+// Named ID/WorkingDir rather than matching ACPSession's public SessionID/Cwd
+// fields exactly -- Go doesn't allow a method and a field with the same
+// name on one type, and those fields are already used directly (not
+// through this interface) in many other places in the codebase.
+type ChatSession interface {
+	ID() string
+	WorkingDir() string
+	Title() string
+	Active() bool
+	AgentInfo() acp.Implementation
+	Usage() UsageUpdate
+	HasOngoingTurn() bool
+	AvailableCommands() []acp.AvailableCommand
+	ConfigOptions() []acp.SessionConfigOption
+	UpdateConfig(ctx context.Context, configID acp.SessionConfigId, value any) error
+	Prompt(ctx context.Context, contents ...acp.ContentBlock) (PromptResponse, error)
+	Cancel(ctx context.Context) error
+	SubscribeUpdates(ctx context.Context, sub SessionUpdateSubsciber)
+	// GetTerminal returns the local terminal state for a tool call's
+	// TerminalId, or nil if there is none to show (agent/view degrades to
+	// a plain "Terminal: <id>" label in that case) -- always nil for a
+	// remote session, since terminal output isn't (yet) forwarded over
+	// /ws/agent.
+	GetTerminal(terminalID string) *ACPTerminal
+}
+
+var _ ChatSession = (*ACPSession)(nil)
+
+// ID implements ChatSession.
+func (sn *ACPSession) ID() string { return sn.SessionID }
+
+// WorkingDir implements ChatSession.
+func (sn *ACPSession) WorkingDir() string { return sn.Cwd }
+
+// AgentInfo implements ChatSession, returning the zero value if the
+// session isn't connected to an agent process (yet).
+func (sn *ACPSession) AgentInfo() acp.Implementation {
+	if !sn.Active() {
+		return acp.Implementation{}
+	}
+	return sn.Conn().AgentInfo
+}
+
 type SessionUpdateSubsciber interface {
 	OnUserMessage(chunk UserMessageChunk)
 

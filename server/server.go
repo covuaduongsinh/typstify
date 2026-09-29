@@ -130,6 +130,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/auth/logout", s.auth.handleLogout)
 	s.mux.HandleFunc("GET /api/auth/status", s.auth.handleStatus)
 	s.handle("POST /api/auth/change-password", s.auth.handleChangePassword)
+	s.mux.HandleFunc("POST /api/auth/token", s.auth.handleIssueToken)
+	s.handle("GET /api/auth/tokens", s.auth.handleListTokens)
+	s.handle("DELETE /api/auth/tokens/{hash}", s.auth.handleRevokeToken)
 	s.mux.HandleFunc("POST /api/i18n", s.handleI18n)
 
 	// Workspace / project / file management.
@@ -163,17 +166,24 @@ func (s *Server) routes() {
 	// Settings.
 	s.handle("GET /api/settings/general", settingsGetHandler(s.appSrv.Settings().General))
 	s.handle("PUT /api/settings/general", settingsPutHandler(s.appSrv.Settings().General))
+	s.handle("GET /api/settings/editor", settingsGetHandler(s.appSrv.Settings().Editor))
+	s.handle("PUT /api/settings/editor", settingsPutHandler(s.appSrv.Settings().Editor))
 	s.handle("GET /api/settings/typst", settingsGetHandler(s.appSrv.Settings().Typst))
 	s.handle("PUT /api/settings/typst", settingsPutHandler(s.appSrv.Settings().Typst))
 	s.handle("GET /api/settings/lsp", settingsGetHandler(s.appSrv.Settings().Lsp))
 	s.handle("PUT /api/settings/lsp", settingsPutHandler(s.appSrv.Settings().Lsp))
 	s.handle("GET /api/settings/agent", settingsGetHandler(s.appSrv.Settings().AcpAgent))
 	s.handle("PUT /api/settings/agent", settingsPutHandler(s.appSrv.Settings().AcpAgent))
+	s.handle("GET /api/settings/meta", s.handleSettingsMeta)
 	s.handle("GET /api/settings/fonts", s.handleFontsList)
 	s.handle("POST /api/settings/fonts", s.handleFontUpload)
 	s.handle("DELETE /api/settings/fonts/{name}", s.handleFontDelete)
 	// No /api/settings/tpix: it holds the package-registry API key, which
 	// the web UI never uses, so it is not exposed to the browser at all.
+	// No /api/settings/agent in settings-sync scope: AcpAgentSettings is
+	// tied to the agent CLI installed on each machine (Cmd/Args/Env/AgentID
+	// are machine-local), so it is excluded from the meta-based sync loop
+	// even though its GET/PUT routes remain for the web UI.
 
 	// Dropbox sync & integration.
 	s.handle("GET /api/dropbox/status", s.handleDropboxStatus)

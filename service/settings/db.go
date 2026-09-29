@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"looz.ws/typstify/service/bus"
 )
@@ -29,6 +30,7 @@ type Settings struct {
 	tpix     *TpixSettings
 	acpAgent *AcpAgentSettings
 	dropbox  *DropboxSettings
+	remote   *RemoteSettings
 }
 
 func configRoot() string {
@@ -161,6 +163,28 @@ func (s *Settings) Dropbox() *DropboxSettings {
 
 	s.dropbox.Load()
 	return s.dropbox
+}
+
+// Meta returns, for every settings section, when it was last written --
+// either by a local edit or by applying a value pulled from a remote
+// Typstify instance. Used by the settings-sync feature (desktop<->web) to
+// decide which side of each section is newer.
+func (s *Settings) Meta() map[string]time.Time {
+	return s.store.metaSnapshot()
+}
+
+func (s *Settings) Remote() *RemoteSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.remote == nil {
+		s.remote = &RemoteSettings{
+			baseModel: s.initModel("remote"),
+		}
+	}
+
+	s.remote.Load()
+	return s.remote
 }
 
 func (s *Settings) initModel(name string) baseModel {

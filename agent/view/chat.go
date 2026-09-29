@@ -43,7 +43,7 @@ type messageStyle interface {
 
 // AgentChat renders a chat conversation with an ACP agent.
 type AgentChat struct {
-	session   *agent.ACPSession
+	session   agent.ChatSession
 	ctxCancel context.CancelFunc
 
 	messages      []chatMessage
@@ -167,7 +167,7 @@ func (v *AgentChat) agentDisplayName() string {
 		return "Agent"
 	}
 
-	info := v.session.Conn().AgentInfo
+	info := v.session.AgentInfo()
 	if info.Title != nil && *info.Title != "" {
 		return *info.Title
 	}
@@ -441,7 +441,7 @@ func (v *AgentChat) doSend() {
 	}()
 }
 
-func (v *AgentChat) Session() *agent.ACPSession {
+func (v *AgentChat) Session() agent.ChatSession {
 	return v.session
 }
 
@@ -453,7 +453,7 @@ func (v *AgentChat) Close() {
 }
 
 // NewAgentChat creates a chat view and subscribes to session updates.
-func NewAgentChat(session *agent.ACPSession) *AgentChat {
+func NewAgentChat(session agent.ChatSession) *AgentChat {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	chat := &AgentChat{

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sync"
+	"time"
 
 	bolt "go.etcd.io/bbolt"
 
@@ -21,6 +22,7 @@ const (
 	legacySettingsDB    = "settings.db"
 	settingsFileVersion = 1
 	settingsVersionKey  = "version"
+	settingsMetaKey     = "__meta__"
 )
 
 type settingsStore struct {
@@ -29,6 +31,13 @@ type settingsStore struct {
 	path   string
 	loaded bool
 	data   map[string]json.RawMessage
+	// meta tracks, per section name, when it was last written -- either by
+	// a local Save() (stamped "now") or by applyRemote (stamped with the
+	// remote's own timestamp, so pulling a value doesn't make this side
+	// look newer than the side it was just pulled from). Used by desktop's
+	// settings-sync feature to decide which side of a general<->typst<->
+	// editor<->lsp section is newer.
+	meta map[string]time.Time
 }
 
 func newSettingsStore(root string) *settingsStore {
@@ -64,6 +73,17 @@ func (s *settingsStore) load(name string, model Model) (json.RawMessage, bool, e
 }
 
 func (s *settingsStore) save(name string, model Model) error {
+	return s.saveWithTimestamp(name, model, time.Now())
+}
+
+// saveWithTimestamp persists model under name and stamps its "last updated"
+// meta entry with ts. A normal local edit (save, via Save()) always stamps
+// "now". Applying a value pulled from a remote settings-sync peer
+// (applyRemote) stamps the remote's own timestamp instead, so this side
+// doesn't look newer than the peer it just copied -- without that, two
+// machines syncing back and forth would each think their own copy (just
+// received the OTHER side's data) is now the newest and re-push it forever.
+func (s *settingsStore) saveWithTimestamp(name string, model Model, ts time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -76,8 +96,25 @@ func (s *settingsStore) save(name string, model Model) error {
 		return err
 	}
 	s.data[name] = raw
+	s.meta[name] = ts
 
 	return s.writeLocked()
+}
+
+// metaSnapshot returns a copy of the per-section last-updated timestamps.
+func (s *settingsStore) metaSnapshot() map[string]time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.ensureLoadedLocked(); err != nil {
+		return map[string]time.Time{}
+	}
+
+	out := make(map[string]time.Time, len(s.meta))
+	for k, v := range s.meta {
+		out[k] = v
+	}
+	return out
 }
 
 func (s *settingsStore) ensureLoadedLocked() error {
@@ -86,6 +123,7 @@ func (s *settingsStore) ensureLoadedLocked() error {
 	}
 
 	s.data = make(map[string]json.RawMessage)
+	s.meta = make(map[string]time.Time)
 
 	data, err := os.ReadFile(s.path)
 	if err == nil {
@@ -94,6 +132,10 @@ func (s *settingsStore) ensureLoadedLocked() error {
 				return err
 			}
 			delete(s.data, settingsVersionKey)
+			if rawMeta, ok := s.data[settingsMetaKey]; ok {
+				_ = json.Unmarshal(rawMeta, &s.meta)
+				delete(s.data, settingsMetaKey)
+			}
 		}
 		s.loaded = true
 		return nil
@@ -132,6 +174,12 @@ func (s *settingsStore) writeLocked() error {
 		return err
 	}
 	doc[settingsVersionKey] = version
+
+	metaJSON, err := json.Marshal(s.meta)
+	if err != nil {
+		return err
+	}
+	doc[settingsMetaKey] = metaJSON
 
 	data, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {

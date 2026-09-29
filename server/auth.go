@@ -52,10 +52,11 @@ type authManager struct {
 	password   string
 	storageDir string
 
-	mu       sync.Mutex
-	users    map[string]User
-	sessions map[string]session
-	limiter  *loginLimiter
+	mu        sync.Mutex
+	users     map[string]User
+	sessions  map[string]session
+	apiTokens map[string]apiToken
+	limiter   *loginLimiter
 }
 
 func newAuthManager(password string, storageDir string) *authManager {
@@ -64,6 +65,7 @@ func newAuthManager(password string, storageDir string) *authManager {
 		storageDir: storageDir,
 		users:      make(map[string]User),
 		sessions:   make(map[string]session),
+		apiTokens:  make(map[string]apiToken),
 		limiter:    newLoginLimiter(),
 	}
 	a.loadPersistentData()
@@ -132,6 +134,8 @@ func (a *authManager) loadPersistentData() {
 			}
 		}
 	}
+
+	a.loadTokensLocked()
 }
 
 func (a *authManager) saveUsersLocked() error {
@@ -194,11 +198,14 @@ func (a *authManager) require(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (a *authManager) validRequest(r *http.Request) bool {
-	c, err := r.Cookie(sessionCookieName)
-	if err != nil {
-		return false
+	if c, err := r.Cookie(sessionCookieName); err == nil && a.validSession(c.Value) {
+		return true
 	}
-	return a.validSession(c.Value)
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		_, ok := a.validToken(strings.TrimPrefix(h, "Bearer "))
+		return ok
+	}
+	return false
 }
 
 func (a *authManager) validSession(token string) bool {

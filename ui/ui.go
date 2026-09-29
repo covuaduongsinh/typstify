@@ -28,6 +28,7 @@ import (
 	"looz.ws/typstify/ui/editors"
 	"looz.ws/typstify/ui/palette"
 	"looz.ws/typstify/ui/pkgmgmt"
+	"looz.ws/typstify/ui/remoteproject"
 	st "looz.ws/typstify/ui/settings"
 	"looz.ws/typstify/ui/viewer"
 )
@@ -138,6 +139,7 @@ func (ui *UI) registerViews() {
 	vm.Register(dialog.SyncBibDialogViewID, func() view.View { return dialog.NewSyncBibDialog(ui.srv) })
 	vm.Register(dialog.ViewBibInfoDialogViewID, func() view.View { return dialog.NewBibInfoDialog(ui.srv) })
 	vm.Register(assistant.AgentChatViewID, func() view.View { return assistant.NewAgentChatView(ui.srv) })
+	vm.Register(remoteproject.RemoteProjectViewID, func() view.View { return remoteproject.NewRemoteProjectView(ui.srv) })
 
 	ui.vm = vm
 	ui.srv.SetViewManager(
