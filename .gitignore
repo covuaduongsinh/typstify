@@ -18,3 +18,5 @@ chessbook/output/*.pdf
 chessbook/output/*.png
 demo/
 testproject/
+dist/
+*.syso
