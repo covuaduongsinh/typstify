@@ -159,7 +159,7 @@ func (ui *UI) getWindowSize() (width unit.Dp, height unit.Dp) {
 		return
 	}
 
-	if lastAppState.WindowSize[0] <= 0 || lastAppState.WindowSize[1] <= 0 {
+	if len(lastAppState.WindowSize) < 2 || lastAppState.WindowSize[0] <= 0 || lastAppState.WindowSize[1] <= 0 {
 		return
 	}
 
