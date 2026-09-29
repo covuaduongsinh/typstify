@@ -7,6 +7,24 @@
 The cross-platform desktop editor for Typst. Unlock the power of Typst with Typstify. Get the professional power of LaTeX with a modern, intuitive editor designed for seamless typesetting and development.
 
 
+## Tính năng chính
+
+- **Soạn thảo Typst** với LSP (`tinymist`): gợi ý, chẩn đoán, hover, outline; autosave có kiểm tra hash chống ghi đè; git gutter.
+- **Live preview** (desktop: webview tinymist + click-to-source; web: SVG từ nội dung chưa lưu, PDF, hoặc iframe tinymist) với đồng bộ cuộn hai chiều.
+- **Xuất bản** PDF / PNG / SVG / HTML, chọn phiên bản và chuẩn PDF.
+- **Trợ lý AI** qua ACP + MCP nhúng (biên dịch, chẩn đoán, font, gói Typst), lịch sử phiên, hỏi quyền từng tool call.
+- **Quản lý gói Typst** (Tpix): tìm, chọn phiên bản, tải, kéo phụ thuộc, đóng gói/publish.
+- **Xuất bản cờ vua** `@local/chessbook`: puzzle, ECO, tạp chí, giáo án, ký hiệu; nhập PGN/CSV/JSON/FEN/Markdown.
+- **Đồng bộ desktop ↔ web**: settings theo section, phiên agent từ xa, dự án trên server; Dropbox sync.
+- **Web tự host**: đăng nhập nhiều người dùng, API token, quản lý font, giao diện tiếng Việt.
+
+## Tài liệu
+
+Mục lục đầy đủ: [docs/README.md](docs/README.md). Nhanh: kiến trúc [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+module [docs/MODULES.md](docs/MODULES.md), thuật toán [docs/ALGORITHMS.md](docs/ALGORITHMS.md),
+lịch sử [docs/HISTORY.md](docs/HISTORY.md), hướng đi [docs/ROADMAP.md](docs/ROADMAP.md),
+nhân bản/mở rộng [docs/REPLICATION.md](docs/REPLICATION.md), hướng dẫn cho AI [CLAUDE.md](CLAUDE.md).
+
 ## Run
 
 ```sh
@@ -24,6 +42,8 @@ To run the app locally, you must
 
 This project uses [Gio](https://gioui.org/) to build the UI. To build a binary release, you have to install and use the gogio tool, please 
 refer to [gio-cmd](https://git.sr.ht/~eliasnaur/gio-cmd) to learn more. Also CGO must be enabled to build it.
+
+On Windows, `scripts/package-desktop.ps1 -Version 0.1.0` builds the app with gogio, bundles pinned `typst`/`tinymist`, the chess library and `board-n-pieces`, and produces `dist/Typstify-Setup-<version>.exe` (needs [Inno Setup](https://jrsoftware.org/isinfo.php); otherwise a portable zip with `install.ps1`).
 
 **Important:** The typstify project is distributed as source code only. For pre-compiled binary releases, please download from the [official website](https://typstify.com/download)
 

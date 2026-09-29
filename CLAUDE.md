@@ -1,3 +1,77 @@
+# Typstify — Hướng dẫn cho AI Agent
+
+> `CLAUDE.md` và `AGENTS.md` có nội dung giống hệt nhau. Sửa một file thì sửa cả hai.
+> Tài liệu chi tiết nằm trong [`docs/`](docs/README.md) (mục lục).
+
+## 1. Dự án là gì
+
+Typstify là trình soạn thảo **Typst** gồm ba bề mặt dùng chung một backend Go:
+
+- **Desktop**: Go 1.25 + Gio (`gioui.org`), soạn thảo bằng fork `internal/gvcode`, preview qua `tinymist`.
+- **Server web tự host**: `cmd/typstify-server` + `server/` (HTTP/WebSocket), giao diện React 19 + Vite + CodeMirror 6 trong `web/`.
+- **Thư viện xuất bản cờ vua** `@local/chessbook:0.1.0` (Typst) trong `chessbook/lib`.
+
+Desktop và server dùng chung `service.ServiceFacade` (không phụ thuộc Gio), `agent/`, `lsp/`, `typst/`.
+
+## 2. Bản đồ repo
+
+| Đường dẫn | Vai trò |
+|---|---|
+| `app.go` | Entry desktop: `service.NewService` → `ui.NewUI` → `ui.Loop` |
+| `cmd/typstify-server/` | Entry server headless (cờ `-addr`, `-password`, `-project`, `-static-dir`, `-project-root`) |
+| `server/` | Tầng vận chuyển HTTP/WS: auth, workspace, export, preview, packages, settings, fonts, dropbox, agent, lsp |
+| `service/` | Facade + bus, settings, workspace (bbolt), filewatcher, mcp, dropbox, remote, projectstore, fonts |
+| `agent/` | Client ACP, `SessionManager`, phiên chat, `Broker`, MCP server nhúng, `RemoteChatSession` |
+| `lsp/` | Client tinymist (JSON-RPC), completion, `PreviewService`, click-to-source |
+| `typst/` | Bọc CLI `typst` (compile/watch/eval/query), `export.CompileHelper`, `pkg/` (Tpix) |
+| `editor/` | Editor lõi: autosave, git gutter diff, highlight, search |
+| `ui/` | Giao diện Gio: `editors`, `preview`, `navpanel`, `pkgmgmt`, `assistant`, `settings`, `dialog`, `remoteproject` |
+| `web/` | Frontend React (`src/components`, `src/lib`, `src/api`) |
+| `chessbook/` | Thư viện Typst cờ vua: `lib/`, `templates/`, `data/`, `demo_collection/` |
+| `i18n/`, `fonts/` | i18n desktop (en-US, zh-CN, de-DE); font nhúng của UI desktop |
+| `scripts/` | `check-chessbook.sh`, `install-chessbook.sh/.ps1` |
+| `docs/` | Tài liệu (xem `docs/README.md`), `docs/plans/` là kế hoạch lịch sử |
+| `.claude/skills/` | Skill dự án (`chess-pdf-to-typst`) |
+
+## 3. Lệnh build / chạy / kiểm thử
+
+```sh
+go run .                                   # desktop (cần typst + tinymist cạnh app hoặc đặt trong Settings)
+go run ./cmd/typstify-server               # server headless
+go build -o bin/typstify-server ./cmd/typstify-server
+cd web && npm ci && npm run build          # frontend (tsc -b && vite build)
+cd web && npm run dev                      # Vite dev, proxy /api /preview /ws tới TYPSTIFY_BACKEND
+cd web && npm test                         # vitest
+cd web && npm run lint                     # oxlint
+go test ./...                              # package UI desktop cần header X11/Wayland
+scripts/check-chessbook.sh                 # biên dịch mọi demo/template chessbook
+powershell -File scripts/package-desktop.ps1 -Version 0.1.0   # bộ cài Windows -> dist/
+docker compose up -d --build               # server + Caddy TLS
+```
+
+Không có Justfile/Makefile. Bản desktop phát hành cần `gogio` và CGO. CI: `.github/workflows/ci.yml`.
+
+## 4. Quy ước làm việc
+
+- Giao tiếp và tài liệu bằng **tiếng Việt**; code, đường dẫn, định danh giữ tiếng Anh.
+- Commit message theo kiểu `feat(scope): ...` / `fix(scope): ...` (tiếng Anh), kết thúc bằng dòng `Co-Authored-By` khi có yêu cầu.
+- Logic dùng chung đặt ở `service/`, `agent/`, `lsp/`, `typst/`; `server/` chỉ làm transport. Không kéo phụ thuộc Gio vào `service/`.
+- Server: mọi đường dẫn file phải qua `resolveInRoot` (`server/paths.go`); không lộ secret (`/api/settings/tpix` cố ý không expose).
+- Settings mới: thêm `Model` (`Save/Load/Validate`), và `RemoteApplier` nếu cần đồng bộ desktop↔web. Section `agent` là máy cục bộ, không sync.
+- Thay đổi hành vi thì cập nhật `docs/` tương ứng và thêm mục vào `docs/HISTORY.md`.
+- `.gitignore` đang loại `.claude/`, `demo/`, `scratch/`, `*.exe`, `.env` — đừng giả định các thư mục này được theo dõi.
+
+## 5. Cạm bẫy đã biết (tóm tắt — chi tiết ở `docs/MEMORY.md`)
+
+- Preview SVG trên web **chưa có** click-to-source; chỉ desktop và iframe tinymist có.
+- Scroll sync bằng vị trí heading thật chỉ có ở web (`typst.QueryHeadingPages`).
+- `tinymist.doKillPreview` phải truyền id `"default_preview"`.
+- Callback LSP chạy trên goroutine riêng: đụng UI Gio phải gọi `RefreshWindow()`.
+- `bus.Subscribe` panic nếu đăng ký trùng khoá `%p:name`.
+- Typst: `#` trong `[...]` phải escape `\#`; `=` đầu content block bị hiểu là heading (viết `[#"="]`).
+
+---
+
 # Typstify Chessbook Engine Guide for AI Agents
 
 Typstify includes the built-in chess package `@local/chessbook:0.1.0`.
