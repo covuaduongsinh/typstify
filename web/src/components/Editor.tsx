@@ -56,6 +56,12 @@ export interface EditorHandle {
 interface EditorProps {
   path: string
   initialContent: string
+  /** The LSP connection for the whole workspace session (see Workspace.tsx) --
+   * shared across file switches instead of one WebSocket per open file, so
+   * changing files doesn't pay for a fresh /ws/lsp handshake + tinymist
+   * re-init every time. Editor only sends didOpen/didChange/didClose for its
+   * own path; it never creates or closes the connection itself. */
+  lsp: LspClient
   onDirtyChange?: (dirty: boolean) => void
   /** Persists the content; a rejected promise keeps the file dirty. */
   onSave?: (content: string) => Promise<void> | void
@@ -157,7 +163,7 @@ const HOVER_MARKDOWN_COMPONENTS = { a: HoverLink }
  * completion/hover/diagnostics sourced from the tinymist LSP over
  * /ws/lsp (see server/lsp_ws.go and lib/lspClient.ts). */
 export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
-  { path, initialContent, onDirtyChange, onSave, onSaveError, onCursorChange, onDocChange, onDiagnosticsChange },
+  { path, initialContent, lsp, onDirtyChange, onSave, onSaveError, onCursorChange, onDocChange, onDiagnosticsChange },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -332,7 +338,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   }))
 
   useEffect(() => {
-    const lsp = new LspClient()
     lspRef.current = lsp
 
     const scheduleChange = (content: string) => {
@@ -446,15 +451,17 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       window.clearTimeout(changeTimerRef.current)
       unsubscribe()
       unsubscribeReconnect()
+      // Tells the shared LSP session this document is no longer open. The
+      // WebSocket itself belongs to Workspace (one per project session, not
+      // per file) and stays open across this file switch.
       lsp.didClose(path)
-      lsp.close()
       view.destroy()
       viewRef.current = null
       lspRef.current = null
     }
-    // Re-create the whole editor session when the open file changes.
+    // Re-create the whole CodeMirror session when the open file changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path])
+  }, [path, lsp])
 
   return <div className="editor-host" ref={hostRef} />
 })

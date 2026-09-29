@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { TreeEntry } from '../api/types'
 import { useTranslations } from '../lib/i18n'
+import { LspClient } from '../lib/lspClient'
 import { useTheme } from '../lib/theme'
 import { effectiveKey, matchesCombo, SHORTCUT_ACTIONS, useShortcuts } from '../lib/shortcuts'
 import { CHESSBOOK_IMPORT } from '../lib/typst'
@@ -180,6 +181,18 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const t = useTranslations(I18N_KEYS)
   const [theme, toggleTheme] = useTheme()
   const { overrides: shortcuts } = useShortcuts()
+
+  // One /ws/lsp connection for the whole workspace session, shared across
+  // every file the user opens -- not recreated per file switch, which used
+  // to pay for a fresh WebSocket handshake + tinymist re-init (visible as a
+  // brief gap before completion/hover worked again) every time. State (not
+  // a plain ref) so the Editor below never renders before it exists.
+  const [lspClient, setLspClient] = useState<LspClient | null>(null)
+  useEffect(() => {
+    const client = new LspClient()
+    setLspClient(client)
+    return () => client.close()
+  }, [])
 
   // Global keyboard-shortcut dispatcher (lib/shortcuts.ts) -- works
   // regardless of which element has focus, unlike binding these inside
@@ -517,7 +530,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
               maxWidth: showPreview ? `${editorRatio * 100}%` : '100%',
             }}
           >
-            {activePath && content !== null ? (
+            {activePath && content !== null && lspClient ? (
               <div className="editor-container-with-toolbar">
                 {activePath.endsWith('.typ') && (
                   <ChessToolbar
@@ -538,6 +551,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     ref={editorRef}
                     path={activePath}
                     initialContent={content}
+                    lsp={lspClient}
                     onDirtyChange={setDirty}
                     onDocChange={handleDocChange}
                     onSave={saveActiveFile}

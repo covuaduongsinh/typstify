@@ -244,9 +244,23 @@ func (s *Server) staticHandler() http.Handler {
 
 		p := filepath.Join(s.opts.StaticDir, filepath.Clean(r.URL.Path))
 		if info, err := os.Stat(p); err == nil && !info.IsDir() {
+			// Only /assets/* filenames are content-hashed by Vite (a given
+			// path's bytes then never change, so caching for a year is
+			// safe); root-level files copied verbatim from web/public
+			// (favicon.svg, icons.svg) keep their name across a rebuild and
+			// must stay revalidated instead. index.html (served below, and
+			// via the SPA fallback for client-routed paths) always needs a
+			// fresh fetch too, or a redeployed build could keep serving a
+			// stale shell referencing assets that no longer exist.
+			if strings.HasPrefix(r.URL.Path, "/assets/") {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			} else {
+				w.Header().Set("Cache-Control", "no-cache")
+			}
 			fileServer.ServeHTTP(w, r)
 			return
 		}
+		w.Header().Set("Cache-Control", "no-cache")
 		http.ServeFile(w, r, indexFile)
 	})
 }

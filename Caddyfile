@@ -10,5 +10,6 @@
 # (see server/server.go and server/preview_proxy.go) all work with no extra
 # directives.
 {$TYPSTIFY_DOMAIN} {
+	encode zstd gzip
 	reverse_proxy typstify:8080
 }
