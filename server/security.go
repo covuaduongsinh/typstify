@@ -90,6 +90,9 @@ func withBodyLimit(next http.Handler) http.Handler {
 			if r.Method == http.MethodPut && r.URL.Path == "/api/workspace/file" {
 				limit = fileBodyLimit
 			}
+			if r.Method == http.MethodPost && r.URL.Path == "/api/sync/push" {
+				limit = fileBodyLimit
+			}
 			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
 		next.ServeHTTP(w, r)

@@ -156,6 +156,12 @@ func (s *Server) routes() {
 	s.handle("POST /api/preview/render", s.handlePreviewRender)
 	s.handle("POST /api/preview/anchors", s.handlePreviewAnchors)
 
+	// VPS sync: desktop pushes project files here (see sync_handler.go).
+	s.handle("GET /api/sync/manifest", s.handleSyncManifest)
+	s.handle("GET /api/sync/pull", s.handleSyncPull)
+	s.handle("POST /api/sync/push", s.handleSyncPush)
+	s.handle("POST /api/sync/delete", s.handleSyncDelete)
+
 	// Typst package manager (Tpix).
 	s.handle("GET /api/packages/search", s.handlePkgSearch)
 	s.handle("GET /api/packages/cached", s.handlePkgCached)

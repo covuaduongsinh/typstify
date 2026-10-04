@@ -12,7 +12,7 @@ Nguồn: khảo sát mã nguồn 2026-09-29 và `docs/plans/plan_codebase_review
 | A4 | `docs/architecture_and_guide.md` nói i18n có tiếng Việt | file đó, mục bảng `i18n/` | Sửa cho khớp hoặc làm xong A3 | Tài liệu khớp mã |
 | A5 | Agent từ xa: title, usage, available commands không đi qua WebSocket | `agent/remote_session.go` | Mở rộng giao thức `/ws/agent` | Phiên remote hiện đủ thông tin như local |
 | A6 | Không có Justfile/Makefile | gốc repo | Thêm target build/test/run thống nhất | `just test` chạy đủ Go + web |
-| A7 | Chưa có `docs/CHESSBOOK.md` | `docs/` | Viết theo kế hoạch tài liệu | Mục lục `docs/README.md` không còn "chưa viết" |
+| A7 | (Đã hoàn thành) `docs/CHESSBOOK.md` | `docs/` | Đã viết đầy đủ tài liệu API, tham số, thuật toán và ví dụ | Mục lục `docs/README.md` đã có |
 
 ## B. Vệ sinh repo
 - `.claude/` (kể cả skill dự án) và `demo/` bị `.gitignore` loại → skill không được theo dõi. Quyết định: bỏ luật loại cho `.claude/skills/` hay chấp nhận sao chép tay (xem [SKILLS.md](SKILLS.md)).

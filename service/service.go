@@ -18,6 +18,7 @@ import (
 	"looz.ws/typstify/lsp"
 	"looz.ws/typstify/service/bus"
 	"looz.ws/typstify/service/dropbox"
+	"looz.ws/typstify/service/vpssync"
 	"looz.ws/typstify/service/mcp"
 	"looz.ws/typstify/service/net"
 	"looz.ws/typstify/service/settings"
@@ -60,6 +61,7 @@ type ServiceFacade struct {
 	mcpServer          *agent.McpServer // the built-in mcp server
 	dropboxClient      *dropbox.Client
 	dropboxSyncer      *dropbox.Syncer
+	vpsSync            *vpssync.SyncEngine
 
 	// projMu guards currentProjectDir and previewSrv: the web server
 	// switches projects from one HTTP handler while others read them.
@@ -101,6 +103,14 @@ func NewService(ctx context.Context) *ServiceFacade {
 		s.dropboxSyncer = dropbox.NewSyncer(s.dropboxClient, st.Dropbox(), eventbus)
 	})
 
+	s.vpsSync = vpssync.NewSyncEngine(st.VPSSync, s.CurrentProjectDir)
+	s.vpsSync.StartBackgroundLoop(context.Background())
+	eventbus.Subscribe(s, "service.onVPSSyncFileChanged", bus.TopicWorkspaceFileChanged, func(topic string, data interface{}) {
+		if ev, ok := data.(bus.FileChangedEvent); ok {
+			s.vpsSync.OnFileChanged(ev.Path)
+		}
+	})
+
 	// init executable lookup path.
 	lsp.SetupCmdBuilder(s.settings.General().ExternalTinymist)
 	typst.SetupCmdBuilder(s.settings.General().ExternalTypst)
@@ -116,6 +126,11 @@ func (s *ServiceFacade) DropboxClient() *dropbox.Client {
 
 func (s *ServiceFacade) DropboxSyncer() *dropbox.Syncer {
 	return s.dropboxSyncer
+}
+
+// VPSSync trả về engine đồng bộ file lên VPS (xem service/vpssync).
+func (s *ServiceFacade) VPSSync() *vpssync.SyncEngine {
+	return s.vpsSync
 }
 
 func (s *ServiceFacade) EventBus() *bus.EventBus {

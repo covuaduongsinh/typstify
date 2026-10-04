@@ -106,6 +106,18 @@ var History []byte
 //go:embed lucide/refresh-ccw.svg
 var RefreshCcw []byte
 
+//go:embed lucide/cloud.svg
+var Cloud []byte
+
+//go:embed lucide/cloud-upload.svg
+var CloudUpload []byte
+
+//go:embed lucide/cloud-check.svg
+var CloudCheck []byte
+
+//go:embed lucide/cloud-alert.svg
+var CloudAlert []byte
+
 //go:embed lucide/external-link.svg
 var ExternalLink []byte
 

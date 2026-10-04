@@ -82,6 +82,7 @@ func NewSettingsView(srv *service.ServiceFacade) *SettingsView {
 		NewSyncView(srv),
 		&TpixSettingsView{srv: srv},
 		&AgentView{setting: srv.Settings().AcpAgent()},
+		NewVPSSyncView(srv),
 		&HelpView{updateCheck: &UpdateCheck{srv: srv}},
 	}
 

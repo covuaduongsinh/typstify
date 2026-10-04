@@ -43,6 +43,31 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-05 — Đồng bộ file một chiều Local -> VPS (typstify-server)
+- **Yêu cầu**: thay Dropbox (hay hết hạn access token) bằng đồng bộ file trực tiếp từ desktop lên VPS chạy `typstify-server`, xác thực bằng Bearer token.
+- **Quyết định**:
+  - Chỉ hướng Local -> VPS. Trong `PerformSync` không xoá file chỉ có trên VPS; xoá từ xa chỉ xảy ra qua `DeleteFile` khi file đang mở bị xoá local.
+  - So khớp bằng sha256 nội dung. Server lưu nguyên bytes nhận được, **không** qua `repairTypstContent`, để hash hai phía luôn khớp (nếu biến đổi thì mỗi lần sync sẽ đẩy lại mãi).
+  - `.git`, `node_modules`, `dist`, `.tmp` và `.typstify` (chứa token máy) luôn bị bỏ qua ở cả client lẫn server.
+  - Cấu hình `VPSSyncSettings` là credential riêng của máy nên không đưa vào đồng bộ settings desktop<->web.
+- **Thành phần**:
+  - Server: `server/sync_handler.go` với `GET /api/sync/manifest`, `GET /api/sync/pull`, `POST /api/sync/push` (body thô, ghi qua file tạm rồi rename), `POST /api/sync/delete`. Mọi đường dẫn đi qua `resolveInRoot`; route bọc `authMiddleware`.
+  - Client: `service/vpssync/` (`SyncEngine`: `TestConnection`, `PushFile`, `DeleteFile`, `PerformSync`, `OnFileChanged`, `Status`), nối vào `ServiceFacade` qua `VPSSync()` và bus `TopicWorkspaceFileChanged`.
+  - Settings: `service/settings/vpssync.go` (section `vpsSync`) và `Settings.VPSSync()`.
+  - UI: tab "VPS Sync" trong Settings (đặt sau Agent, `settings.VPSSyncTabIdx = 8`); nút trạng thái cloud + Sync Now trên thanh menu (`ui/navpanel/menu_panel.go`).
+- **Kiểm chứng**: unit test `service/vpssync` và `server/sync_handler_test.go`; chạy `typstify-server` thật bằng curl (401 khi thiếu token, chặn `.git`/`.typstify`, `../` bị neo trong root) và client `PerformSync` thật (lần 2 không đẩy file nào).
+- **Việc còn lại**: `IntervalSec` đã lưu nhưng chưa có vòng lặp định kỳ; chuỗi i18n mới chưa thêm vào `i18n/`.
+- **File đã đổi**: `server/server.go`, `server/security.go`, `server/sync_handler.go` (+test), `service/service.go`, `service/settings/db.go`, `service/settings/vpssync.go`, `service/vpssync/` (+test), `ui/navpanel/menu_panel.go`, `ui/settings/vpssync.go`, `ui/settings/view_setting.go`, `widgets/icons/icons.go` và 4 file `widgets/icons/lucide/cloud*.svg`, `docs/HISTORY.md`.
+
+### 2026-09-30 — Rà soát, chuẩn hoá và đồng bộ toàn diện hệ thống tài liệu
+- **Yêu cầu**: Rà soát, cập nhật và hoàn thiện toàn bộ các file tài liệu `.md` cốt lõi (`AGENTS.md`, `CLAUDE.md`, `README.md`, `docs/README.md`, `docs/TECH.md`, `docs/ARCHITECTURE.md`, `docs/MODULES.md`, `docs/ALGORITHMS.md`, `docs/API.md`, `docs/CHESSBOOK.md`, `docs/MEMORY.md`, `docs/SKILLS.md`, `docs/HISTORY.md`, `docs/ROADMAP.md`, `docs/REPLICATION.md`...) làm tài liệu đặc tả chuẩn xác phục vụ việc bảo trì, phát triển tính năng mới và nhân bản phần mềm.
+- **Quyết định & Thực hiện**:
+  1. Kiểm tra và đồng bộ 100% nội dung giữa `AGENTS.md` và `CLAUDE.md`.
+  2. Chuẩn hoá chữ ký tham số thực tế của hàm `render-puzzle-collection` trong thư viện `puzzle.typ` (`page-title`, `show-upside-down`, `render-appendix-at-end`, `per-page`) trên `CLAUDE.md`, `AGENTS.md` và `CHESSBOOK.md`.
+  3. Cập nhật `ROADMAP.md` ghi nhận hoàn thành `docs/CHESSBOOK.md`.
+  4. Xác nhận tính đầy đủ của các phân tích thuật toán sâu trong `ALGORITHMS.md` (biên dịch Typst, preview SVG web, shadow file `.live_preview_*.typ`, scroll sync 2 chiều theo heading anchors, click-to-source, autosave digest an toàn, ACP turn buffer, sync settings đa diện, cơ chế bảo mật server `resolveInRoot`).
+- **File đã cập nhật**: `AGENTS.md`, `CLAUDE.md`, `docs/ROADMAP.md`, `docs/HISTORY.md`.
+
 ### 2026-09-29 — Lập bộ tài liệu nền tảng
 - **Yêu cầu**: tạo/cập nhật các file .md (agents, claude, readme, skills, tech, memory…) để thống kê module, mô tả thuật toán, lưu lịch sử, làm cơ sở rà soát, thêm module mới và nhân bản phần mềm.
 - **Cách làm**: khảo sát chỉ-đọc bằng ba agent (desktop Go; web + server; chessbook + tài liệu), viết kế hoạch, rồi ghi tài liệu.

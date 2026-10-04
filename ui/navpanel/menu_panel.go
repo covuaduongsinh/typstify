@@ -1,8 +1,11 @@
 package navpanel
 
 import (
+	"context"
+	"image/color"
 	"log"
 	"path/filepath"
+	"time"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -30,6 +33,14 @@ var (
 	settingsIcon   = icons.NewSvgIcon(icons.Cog)
 	panelHideIcon  = icons.NewSvgIcon(icons.PanelLeftClose)
 	panelShowIcon  = icons.NewSvgIcon(icons.PanelRightClose)
+	cloudIcon      = icons.NewSvgIcon(icons.Cloud)
+	cloudUpIcon    = icons.NewSvgIcon(icons.CloudUpload)
+	cloudOkIcon    = icons.NewSvgIcon(icons.CloudCheck)
+	cloudErrIcon   = icons.NewSvgIcon(icons.CloudAlert)
+
+	cloudSyncingColor = color.NRGBA{R: 0x15, G: 0x65, B: 0xc0, A: 0xff}
+	cloudOkColor      = color.NRGBA{R: 0x2e, G: 0x7d, B: 0x32, A: 0xff}
+	cloudErrColor     = color.NRGBA{R: 0xc6, G: 0x28, B: 0x28, A: 0xff}
 )
 
 type MenuPanel struct {
@@ -41,6 +52,8 @@ type MenuPanel struct {
 	newProjectTip     wg.TipArea
 	openSettingBtn    widget.Clickable
 	openSettingTip    wg.TipArea
+	vpsSyncBtn        widget.Clickable
+	vpsSyncTip        wg.TipArea
 	hideDrawerBtn     widget.Clickable
 	hideDrawerTip     wg.TipArea
 
@@ -97,6 +110,14 @@ func (cp *MenuPanel) Layout(gtx C, th *theme.Theme) D {
 			}),
 
 			layout.Rigid(func(gtx C) D {
+				btn := wg.TipIconButton(th, &cp.vpsSyncTip, cp.vpsSyncTooltip())
+				return btn.Layout(gtx, func(gtx C) D {
+					icon, col := cp.vpsSyncIcon(th)
+					return cp.layoutBtnColor(gtx, &cp.vpsSyncBtn, icon, col)
+				})
+			}),
+
+			layout.Rigid(func(gtx C) D {
 				btn := wg.TipIconButton(th, &cp.openSettingTip, i18n.Translate("Settings"))
 				return btn.Layout(gtx, func(gtx C) D {
 					return cp.layoutBtn(gtx, th, &cp.openSettingBtn, settingsIcon)
@@ -107,11 +128,67 @@ func (cp *MenuPanel) Layout(gtx C, th *theme.Theme) D {
 }
 
 func (cp *MenuPanel) layoutBtn(gtx C, th *theme.Theme, btn *widget.Clickable, icon *icons.SvgIcon) D {
+	return cp.layoutBtnColor(gtx, btn, icon, th.Fg)
+}
+
+func (cp *MenuPanel) layoutBtnColor(gtx C, btn *widget.Clickable, icon *icons.SvgIcon, col color.NRGBA) D {
 	return btn.Layout(gtx, func(gtx C) D {
 		return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx C) D {
-			return icon.Layout(gtx, th.Fg, th.TextSize)
+			return icon.Layout(gtx, col, unit.Sp(16))
 		})
 	})
+}
+
+// vpsSyncConfigured báo đã nhập Server URL và bật đồng bộ VPS.
+func (cp *MenuPanel) vpsSyncConfigured() bool {
+	cfg := cp.srv.Settings().VPSSync()
+	return cfg.Enabled && cfg.ServerURL != ""
+}
+
+// vpsSyncIcon chọn icon và màu theo trạng thái đồng bộ hiện tại.
+func (cp *MenuPanel) vpsSyncIcon(th *theme.Theme) (*icons.SvgIcon, color.NRGBA) {
+	if !cp.vpsSyncConfigured() {
+		return cloudIcon, th.Fg
+	}
+	st := cp.srv.VPSSync().Status()
+	switch {
+	case st.Syncing:
+		return cloudUpIcon, cloudSyncingColor
+	case st.LastError != "":
+		return cloudErrIcon, cloudErrColor
+	case !st.LastSyncTime.IsZero():
+		return cloudOkIcon, cloudOkColor
+	default:
+		return cloudIcon, th.Fg
+	}
+}
+
+func (cp *MenuPanel) vpsSyncTooltip() string {
+	if !cp.vpsSyncConfigured() {
+		return i18n.Translate("VPS Sync: not configured")
+	}
+	st := cp.srv.VPSSync().Status()
+	switch {
+	case st.Syncing:
+		return i18n.Translate("VPS Sync: syncing...")
+	case st.LastError != "":
+		return i18n.Translate("VPS Sync error: ") + st.LastError
+	default:
+		return i18n.Translate("VPS Sync: click to sync now")
+	}
+}
+
+// startVPSSync chạy đồng bộ thủ công trong nền và làm mới cửa sổ khi xong.
+func (cp *MenuPanel) startVPSSync() {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		cp.srv.RefreshWindow()
+		if _, err := cp.srv.VPSSync().PerformSync(ctx); err != nil {
+			log.Println("vps sync failed: ", err)
+		}
+		cp.srv.RefreshWindow()
+	}()
 }
 
 func (cp *MenuPanel) update(gtx C) {
@@ -156,6 +233,18 @@ func (cp *MenuPanel) update(gtx C) {
 			Target:     pkgmgmt.PkgListViewID,
 			RequireNew: true,
 		})
+	}
+
+	if cp.vpsSyncBtn.Clicked(gtx) {
+		if !cp.vpsSyncConfigured() {
+			cp.vm.RequestSwitch(view.Intent{
+				Target:     settings.SettingViewID,
+				RequireNew: true,
+				Params:     map[string]any{"tabIdx": settings.VPSSyncTabIdx},
+			})
+		} else if !cp.srv.VPSSync().Status().Syncing {
+			cp.startVPSSync()
+		}
 	}
 
 	if cp.hideDrawerBtn.Clicked(gtx) {

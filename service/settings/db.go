@@ -31,6 +31,7 @@ type Settings struct {
 	acpAgent *AcpAgentSettings
 	dropbox  *DropboxSettings
 	remote   *RemoteSettings
+	vpsSync  *VPSSyncSettings
 }
 
 func configRoot() string {
@@ -163,6 +164,21 @@ func (s *Settings) Dropbox() *DropboxSettings {
 
 	s.dropbox.Load()
 	return s.dropbox
+}
+
+// VPSSync trả về cấu hình đồng bộ lên VPS (xem vpssync.go).
+func (s *Settings) VPSSync() *VPSSyncSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.vpsSync == nil {
+		s.vpsSync = &VPSSyncSettings{
+			baseModel: s.initModel("vpsSync"),
+		}
+	}
+
+	s.vpsSync.Load()
+	return s.vpsSync
 }
 
 // Meta returns, for every settings section, when it was last written --
