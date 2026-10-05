@@ -93,6 +93,16 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 - **Kiểm chứng**: Unit test `TestVietnameseLocale` & `TestEnglishLocale` PASS; toàn bộ test `service/settings`, `editor`, `utils` PASS; `go build` sinh `typstify.exe` thành công.
 - **File đã đổi**: `i18n/localizer.go`, `i18n/localizer_test.go`, `i18n/translations/translations.go`, `i18n/translations/catalog.go`, `i18n/translations/locales/vi-VN/messages.gotext.json`, `service/settings/models.go`, `ui/ui.go`, `ui/settings/sync.go`, `ui/remoteproject/view.go`, `ui/dialog/export.go`, `ui/settings/lsp.go`, `ui/settings/subviews.go`, `ui/settings/agent.go`, `ui/assistant/chat.go`, `ui/pkgmgmt/manage.go`, `ui/pkgmgmt/card.go`, `ui/editors/typst_view.go`, `ui/editors/generic_text_view.go`, `ui/viewer/image_view.go`, `ui/crash_report.go`, `ui/assistant/sessions.go`, `docs/ROADMAP.md`, `docs/HISTORY.md`.
 
+### 2026-10-05 — Cải tiến UI Desktop Đợt 7: Tích hợp bộ gõ tiếng Việt Telex cho Editor
+- **Nội dung thực hiện**:
+  - Tích hợp bộ gõ Telex `utils/vietnamese/telex.go` vào luồng nhập liệu của editor (`editor/editor.go`, `internal/gvcode`) qua cơ chế `gvcode.AddTextInputHook`.
+  - Tự động phát hiện và biến đổi các từ tiếng Việt gõ theo quy tắc Telex (`tieengs Vieejt` -> `tiếng Việt`, `ddoongf booj` -> `đồng bộ`, `tawng kichs thuwocs` -> `tăng kích thước`).
+  - Thêm thuộc tính `EnableTelex` vào `service/settings/models.go` (`defaultEditorSettings`: mặc định `"false"` để không làm phiền người dùng sử dụng bộ gõ ngoài).
+  - Thêm công tắc bật/tắt bộ gõ Telex trong tab Settings -> Editor (`ui/settings/subviews.go`), đồng bộ realtime qua EventBus `bus.TopicSettingsUpdated`.
+  - Giữ nguyên trạng thái khi ở chế độ ReadOnly hoặc khi gõ trong thanh tìm kiếm/dialog.
+  - Viết unit test tích hợp `editor/telex_integration_test.go` kiểm thử toàn diện các quy tắc gõ và chuyển đổi chế độ.
+- **File đã cập nhật**: `editor/editor.go`, `service/settings/models.go`, `ui/settings/subviews.go`, `editor/telex_integration_test.go`, `docs/HISTORY.md`.
+
 ### 2026-10-05 — Cải tiến UI Desktop Đợt 6: Phím tắt còn thiếu, Command Palette, công tắc WrapLine
 - **Nội dung thực hiện**:
   - Chuyển phím tắt WrapLine trong editor từ `Alt+Z` sang `Ctrl+Alt+W` theo kế hoạch.

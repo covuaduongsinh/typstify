@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"gioui.org/f32"
 	"gioui.org/font"
@@ -45,6 +46,7 @@ import (
 	"looz.ws/typstify/service/settings"
 	"looz.ws/typstify/typst"
 	"looz.ws/typstify/utils"
+	"looz.ws/typstify/utils/vietnamese"
 )
 
 type (
@@ -62,6 +64,7 @@ type TextEditor struct {
 	highlighter  *Highlighter
 	colorScheme  *syntax.ColorScheme
 	wrapLine     bool
+	enableTelex  bool
 
 	contextMenu *menu.ContextMenu
 	//editorConf  *editor.EditorConf
@@ -360,6 +363,41 @@ func (me *TextEditor) handleEvents(gtx layout.Context) {
 
 }
 
+func (me *TextEditor) handleTelexInput(ed *gvcode.Editor, ke key.EditEvent) bool {
+	if !me.enableTelex || ed.Mode() == gvcode.ModeReadOnly {
+		return false
+	}
+	// Only process single-character typing without selection range
+	if utf8.RuneCountInString(ke.Text) != 1 {
+		return false
+	}
+	start, end := ed.Selection()
+	if start != end || ke.Range.Start != ke.Range.End || start != ke.Range.Start {
+		return false
+	}
+	keyRune, _ := utf8.DecodeRuneInString(ke.Text)
+	// Read nearby text preceding caret (up to 40 runes)
+	prefixStart := max(0, start-40)
+	prefixText := ed.ReadTextBetween(prefixStart, start)
+	relStart, word := vietnamese.ExtractLastWord(prefixText)
+	wordStart := prefixStart + relStart
+	newWord, ok := vietnamese.TransformWordTelex(word, keyRune)
+	if !ok {
+		return false
+	}
+	ed.SetCaret(wordStart, end)
+	ed.Insert(newWord)
+	return true
+}
+
+func (me *TextEditor) EnableTelex() bool {
+	return me.enableTelex
+}
+
+func (me *TextEditor) SetEnableTelex(enabled bool) {
+	me.enableTelex = enabled
+}
+
 func (me *TextEditor) queryDocOnHover(pos gvcode.Position) (string, f32.Point) {
 	result0, err := me.lspClient.Hover(context.Background(), me.filename, pos.Line, pos.Column)
 	if err != nil {
@@ -512,6 +550,12 @@ func (me *TextEditor) BindWorkspaceWatcher(srv *service.ServiceFacade) error {
 
 		})
 	}
+
+	srv.EventBus().Subscribe(me, "editor.settings.updated", bus.TopicSettingsUpdated, func(topic string, data interface{}) {
+		if me.srv != nil && me.srv.Settings() != nil {
+			me.enableTelex = me.srv.Settings().Editor().EnableTelex == "true"
+		}
+	})
 
 	return nil
 }
@@ -727,12 +771,17 @@ func NewTextEditor(path string, showDiff bool, settings *settings.EditorSettings
 		diffProvider: providers.NewVCSDiffProvider(),
 	}
 
+	if settings != nil {
+		ed.enableTelex = settings.EnableTelex == "true"
+	}
+
 	ed.state.WithOptions(
 		gvcode.WrapLine(false),
 		gvcode.WithGutterGap(unit.Dp(24)),
 		gvcode.WithCornerRadius(unit.Dp(4)),
 		gvcode.WithGutter(providers.NewLineNumberProvider()),
 		gvcode.WithGutter(ed.diffProvider),
+		gvcode.AddTextInputHook(ed.handleTelexInput),
 	)
 
 	// Initialize overview ruler colors

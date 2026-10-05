@@ -76,6 +76,7 @@ type EditorSettings struct {
 	TabSize          int     `key:"tabSize" json:"tabSize"`
 	UseSoftTab       string  `key:"softTab" json:"softTab"`
 	WrapLine         string  `key:"wrapLine" json:"wrapLine"`
+	EnableTelex      string  `key:"enableTelex" json:"enableTelex"`
 	AutoSaveInterval int     `key:"autoSaveInterval" json:"autoSaveInterval"`
 }
 
@@ -431,6 +432,7 @@ func init() {
 		UseSoftTab:       "true",
 		TabSize:          4,
 		WrapLine:         "true",
+		EnableTelex:      "false",
 		AutoSaveInterval: 3,
 	}
 

@@ -54,6 +54,7 @@ type EditorView struct {
 	tabKind              widget.Enum
 	tabSize              gvwidget.TextField
 	wrapLine             widget.Bool
+	enableTelex          widget.Bool
 
 	isInitialized bool
 	lastErr       error
@@ -323,9 +324,19 @@ func (e *EditorView) Layout(gtx C, th *theme.Theme) D {
 		e.tabSize.SetText(fmt.Sprint(e.setting.TabSize))
 		e.saveIntervalInput = form.NewFloatBinder(float32(e.setting.AutoSaveInterval), []float32{1, 10})
 		e.wrapLine = widget.Bool{Value: e.setting.WrapLine == "true"}
+		e.enableTelex = widget.Bool{Value: e.setting.EnableTelex == "true"}
 		e.isInitialized = true
 	} else {
 		var doUpdate bool
+
+		if e.enableTelex.Update(gtx) {
+			if e.enableTelex.Value {
+				e.setting.EnableTelex = "true"
+			} else {
+				e.setting.EnableTelex = "false"
+			}
+			doUpdate = true
+		}
 
 		if e.wrapLine.Update(gtx) {
 			if e.wrapLine.Value {
@@ -516,6 +527,19 @@ func (e *EditorView) Layout(gtx C, th *theme.Theme) D {
 						Alignment: layout.Middle,
 					}.Layout(gtx,
 						layout.Rigid(material.Switch(th.Theme, &e.wrapLine, i18n.Translate("Wrap lines")).Layout),
+					)
+				})
+		}),
+
+		layout.Rigid(func(gtx C) D {
+			return settingItem{}.Layout(gtx, th, i18n.Translate("Vietnamese Telex Input"),
+				i18n.Translate("Enable built-in Telex Vietnamese input method in editor without external software."),
+				func(gtx C) D {
+					return layout.Flex{
+						Axis:      layout.Horizontal,
+						Alignment: layout.Middle,
+					}.Layout(gtx,
+						layout.Rigid(material.Switch(th.Theme, &e.enableTelex, i18n.Translate("Vietnamese Telex Input")).Layout),
 					)
 				})
 		}),
