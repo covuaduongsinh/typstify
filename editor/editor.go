@@ -323,7 +323,7 @@ func (me *TextEditor) handleEvents(gtx layout.Context) {
 			key.Filter{Focus: me.state, Name: "S", Required: key.ModShortcut},
 			key.Filter{Focus: me.state, Name: "F", Required: key.ModShortcut},
 			key.Filter{Focus: me.state, Name: "R", Required: key.ModShortcut | key.ModShift},
-			key.Filter{Focus: me.state, Name: "W", Required: key.ModShortcut},
+			key.Filter{Focus: me.state, Name: "W", Required: key.ModShortcut | key.ModAlt},
 			key.Filter{Focus: me.state, Name: key.NameEscape},
 		)
 		if !ok {
@@ -342,10 +342,10 @@ func (me *TextEditor) handleEvents(gtx layout.Context) {
 					if event.Name == "F" {
 						me.searchbar.Show(gtx)
 					}
-					if event.Name == "W" {
-						me.state.WithOptions(gvcode.WrapLine(!me.wrapLine))
-						me.wrapLine = !me.wrapLine
-					}
+				}
+				if event.Modifiers == (key.ModShortcut|key.ModAlt) && event.Name == "W" {
+					me.state.WithOptions(gvcode.WrapLine(!me.wrapLine))
+					me.wrapLine = !me.wrapLine
 				}
 				if event.Modifiers == (key.ModShortcut|key.ModShift) && event.Name == "R" {
 					me.state.WithOptions(gvcode.ReadOnlyMode(me.state.Mode() != gvcode.ModeReadOnly))

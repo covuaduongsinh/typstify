@@ -53,6 +53,7 @@ type EditorView struct {
 	textWeightEnum       widget.Enum
 	tabKind              widget.Enum
 	tabSize              gvwidget.TextField
+	wrapLine             widget.Bool
 
 	isInitialized bool
 	lastErr       error
@@ -321,9 +322,19 @@ func (e *EditorView) Layout(gtx C, th *theme.Theme) D {
 		e.tabKind.Value = currentTabKind(e.setting)
 		e.tabSize.SetText(fmt.Sprint(e.setting.TabSize))
 		e.saveIntervalInput = form.NewFloatBinder(float32(e.setting.AutoSaveInterval), []float32{1, 10})
+		e.wrapLine = widget.Bool{Value: e.setting.WrapLine == "true"}
 		e.isInitialized = true
 	} else {
 		var doUpdate bool
+
+		if e.wrapLine.Update(gtx) {
+			if e.wrapLine.Value {
+				e.setting.WrapLine = "true"
+			} else {
+				e.setting.WrapLine = "false"
+			}
+			doUpdate = true
+		}
 
 		if val, updated := e.saveIntervalInput.Update(gtx); updated {
 			e.setting.AutoSaveInterval = int(val)
@@ -493,6 +504,19 @@ func (e *EditorView) Layout(gtx C, th *theme.Theme) D {
 				func(gtx C) D {
 					e.tabSize.Alignment = text.Start
 					return e.tabSize.Layout(gtx, th, i18n.Translate("Tab Width"))
+				})
+		}),
+
+		layout.Rigid(func(gtx C) D {
+			return settingItem{}.Layout(gtx, th, i18n.Translate("Wrap Lines"),
+				i18n.Translate("Wrap long lines of text to fit within the editor window."),
+				func(gtx C) D {
+					return layout.Flex{
+						Axis:      layout.Horizontal,
+						Alignment: layout.Middle,
+					}.Layout(gtx,
+						layout.Rigid(material.Switch(th.Theme, &e.wrapLine, i18n.Translate("Wrap lines")).Layout),
+					)
 				})
 		}),
 	)

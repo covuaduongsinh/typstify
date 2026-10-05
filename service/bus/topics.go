@@ -10,6 +10,10 @@ const (
 	TopicGitBranchChanged     = "git.branch.changed"
 	TopicGitFileStaged        = "git.file.staged"
 	TopicPreviewToggle        = "preview.toggle" // for agent tool
+	TopicToggleChat           = "app.toggle_chat"
+	TopicToggleConsole        = "app.toggle_console"
+	TopicToggleDrawer         = "app.toggle_drawer"
+	TopicVpsSyncNow           = "app.vps_sync_now"
 )
 
 type FileChangedEvent struct {
@@ -25,4 +29,8 @@ var allTopics = []string{
 	TopicGitBranchChanged,
 	TopicGitFileStaged,
 	TopicPreviewToggle,
+	TopicToggleChat,
+	TopicToggleConsole,
+	TopicToggleDrawer,
+	TopicVpsSyncNow,
 }

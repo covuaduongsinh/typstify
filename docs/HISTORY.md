@@ -43,6 +43,15 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-05 — Đợt 6: Cải thiện UI desktop — Shortcut còn thiếu, Command Palette & công tắc WrapLine
+- **Yêu cầu**: Bổ sung các phím tắt còn thiếu (Ctrl+W đóng tab, Ctrl+Tab/Ctrl+Shift+Tab/Ctrl+1..9 chuyển tab, Ctrl+, mở Cài đặt, Ctrl+N tạo dự án, Ctrl+O mở thư mục); chuyển phím tắt wrap-line trong editor sang Ctrl+Alt+W; thêm công tắc `WrapLine` vào Settings tab Editor; xây dựng Command Palette (`ui/commandbar`) mở bằng Ctrl+Shift+P.
+- **Quyết định & Thực hiện**:
+  1. `editor/editor.go`: Chuyển tổ hợp phím toggle WrapLine sang `Ctrl+Alt+W` (`key.ModShortcut | key.ModAlt`), giải phóng `Ctrl+W` cho việc đóng tab.
+  2. `ui/home.go`: Bổ sung lắng nghe và xử lý phím tắt toàn cục: `Ctrl+Shift+P` (mở/đóng Command Palette), `Ctrl+W` (đóng tab hiện tại), `Ctrl+Tab` / `Ctrl+Shift+Tab` (chuyển tab tới/lui), `Ctrl+1..9` (chuyển trực tiếp tới tab thứ n), `Ctrl+,` (mở Settings), `Ctrl+N` (mở modal tạo dự án), `Ctrl+O` (mở thư mục dự án).
+  3. `ui/settings/subviews.go`: Thêm switch `WrapLine` vào giao diện Cài đặt tab Editor để người dùng có thể bật/tắt tính năng tự ngắt dòng.
+  4. `ui/commandbar/commandbar.go`: Tạo package Command Palette dạng modal popup ở giữa phía trên màn hình, hỗ trợ tìm kiếm nhanh và thực thi các lệnh phổ biến (Tạo dự án mới, Mở thư mục, Cài đặt, Bật/tắt AI Assistant, Bật/tắt Console, Bật/tắt Drawer, Quản lý gói, Đồng bộ VPS).
+- **File đã đổi**: `editor/editor.go`, `ui/home.go`, `ui/settings/subviews.go`, `ui/commandbar/commandbar.go`, `docs/HISTORY.md`.
+
 ### 2026-10-05 — Đợt 5: Cải thiện UI desktop — Bàn phím & Focus ring cho InteractiveLabel và FileTree
 - **Yêu cầu**: Thêm hỗ trợ điều hướng bàn phím và focus ring cho `InteractiveLabel` (mặc định tắt, bật qua cờ `Focusable`), áp dụng trước cho outline (`ui/navpanel/outline.go`); bổ sung điều hướng phím (Mũi tên lên/xuống/trái/phải, Enter, Delete) cho `TreeView` (`widgets/filetree/tree.go`).
 - **Quyết định & Thực hiện**:
@@ -83,6 +92,14 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
   5. Cập nhật `service/settings/models.go`: mặc định `Language: "en-us"`, ưu tiên `Roboto Mono` trong `TypeFace` để hỗ trợ dấu tiếng Việt đầy đủ.
 - **Kiểm chứng**: Unit test `TestVietnameseLocale` & `TestEnglishLocale` PASS; toàn bộ test `service/settings`, `editor`, `utils` PASS; `go build` sinh `typstify.exe` thành công.
 - **File đã đổi**: `i18n/localizer.go`, `i18n/localizer_test.go`, `i18n/translations/translations.go`, `i18n/translations/catalog.go`, `i18n/translations/locales/vi-VN/messages.gotext.json`, `service/settings/models.go`, `ui/ui.go`, `ui/settings/sync.go`, `ui/remoteproject/view.go`, `ui/dialog/export.go`, `ui/settings/lsp.go`, `ui/settings/subviews.go`, `ui/settings/agent.go`, `ui/assistant/chat.go`, `ui/pkgmgmt/manage.go`, `ui/pkgmgmt/card.go`, `ui/editors/typst_view.go`, `ui/editors/generic_text_view.go`, `ui/viewer/image_view.go`, `ui/crash_report.go`, `ui/assistant/sessions.go`, `docs/ROADMAP.md`, `docs/HISTORY.md`.
+
+### 2026-10-05 — Cải tiến UI Desktop Đợt 6: Phím tắt còn thiếu, Command Palette, công tắc WrapLine
+- **Nội dung thực hiện**:
+  - Chuyển phím tắt WrapLine trong editor từ `Alt+Z` sang `Ctrl+Alt+W` theo kế hoạch.
+  - Thêm công tắc cấu hình WrapLine vào Settings -> Editor (`ui/settings/subviews.go`).
+  - Xây dựng component Command Palette `ui/commandbar/commandbar.go` (`Ctrl+Shift+P`), cho phép tìm kiếm nhanh hành động, chuyển đổi khung nhìn, kích hoạt AI Assistant (`Ctrl+L`), Console (`Ctrl+K`), Sidebar (`Ctrl+D`), New Project (`Ctrl+N`), Open Folder (`Ctrl+O`), Settings (`Ctrl+,`), Package Management, VPS Sync.
+  - Tích hợp phím tắt toàn cục trong `ui/home.go` (`Ctrl+W`, `Ctrl+Tab`, `Ctrl+Shift+Tab`, `Ctrl+1..9`, `Ctrl+Shift+P`).
+- **File đã cập nhật**: `editor/editor.go`, `ui/settings/subviews.go`, `ui/commandbar/commandbar.go`, `ui/home.go`, `service/bus/topics.go`, `docs/HISTORY.md`.
 
 ### 2026-10-05 — Đồng bộ file một chiều Local -> VPS (typstify-server)
 - **Yêu cầu**: thay Dropbox (hay hết hạn access token) bằng đồng bộ file trực tiếp từ desktop lên VPS chạy `typstify-server`, xác thực bằng Bearer token.

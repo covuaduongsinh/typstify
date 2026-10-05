@@ -1,11 +1,15 @@
 package ui
 
 import (
+	"github.com/oligo/gioview/explorer"
 	"github.com/oligo/gioview/theme"
 	"github.com/oligo/gioview/view"
 	"looz.ws/typstify/i18n"
 	"looz.ws/typstify/service"
+	"looz.ws/typstify/service/bus"
 	"looz.ws/typstify/ui/assistant"
+	"looz.ws/typstify/ui/commandbar"
+	"looz.ws/typstify/ui/dialog"
 	"looz.ws/typstify/ui/navpanel"
 	"looz.ws/typstify/ui/preview"
 	"looz.ws/typstify/ui/settings"
@@ -58,6 +62,7 @@ type HomeView struct {
 
 	welcome      WelcomeView
 	accountClick widget.Clickable
+	commandBar   *commandbar.CommandBar
 }
 
 func (hv *HomeView) ID() string {
@@ -103,9 +108,25 @@ func (hv *HomeView) update(gtx C) {
 	// global key handler, without a focused target.
 	for {
 		e, ok := gtx.Event(
-			key.Filter{Name: "D", Required: key.ModShortcut}, // toggle hide/show of drawer.
-			key.Filter{Name: "K", Required: key.ModShortcut}, // toggle hide/show of console.
-			key.Filter{Name: "L", Required: key.ModShortcut}, // toggle hide/show of chat.
+			key.Filter{Name: "D", Required: key.ModShortcut},                  // toggle hide/show of drawer.
+			key.Filter{Name: "K", Required: key.ModShortcut},                  // toggle hide/show of console.
+			key.Filter{Name: "L", Required: key.ModShortcut},                  // toggle hide/show of chat.
+			key.Filter{Name: "P", Required: key.ModShortcut | key.ModShift},  // toggle command palette.
+			key.Filter{Name: "W", Required: key.ModShortcut},                  // close current tab.
+			key.Filter{Name: "N", Required: key.ModShortcut},                  // new project.
+			key.Filter{Name: "O", Required: key.ModShortcut},                  // open folder.
+			key.Filter{Name: ",", Required: key.ModShortcut},                  // open settings.
+			key.Filter{Name: key.NameTab, Required: key.ModShortcut},          // next tab.
+			key.Filter{Name: key.NameTab, Required: key.ModShortcut | key.ModShift}, // prev tab.
+			key.Filter{Name: "1", Required: key.ModShortcut},
+			key.Filter{Name: "2", Required: key.ModShortcut},
+			key.Filter{Name: "3", Required: key.ModShortcut},
+			key.Filter{Name: "4", Required: key.ModShortcut},
+			key.Filter{Name: "5", Required: key.ModShortcut},
+			key.Filter{Name: "6", Required: key.ModShortcut},
+			key.Filter{Name: "7", Required: key.ModShortcut},
+			key.Filter{Name: "8", Required: key.ModShortcut},
+			key.Filter{Name: "9", Required: key.ModShortcut},
 		)
 		if !ok {
 			break
@@ -117,16 +138,78 @@ func (hv *HomeView) update(gtx C) {
 				continue
 			}
 
-			if event.Name == "D" && event.Modifiers.Contain(key.ModShortcut) {
+			if event.Name == "P" && event.Modifiers.Contain(key.ModShortcut|key.ModShift) {
+				if hv.commandBar != nil {
+					hv.commandBar.Toggle(gtx)
+				}
+				continue
+			}
+
+			if event.Name == "D" && event.Modifiers == key.ModShortcut {
 				hv.menuPanel.IsDrawerHidden = !hv.menuPanel.IsDrawerHidden
 			}
 
-			if event.Name == "K" && event.Modifiers.Contain(key.ModShortcut) {
+			if event.Name == "K" && event.Modifiers == key.ModShortcut {
 				hv.toggleConsole()
 			}
 
-			if event.Name == "L" && event.Modifiers.Contain(key.ModShortcut) {
+			if event.Name == "L" && event.Modifiers == key.ModShortcut {
 				hv.toggleChat()
+			}
+
+			if event.Name == "W" && event.Modifiers == key.ModShortcut {
+				idx := hv.CurrentViewIndex()
+				if idx >= 0 {
+					hv.CloseTab(idx)
+				}
+			}
+
+			if event.Name == "N" && event.Modifiers == key.ModShortcut {
+				hv.RequestSwitch(view.Intent{
+					Target:      dialog.CreateProjectDialogViewID,
+					ShowAsModal: true,
+				})
+			}
+
+			if event.Name == "O" && event.Modifiers == key.ModShortcut {
+				go func() {
+					if ch, ok := hv.srv.FileChooser().(*explorer.FileChooser); ok {
+						if folder, err := ch.ChooseFolder(); err == nil && folder != "" {
+							hv.srv.EventBus().Emit(bus.TopicProjectSwitched, folder)
+						}
+					}
+				}()
+			}
+
+			if event.Name == "," && event.Modifiers == key.ModShortcut {
+				hv.RequestSwitch(view.Intent{
+					Target:     settings.SettingViewID,
+					RequireNew: true,
+				})
+			}
+
+			if event.Name == key.NameTab && event.Modifiers == key.ModShortcut {
+				views := hv.OpenedViews()
+				if len(views) > 1 {
+					next := (hv.CurrentViewIndex() + 1) % len(views)
+					hv.SwitchTab(next)
+				}
+			}
+
+			if event.Name == key.NameTab && event.Modifiers == (key.ModShortcut|key.ModShift) {
+				views := hv.OpenedViews()
+				if len(views) > 1 {
+					prev := (hv.CurrentViewIndex() - 1 + len(views)) % len(views)
+					hv.SwitchTab(prev)
+				}
+			}
+
+			if event.Modifiers == key.ModShortcut && len(event.Name) == 1 && event.Name[0] >= '1' && event.Name[0] <= '9' {
+				targetTab := int(event.Name[0] - '1')
+				views := hv.OpenedViews()
+				if targetTab < len(views) {
+					hv.SwitchTab(targetTab)
+				}
 			}
 		}
 	}
@@ -255,6 +338,10 @@ func (hv *HomeView) Layout(gtx C, th *theme.Theme, deco *widget.Decorations, tit
 			modal.Layout(gtx, th)
 		}
 
+	}
+
+	if hv.commandBar != nil {
+		hv.commandBar.Layout(gtx, th)
 	}
 
 	return dims
@@ -405,12 +492,15 @@ func (hv *HomeView) OnClose() {
 	if hv.previewer != nil {
 		hv.previewer.Destroy()
 	}
+	if hv.srv != nil && hv.srv.EventBus() != nil {
+		hv.srv.EventBus().Unsubscribe(hv)
+	}
 }
 
 func newHome(window *app.Window, srv *service.ServiceFacade) *HomeView {
 	vm := view.DefaultViewManager(window)
 
-	return &HomeView{
+	hv := &HomeView{
 		ViewManager:  vm,
 		srv:          srv,
 		tabbar:       navpanel.NewTabbar(vm, nil),
@@ -422,5 +512,19 @@ func newHome(window *app.Window, srv *service.ServiceFacade) *HomeView {
 		lastYRatio:   0.7,
 		welcome:      WelcomeView{vm: vm, srv: srv},
 		previewer:    preview.NewPreviewer(srv),
+		commandBar:   commandbar.NewCommandBar(srv, vm),
 	}
+
+	srv.EventBus().Subscribe(hv, "home-toggle-chat", bus.TopicToggleChat, func(topic string, data any) {
+		hv.toggleChat()
+	})
+	srv.EventBus().Subscribe(hv, "home-toggle-console", bus.TopicToggleConsole, func(topic string, data any) {
+		hv.toggleConsole()
+	})
+	srv.EventBus().Subscribe(hv, "home-toggle-drawer", bus.TopicToggleDrawer, func(topic string, data any) {
+		hv.menuPanel.IsDrawerHidden = !hv.menuPanel.IsDrawerHidden
+		srv.RefreshWindow()
+	})
+
+	return hv
 }
