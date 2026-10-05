@@ -828,41 +828,34 @@ func NewTextEditor(path string, showDiff bool, settings *settings.EditorSettings
 	// the file without closing it, some file system watchers may not report
 	// the event until the file handle is closed or the write is flushed.
 	ed.autoSaver = NewAutoSaver(time.Second*time.Duration(settings.AutoSaveInterval), func() error {
-		file, err := os.OpenFile(path, os.O_RDWR, 0755)
-		if err != nil {
-			return err
-		}
-
-		defer file.Close()
-
-		// detect changes before overwriting the file with editor buffer.
-		content, err := io.ReadAll(file)
-		if err != nil {
+		currentContent, err := os.ReadFile(path)
+		if err != nil && !os.IsNotExist(err) {
 			return err
 		}
 
 		status := ed.ensureStatus()
-		if newHash := calcDigest(content); newHash != ed.originalHash {
-			err := errors.New("cannot save file as it has beed edited elsewhere")
-			status.SaveErr = err
-			return err
-		} else {
-			status.SaveErr = nil
+		if len(currentContent) > 0 {
+			if newHash := calcDigest(currentContent); newHash != ed.originalHash {
+				err := errors.New("cannot save file as it has been edited elsewhere")
+				status.SaveErr = err
+				return err
+			}
 		}
-
-		file.Truncate(0)
-		file.Seek(0, 0)
+		status.SaveErr = nil
 
 		editorContent := []byte(ed.state.PrepareForSave(ed.state.Text()))
 
-		written, err := file.Write(editorContent)
-		// written, err := io.Copy(file, ed.state.Text())
-		if err != nil {
+		dir := filepath.Dir(path)
+		baseName := filepath.Base(path)
+		tmpFile := filepath.Join(dir, fmt.Sprintf(".%s.tmp.%d", baseName, time.Now().UnixNano()))
+
+		if err := os.WriteFile(tmpFile, editorContent, 0644); err != nil {
 			return err
 		}
 
-		if written != len(editorContent) {
-			return errors.New("write file error: partial write")
+		if err := os.Rename(tmpFile, path); err != nil {
+			_ = os.Remove(tmpFile)
+			return err
 		}
 
 		// update editor original hash

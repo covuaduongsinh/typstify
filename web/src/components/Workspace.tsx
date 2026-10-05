@@ -52,6 +52,36 @@ const SIDEPANEL_MAX = 650
 const RATIO_MIN = 0.15
 const RATIO_MAX = 0.85
 
+
+const BINARY_EXTENSIONS: Record<string, true> = {
+  '.png': true,
+  '.jpg': true,
+  '.jpeg': true,
+  '.gif': true,
+  '.webp': true,
+  '.bmp': true,
+  '.ico': true,
+  '.pdf': true,
+  '.ttf': true,
+  '.otf': true,
+  '.woff': true,
+  '.woff2': true,
+  '.zip': true,
+  '.tar': true,
+  '.gz': true,
+  '.exe': true,
+  '.wasm': true,
+}
+
+const IMAGE_EXTENSIONS: Record<string, true> = {
+  '.png': true,
+  '.jpg': true,
+  '.jpeg': true,
+  '.gif': true,
+  '.webp': true,
+  '.bmp': true,
+  '.ico': true,
+}
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
 // localStorage can throw (private mode, blocked site data); layout
@@ -265,6 +295,15 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     setLoadError(null)
     setSaveError(null)
     if (!activePath) return
+
+    const ext = activePath.slice(activePath.lastIndexOf('.')).toLowerCase()
+    if (BINARY_EXTENSIONS[ext]) {
+      // Binary files are rendered directly or shown as unsupported for text editing;
+      // never fetch them as raw text string to prevent corruption.
+      return () => {
+        cancelled = true
+      }
+    }
 
     api
       .get<string>(`/api/workspace/file?path=${encodeURIComponent(activePath)}`)
@@ -530,7 +569,34 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
               maxWidth: showPreview ? `${editorRatio * 100}%` : '100%',
             }}
           >
-            {activePath && content !== null && lspClient ? (
+            {activePath && BINARY_EXTENSIONS[activePath.slice(activePath.lastIndexOf('.')).toLowerCase()] ? (
+              <div className="binary-preview-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', overflow: 'auto', boxSizing: 'border-box' }}>
+                {IMAGE_EXTENSIONS[activePath.slice(activePath.lastIndexOf('.')).toLowerCase()] ? (
+                  <div style={{ textAlign: 'center', maxWidth: '100%' }}>
+                    <img
+                      src={`/api/workspace/file?path=${encodeURIComponent(activePath)}`}
+                      alt={activePath}
+                      style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', border: '1px solid var(--border-subtle, #e0e0e0)', borderRadius: '4px', background: 'var(--bg-canvas, #fff)' }}
+                    />
+                    <p style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text-muted, #666)' }}>{activePath}</p>
+                  </div>
+                ) : activePath.toLowerCase().endsWith('.pdf') ? (
+                  <iframe
+                    src={`/api/workspace/file?path=${encodeURIComponent(activePath)}`}
+                    title={activePath}
+                    style={{ width: '100%', height: '100%', border: 'none' }}
+                  />
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '32px' }}>
+                    <Icon name="file" size={48} />
+                    <h3 style={{ marginTop: '16px', marginBottom: '8px' }}>Tệp nhị phân</h3>
+                    <p style={{ color: 'var(--text-muted, #888)' }}>
+                      Tệp <b>{activePath}</b> không thể chỉnh sửa trong trình soạn thảo văn bản.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : activePath && content !== null && lspClient ? (
               <div className="editor-container-with-toolbar">
                 {activePath.endsWith('.typ') && (
                   <ChessToolbar

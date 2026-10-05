@@ -69,3 +69,40 @@ This is just a regular text document without any chess items.`
 		t.Fatalf("expected non-chess document to remain untouched, got:\n%s", got)
 	}
 }
+
+func TestRepairTypstContent_StripMocksWithoutBraces(t *testing.T) {
+	input := `#let turn-indicator(t) = "w"
+#let note-num(n) = [#n]
+#let practice-question(number: 1, question: "", choices: (), answer: "") = [
+  *Câu hỏi #number:* #question
+]
+
+= Bài Giảng Quan Trọng
+
+Nội dung bài học không được bị xoá mất.
+
+#puzzle-card("fen", number: 1)
+`
+	got := string(repairTypstContent([]byte(input)))
+	if !strings.HasPrefix(got, `#import "@local/chessbook:0.1.0": *`) {
+		t.Fatalf("expected #import at start of file, got:\n%s", got)
+	}
+	if strings.Contains(got, "#let turn-indicator") {
+		t.Fatalf("expected #let turn-indicator to be stripped")
+	}
+	if strings.Contains(got, "#let note-num") {
+		t.Fatalf("expected #let note-num to be stripped")
+	}
+	if strings.Contains(got, "#let practice-question") {
+		t.Fatalf("expected #let practice-question to be stripped")
+	}
+	if !strings.Contains(got, "= Bài Giảng Quan Trọng") {
+		t.Fatalf("expected heading '= Bài Giảng Quan Trọng' to be preserved, got:\n%s", got)
+	}
+	if !strings.Contains(got, "Nội dung bài học không được bị xoá mất.") {
+		t.Fatalf("expected body text to be preserved, got:\n%s", got)
+	}
+	if !strings.Contains(got, `#puzzle-card("fen", number: 1)`) {
+		t.Fatalf("expected puzzle-card to be preserved, got:\n%s", got)
+	}
+}

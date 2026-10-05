@@ -2,6 +2,7 @@ package editor
 
 import (
 	"log"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -15,10 +16,10 @@ type AutoSaver struct {
 	saveFunc func() error
 	// updateCnt records how many saving request this autosaver has received since last successful saving.
 	updateCnt    atomic.Uint32
-	isRunning    bool
+	isRunning    atomic.Bool
 	lastSaveTime time.Time
 	stopChan     chan struct{}
-	isStopped    bool
+	stopOnce     sync.Once
 }
 
 func NewAutoSaver(duration time.Duration, saveFunc func() error) *AutoSaver {
@@ -51,29 +52,29 @@ func (as *AutoSaver) IdleDuration() time.Duration {
 }
 
 func (as *AutoSaver) run() {
-	if as.isRunning {
+	if !as.isRunning.CompareAndSwap(false, true) {
 		return
 	}
 
 	go func() {
-		as.isRunning = true
-		defer func() { as.isRunning = false }()
+		defer as.isRunning.Store(false)
 
 		select {
 		case <-as.timer.C:
-			as.doSave()
+			_ = as.doSave()
 
 		case <-as.stopChan:
-			log.Println("Stoppping auto saver...")
+			log.Println("Stopping auto saver...")
 			if !as.timer.Stop() {
-				<-as.timer.C
+				select {
+				case <-as.timer.C:
+				default:
+				}
 			}
-			as.doSave()
-			as.isRunning = false
+			_ = as.doSave()
 			return
 		}
 	}()
-
 }
 
 func (as *AutoSaver) doSave() error {
@@ -117,16 +118,11 @@ func (as *AutoSaver) Start() {
 }
 
 func (as *AutoSaver) Stop() {
-	if as.isRunning {
-		as.stopChan <- struct{}{}
-	}
-
-	if !as.isStopped {
+	as.stopOnce.Do(func() {
 		close(as.stopChan)
-		as.isStopped = true
-	}
+	})
 }
 
 func (as *AutoSaver) IsRunning() bool {
-	return as.isRunning
+	return as.isRunning.Load()
 }

@@ -69,24 +69,59 @@ func stripChessbookMocks(doc string) string {
 		trimmed := strings.TrimSpace(lines[i])
 		if chessbookMockPattern.MatchString(trimmed) {
 			start := i
-			depth := 0
+			braceDepth := 0
+			bracketDepth := 0
+			parenDepth := 0
 			foundOpen := false
 			j := i
+			matched := false
+
 			for ; j < len(lines); j++ {
 				for _, ch := range lines[j] {
 					switch ch {
 					case '{':
-						depth++
+						braceDepth++
 						foundOpen = true
 					case '}':
-						depth--
+						if braceDepth > 0 {
+							braceDepth--
+						}
+					case '[':
+						bracketDepth++
+						foundOpen = true
+					case ']':
+						if bracketDepth > 0 {
+							bracketDepth--
+						}
+					case '(':
+						parenDepth++
+					case ')':
+						if parenDepth > 0 {
+							parenDepth--
+						}
 					}
 				}
-				if foundOpen && depth <= 0 {
+				if foundOpen && braceDepth <= 0 && bracketDepth <= 0 && parenDepth <= 0 {
+					matched = true
 					break
 				}
+				// Single line definition without { or [ (e.g. #let note-num(n) = n or #let f(x) = "w")
+				if !foundOpen && parenDepth <= 0 && j == i {
+					if strings.Contains(lines[i], "=") {
+						matched = true
+						break
+					}
+				}
 			}
-			end := j
+
+			var end int
+			if matched && j < len(lines) {
+				end = j
+			} else {
+				// Safe fallback: never truncate to EOF if unmatched, just drop the single line
+				end = i
+			}
+
 			// Trim trailing blank lines.
 			for end+1 < len(lines) && strings.TrimSpace(lines[end+1]) == "" {
 				end++
@@ -97,7 +132,6 @@ func stripChessbookMocks(doc string) string {
 			i++
 		}
 	}
-
 	if len(remove) == 0 {
 		return doc
 	}

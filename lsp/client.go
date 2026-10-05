@@ -39,8 +39,8 @@ type Client struct {
 
 	docCache *documentCache
 	// Messages: they should be reset whenever they have been consumed.
+	diagMu      sync.RWMutex
 	diagnostics []*DocDiagnostics
-
 	// showDocMu/showDocHandlers route an incoming window/showDocument request
 	// (sent by tinymist's --preview-mode=document webview when the user
 	// clicks in the rendered preview, to jump back to source) to whichever
@@ -319,6 +319,9 @@ func (c *Client) Stop() {
 }
 
 func (c *Client) Diagnostics(filePath string) *DocDiagnostics {
+	c.diagMu.RLock()
+	defer c.diagMu.RUnlock()
+
 	idx := slices.IndexFunc(c.diagnostics, func(d *DocDiagnostics) bool {
 		return d.Match(filePath)
 	})
@@ -327,15 +330,24 @@ func (c *Client) Diagnostics(filePath string) *DocDiagnostics {
 	}
 
 	return c.diagnostics[idx]
-
 }
 
 func (c *Client) updateDiagnostics(diagnostics DocDiagnostics) {
+	c.diagMu.Lock()
+	defer c.diagMu.Unlock()
+
 	idx := slices.IndexFunc(c.diagnostics, func(d *DocDiagnostics) bool {
 		return d.URI == diagnostics.URI
 	})
-	if idx < 0 && len(diagnostics.Diagnostics) > 0 {
-		c.diagnostics = append(c.diagnostics, &diagnostics)
+	if idx < 0 {
+		if len(diagnostics.Diagnostics) > 0 {
+			c.diagnostics = append(c.diagnostics, &diagnostics)
+		}
+		return
+	}
+
+	if len(diagnostics.Diagnostics) == 0 {
+		c.diagnostics = slices.Delete(c.diagnostics, idx, idx+1)
 	} else {
 		c.diagnostics[idx] = &diagnostics
 	}

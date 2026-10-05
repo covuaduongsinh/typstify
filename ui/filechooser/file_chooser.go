@@ -13,8 +13,7 @@ import (
 
 // FileChooser provides modal dialog helpers for choosing files and directories.
 type FileChooser struct {
-	vm         view.ViewManager
-	resultChan chan Result
+	vm view.ViewManager
 }
 
 // NewFileChooser registers the file chooser view and returns a new FileChooser instance.
@@ -25,17 +24,19 @@ func NewFileChooser(vm view.ViewManager) (*FileChooser, error) {
 	}
 
 	return &FileChooser{
-		vm:         vm,
-		resultChan: make(chan Result, 1),
+		vm: vm,
 	}, nil
 }
 
 // ChooseFolder opens the dialog allowing the user to select a folder.
 // This is a blocking call and MUST be invoked from a separate goroutine.
 func (fc *FileChooser) ChooseFolder() (string, error) {
-	fc.show(OpenFolderOp, "", nil)
+	resultChan := make(chan Result, 1)
+	if err := fc.show(OpenFolderOp, "", nil, resultChan); err != nil {
+		return "", err
+	}
 
-	resp := <-fc.resultChan
+	resp := <-resultChan
 	if resp.Err != nil {
 		return "", resp.Err
 	}
@@ -50,9 +51,12 @@ func (fc *FileChooser) ChooseFolder() (string, error) {
 // This is a blocking call and MUST be invoked from a separate goroutine.
 func (fc *FileChooser) ChooseFile(extensions ...string) (io.ReadCloser, error) {
 	filter := createExtensionFilter(extensions...)
-	fc.show(OpenFileOp, "", filter)
+	resultChan := make(chan Result, 1)
+	if err := fc.show(OpenFileOp, "", filter, resultChan); err != nil {
+		return nil, err
+	}
 
-	resp := <-fc.resultChan
+	resp := <-resultChan
 	if resp.Err != nil {
 		return nil, resp.Err
 	}
@@ -68,9 +72,12 @@ func (fc *FileChooser) ChooseFile(extensions ...string) (io.ReadCloser, error) {
 // This is a blocking call and MUST be invoked from a separate goroutine.
 func (fc *FileChooser) ChooseFiles(extensions ...string) ([]io.ReadCloser, error) {
 	filter := createExtensionFilter(extensions...)
-	fc.show(OpenFilesOp, "", filter)
+	resultChan := make(chan Result, 1)
+	if err := fc.show(OpenFilesOp, "", filter, resultChan); err != nil {
+		return nil, err
+	}
 
-	resp := <-fc.resultChan
+	resp := <-resultChan
 	if resp.Err != nil {
 		return nil, resp.Err
 	}
@@ -97,9 +104,12 @@ func (fc *FileChooser) ChooseFiles(extensions ...string) ([]io.ReadCloser, error
 // CreateFile opens the dialog allowing the user to specify a save file location.
 // This is a blocking call and MUST be invoked from a separate goroutine.
 func (fc *FileChooser) CreateFile(name string) (io.WriteCloser, error) {
-	fc.show(SaveFileOp, name, nil)
+	resultChan := make(chan Result, 1)
+	if err := fc.show(SaveFileOp, name, nil, resultChan); err != nil {
+		return nil, err
+	}
 
-	resp := <-fc.resultChan
+	resp := <-resultChan
 	if resp.Err != nil {
 		return nil, resp.Err
 	}
@@ -110,9 +120,9 @@ func (fc *FileChooser) CreateFile(name string) (io.WriteCloser, error) {
 	return os.Create(resp.Paths[0])
 }
 
-func (fc *FileChooser) show(op OpKind, filename string, filter EntryFilter) {
+func (fc *FileChooser) show(op OpKind, filename string, filter EntryFilter, resultChan chan Result) error {
 	params := map[string]any{
-		"resultChan": fc.resultChan,
+		"resultChan": resultChan,
 		"op":         op,
 	}
 	if filename != "" {
@@ -122,7 +132,7 @@ func (fc *FileChooser) show(op OpKind, filename string, filter EntryFilter) {
 		params["filter"] = filter
 	}
 
-	_ = fc.vm.RequestSwitch(view.Intent{
+	return fc.vm.RequestSwitch(view.Intent{
 		Target:      FileChooserID,
 		ShowAsModal: true,
 		Params:      params,

@@ -271,13 +271,38 @@ func (e *SyncEngine) TestConnection(ctx context.Context) error {
 	return err
 }
 
+func resolveRelPath(root, rel string) (string, error) {
+	if root == "" {
+		return "", errors.New("empty root directory")
+	}
+	trimmed := strings.TrimSpace(rel)
+	if strings.HasPrefix(trimmed, "/") || strings.HasPrefix(trimmed, "\\") {
+		return "", fmt.Errorf("invalid absolute-like path: %q", rel)
+	}
+	cleanRel := filepath.Clean(filepath.FromSlash(trimmed))
+	if filepath.IsAbs(cleanRel) || cleanRel == "." || cleanRel == ".." || strings.HasPrefix(cleanRel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("invalid or unsafe relative path: %q", rel)
+	}
+
+	dest := filepath.Join(root, cleanRel)
+	relCheck, err := filepath.Rel(root, dest)
+	if err != nil || relCheck == ".." || strings.HasPrefix(relCheck, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path escapes root directory: %q", rel)
+	}
+	return dest, nil
+}
+
 // PushFile tải một file local (rel tương đối với project) lên VPS.
 func (e *SyncEngine) PushFile(ctx context.Context, rel string) error {
 	root := e.projectDir()
 	if root == "" {
 		return errNoProject
 	}
-	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+	localPath, err := resolveRelPath(root, rel)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(localPath)
 	if err != nil {
 		return err
 	}
@@ -298,6 +323,11 @@ func (e *SyncEngine) PullFile(ctx context.Context, rel string) error {
 	if root == "" {
 		return errNoProject
 	}
+	dest, err := resolveRelPath(root, rel)
+	if err != nil {
+		return err
+	}
+
 	req, err := e.newRequest(ctx, http.MethodGet, "/api/sync/pull",
 		url.Values{"path": {rel}}, nil)
 	if err != nil {
@@ -308,7 +338,6 @@ func (e *SyncEngine) PullFile(ctx context.Context, rel string) error {
 		return err
 	}
 
-	dest := filepath.Join(root, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 		return err
 	}

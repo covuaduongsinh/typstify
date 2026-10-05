@@ -208,6 +208,17 @@ func (a *authManager) validRequest(r *http.Request) bool {
 	return false
 }
 
+func (a *authManager) authenticatedUser(r *http.Request) (string, bool) {
+	if sess, ok := a.getSession(r); ok && sess.Username != "" {
+		return sess.Username, true
+	}
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		token := strings.TrimPrefix(h, "Bearer ")
+		return a.validToken(token)
+	}
+	return "", false
+}
+
 func (a *authManager) validSession(token string) bool {
 	if token == "" {
 		return false
@@ -277,9 +288,10 @@ type loginRequest struct {
 }
 
 type registerRequest struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	DisplayName string `json:"displayName,omitempty"`
+	Username       string `json:"username"`
+	Password       string `json:"password"`
+	DisplayName    string `json:"displayName,omitempty"`
+	ServerPassword string `json:"serverPassword,omitempty"`
 }
 
 type changePasswordRequest struct {
@@ -303,6 +315,20 @@ func (a *authManager) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Registration Policy:
+	// 1. If no users exist yet (Bootstrap mode / Server Owner): allow registration.
+	// 2. If users exist: require either an authenticated session/token OR valid server password.
+	if a.usersCount() > 0 {
+		hasAuth := a.validRequest(r)
+		hasServerPass := a.password != "" && req.ServerPassword != "" &&
+			subtle.ConstantTimeCompare([]byte(req.ServerPassword), []byte(a.password)) == 1
+		if !hasAuth && !hasServerPass {
+			a.limiter.recordFailure(ip)
+			time.Sleep(failedLoginDelay)
+			writeError(w, http.StatusForbidden, "Đăng ký bị khóa. Cần đăng nhập tài khoản quản trị hoặc cung cấp mật khẩu máy chủ.")
+			return
+		}
+	}
 	username := strings.ToLower(strings.TrimSpace(req.Username))
 	if !validUsernamePattern.MatchString(username) {
 		writeError(w, http.StatusBadRequest, "Tên tài khoản không hợp lệ (3-32 ký tự, chỉ gồm chữ, số, gạch ngang, chấm)")

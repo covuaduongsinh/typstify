@@ -171,3 +171,58 @@ func TestSessionMaxAge(t *testing.T) {
 		t.Fatal("session older than sessionMaxAge still valid")
 	}
 }
+
+func TestApiTokenAuthorizationAndIsolation(t *testing.T) {
+	a := newAuthManager("", t.TempDir())
+
+	// Setup User A and User B
+	saltA, _ := generateSalt()
+	a.users["usera"] = User{Username: "usera", PasswordHash: hashPassword("passA", saltA), Salt: saltA}
+	saltB, _ := generateSalt()
+	a.users["userb"] = User{Username: "userb", PasswordHash: hashPassword("passB", saltB), Salt: saltB}
+
+	// Issue tokens
+	tokA, err := a.issueToken("usera", "Token A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hashA := hashToken(tokA)
+
+	tokB, err := a.issueToken("userb", "Token B")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hashB := hashToken(tokB)
+
+	// User A listing tokens via Bearer token
+	reqListA := httptest.NewRequest("GET", "/api/auth/tokens", nil)
+	reqListA.Header.Set("Authorization", "Bearer "+tokA)
+	wListA := httptest.NewRecorder()
+	a.handleListTokens(wListA, reqListA)
+	if wListA.Code != http.StatusOK {
+		t.Fatalf("list tokens for userA failed: %d", wListA.Code)
+	}
+	if !strings.Contains(wListA.Body.String(), hashA) || strings.Contains(wListA.Body.String(), hashB) {
+		t.Fatalf("userA list should only contain hashA, got: %s", wListA.Body.String())
+	}
+
+	// User A trying to revoke User B's token
+	reqRevokeB := httptest.NewRequest("DELETE", "/api/auth/tokens/"+hashB, nil)
+	reqRevokeB.SetPathValue("hash", hashB)
+	reqRevokeB.Header.Set("Authorization", "Bearer "+tokA)
+	wRevokeB := httptest.NewRecorder()
+	a.handleRevokeToken(wRevokeB, reqRevokeB)
+	if wRevokeB.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden when userA revokes userB token, got: %d", wRevokeB.Code)
+	}
+
+	// User A revoking User A's token
+	reqRevokeA := httptest.NewRequest("DELETE", "/api/auth/tokens/"+hashA, nil)
+	reqRevokeA.SetPathValue("hash", hashA)
+	reqRevokeA.Header.Set("Authorization", "Bearer "+tokA)
+	wRevokeA := httptest.NewRecorder()
+	a.handleRevokeToken(wRevokeA, reqRevokeA)
+	if wRevokeA.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK when userA revokes userA token, got: %d", wRevokeA.Code)
+	}
+}

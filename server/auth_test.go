@@ -43,14 +43,41 @@ func TestAuthRegisterAndLoginFlow(t *testing.T) {
 	}
 	sessionToken := cookies[0].Value
 
-	// 2. Duplicate registration should be rejected
+	// 2. Unauthenticated registration when users exist should be rejected with 403
+	reqUnauth := httptest.NewRequest("POST", "/api/auth/register", strings.NewReader(`{"username":"attacker","password":"password123"}`))
+	wUnauth := httptest.NewRecorder()
+	auth.handleRegister(wUnauth, reqUnauth)
+	if wUnauth.Code != http.StatusForbidden {
+		t.Fatalf("unauthenticated register status %d, want 403 Forbidden", wUnauth.Code)
+	}
+
+	// 3. Duplicate registration by authenticated user should be rejected with 400
 	reqDup := httptest.NewRequest("POST", "/api/auth/register", strings.NewReader(regBody))
+	reqDup.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sessionToken})
 	wDup := httptest.NewRecorder()
 	auth.handleRegister(wDup, reqDup)
 	if wDup.Code != http.StatusBadRequest {
 		t.Fatalf("duplicate register status %d, want 400", wDup.Code)
 	}
 
+	// 4. Authenticated registration for a new user should succeed
+	reqNewUser := httptest.NewRequest("POST", "/api/auth/register", strings.NewReader(`{"username":"user2","password":"password123"}`))
+	reqNewUser.AddCookie(&http.Cookie{Name: sessionCookieName, Value: sessionToken})
+	wNewUser := httptest.NewRecorder()
+	auth.handleRegister(wNewUser, reqNewUser)
+	if wNewUser.Code != http.StatusOK {
+		t.Fatalf("authenticated register status %d, want 200: %s", wNewUser.Code, wNewUser.Body.String())
+	}
+
+	// 5. Registration using server password should succeed
+	authWithServerPass := newAuthManager("supersecret", tempDir)
+	// Already has users in tempDir
+	reqWithPass := httptest.NewRequest("POST", "/api/auth/register", strings.NewReader(`{"username":"user3","password":"password123","serverPassword":"supersecret"}`))
+	wWithPass := httptest.NewRecorder()
+	authWithServerPass.handleRegister(wWithPass, reqWithPass)
+	if wWithPass.Code != http.StatusOK {
+		t.Fatalf("register with server password status %d, want 200: %s", wWithPass.Code, wWithPass.Body.String())
+	}
 	// 3. Login with wrong password
 	wrongLogin := `{"username":"duongsinh","password":"wrongpassword"}`
 	reqWrong := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(wrongLogin))

@@ -12,7 +12,14 @@
 
 // Biểu tượng sao độ khó
 #let difficulty-stars(level) = {
-  let count = calc.min(5, calc.max(1, level))
+  let lvl = if type(level) == int {
+    level
+  } else if type(level) == str and level.trim().len() > 0 {
+    int(level.trim())
+  } else {
+    1
+  }
+  let count = calc.min(5, calc.max(1, lvl))
   text(fill: ds-gold, size: 8pt)[
     #for i in range(count) [★]
     #for i in range(5 - count) [#text(fill: ds-line)[★]]
@@ -56,6 +63,13 @@
   let title-font-size = if compact { 7.5pt } else { 8.5pt }
   let turn-font-size = if compact { 7pt } else { 7.5pt }
   let indicator-size = if compact { 7.5pt } else { 9pt }
+  let diff-val = if type(difficulty) == int {
+    difficulty
+  } else if type(difficulty) == str and difficulty.trim().len() > 0 {
+    int(difficulty.trim())
+  } else {
+    0
+  }
 
   block(width: board-width, breakable: false)[
     // Ô hẹp: căn đều hai bên (mặc định của sách) làm giãn chữ tiêu đề.
@@ -90,7 +104,7 @@
     #chess-board(fen-str, size: size, reverse: is-black, arrows: arrows)
 
     // Footer phụ: Độ khó và Gợi ý (nếu có)
-    #if difficulty > 0 or hint != none [
+    #if diff-val > 0 or hint != none [
       #v(if compact { 1.5pt } else { 2pt })
       #grid(
         columns: (1fr, auto),
@@ -101,8 +115,8 @@
           ]
         ],
         [
-          #if difficulty > 0 [
-            #difficulty-stars(difficulty)
+          #if diff-val > 0 [
+            #difficulty-stars(diff-val)
           ]
         ]
       )
@@ -241,16 +255,24 @@
   if type(csv-data) != array or csv-data.len() == 0 {
     return ()
   }
+  let parse-diff(diff) = {
+    if type(diff) == int {
+      diff
+    } else if type(diff) == str and diff.trim().len() > 0 {
+      int(diff.trim())
+    } else {
+      1
+    }
+  }
   // Nếu là array of dictionaries (khi load csv(..., row-type: dictionary))
   if type(csv-data.first()) == dictionary {
     return csv-data.map(row => {
-      let diff = row.at("difficulty", default: "1")
-      let diff-int = if type(diff) == int { diff } else { int(diff) }
+      let diff = row.at("difficulty", default: 1)
       (
         fen: row.at("fen", default: ""),
         title: row.at("title", default: ""),
         turn: row.at("turn", default: auto),
-        difficulty: diff-int,
+        difficulty: parse-diff(diff),
         hint: row.at("hint", default: none),
         solution: row.at("solution", default: none),
       )
@@ -264,10 +286,9 @@
   }
   let result = ()
   for row in csv-data.slice(start-idx) {
-    if row.len() > 0 and row.first().trim() != "" {
+    if row.len() > 0 and type(row.first()) == str and row.first().trim() != "" {
       let diff-val = if row.len() > 3 and row.at(3) != "" {
-        let raw = row.at(3)
-        if type(raw) == int { raw } else { int(raw) }
+        parse-diff(row.at(3))
       } else { 1 }
 
       result.push((
@@ -316,7 +337,7 @@
   }
 
   let count-per-page = if per-page != auto {
-    per-page
+    calc.max(1, per-page)
   } else if layout == "16x24-2x3" or layout == "16x24" {
     6
   } else if layout == "a5-2x2" or layout == "a5" {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"looz.ws/typstify/service/settings"
@@ -158,5 +159,43 @@ func TestTestConnectionRejectsBadToken(t *testing.T) {
 	e = newTestEngine(t, t.TempDir(), srv.URL, "tok", nil)
 	if err := e.TestConnection(context.Background()); err != nil {
 		t.Fatalf("TestConnection with right token: %v", err)
+	}
+}
+
+func TestResolveRelPath_Security(t *testing.T) {
+	root := t.TempDir()
+
+	// Valid paths
+	validPaths := []string{
+		"main.typ",
+		"sub/doc.typ",
+		"a/b/c/d.typ",
+	}
+	for _, p := range validPaths {
+		dest, err := resolveRelPath(root, p)
+		if err != nil {
+			t.Fatalf("expected path %q to be valid, got error: %v", p, err)
+		}
+		if !strings.HasPrefix(dest, root) {
+			t.Fatalf("expected dest %q to start with root %q", dest, root)
+		}
+	}
+
+	// Path traversal attempts
+	unsafePaths := []string{
+		"../secret.txt",
+		"../../etc/passwd",
+		"..\\..\\windows\\system32",
+		"/etc/passwd",
+		"C:\\Windows\\System32",
+		"sub/../../outside.txt",
+		".",
+		"..",
+	}
+	for _, p := range unsafePaths {
+		_, err := resolveRelPath(root, p)
+		if err == nil {
+			t.Fatalf("expected unsafe path %q to be rejected, but got nil error", p)
+		}
 	}
 }

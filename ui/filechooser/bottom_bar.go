@@ -111,6 +111,8 @@ func (b *BottomBar) Layout(gtx layout.Context, th *theme.Theme) layout.Dimension
 		folderName := strings.TrimSpace(b.newFolderInput.Text())
 		if folderName == "" {
 			b.SetError(errors.New("Folder name cannot be empty"))
+		} else if strings.ContainsAny(folderName, `\/:*?"<>|`) || folderName == "." || folderName == ".." {
+			b.SetError(errors.New("Folder name contains invalid characters"))
 		} else {
 			targetDir := filepath.Join(b.currentPath, folderName)
 			if err := os.MkdirAll(targetDir, 0755); err != nil {

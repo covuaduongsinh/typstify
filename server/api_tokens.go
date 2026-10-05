@@ -126,14 +126,22 @@ func (a *authManager) validToken(plaintext string) (username string, ok bool) {
 	return tok.Username, true
 }
 
-func (a *authManager) revokeToken(hash string) error {
+func (a *authManager) revokeTokenForUser(hash, username string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if _, exists := a.apiTokens[hash]; !exists {
+	tok, exists := a.apiTokens[hash]
+	if !exists {
 		return fmt.Errorf("token not found")
+	}
+	if username != "" && tok.Username != username && username != "admin" {
+		return fmt.Errorf("permission denied")
 	}
 	delete(a.apiTokens, hash)
 	return a.saveTokensLocked()
+}
+
+func (a *authManager) revokeToken(hash string) error {
+	return a.revokeTokenForUser(hash, "")
 }
 
 func (a *authManager) listTokens(username string) []apiTokenInfo {
@@ -228,10 +236,10 @@ func (a *authManager) handleIssueToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *authManager) handleListTokens(w http.ResponseWriter, r *http.Request) {
-	sess, ok := a.getSession(r)
-	username := ""
-	if ok {
-		username = sess.Username
+	username, ok := a.authenticatedUser(r)
+	if a.enabled() && !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
 	}
 	writeJSON(w, http.StatusOK, a.listTokens(username))
 }
@@ -242,8 +250,17 @@ func (a *authManager) handleRevokeToken(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "missing token hash")
 		return
 	}
-	if err := a.revokeToken(hash); err != nil {
-		writeError(w, http.StatusNotFound, err.Error())
+	username, ok := a.authenticatedUser(r)
+	if a.enabled() && !ok {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	if err := a.revokeTokenForUser(hash, username); err != nil {
+		if err.Error() == "permission denied" {
+			writeError(w, http.StatusForbidden, "bạn không có quyền xoá token này")
+		} else {
+			writeError(w, http.StatusNotFound, err.Error())
+		}
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
