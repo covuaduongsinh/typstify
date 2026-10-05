@@ -110,7 +110,7 @@ func (bar *previewerOp) Layout(gtx C, th *theme.Theme) D {
 			}.Layout(gtx,
 				layout.Rigid(func(gtx C) D {
 					// refresh
-					btn := misc.IconButton(th, refreshIcon, &bar.refreshBtn, "refresh the preview")
+					btn := misc.IconButton(th, refreshIcon, &bar.refreshBtn, i18n.Translate("Refresh preview"))
 					btn.Size = unit.Dp(24)
 					btn.Background = color.NRGBA{}
 					btn.Color = th.Fg

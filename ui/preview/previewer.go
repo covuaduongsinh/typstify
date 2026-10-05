@@ -14,7 +14,6 @@ import (
 
 type Previewer struct {
 	srv            *service.ServiceFacade
-	err            error
 	webview        *WebView
 	previewMode    lsp.PreviewMode
 	destroyPending bool // true when webview should be destroyed on next layout

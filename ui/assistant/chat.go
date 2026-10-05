@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"gioui.org/layout"
 	"gioui.org/op/clip"
@@ -29,6 +31,7 @@ import (
 	"looz.ws/typstify/service/remote"
 	"looz.ws/typstify/service/settings"
 	"looz.ws/typstify/ui/preview"
+	"looz.ws/typstify/ui/statusbar"
 	"looz.ws/typstify/utils"
 	appIcons "looz.ws/typstify/widgets/icons"
 )
@@ -147,6 +150,11 @@ func (cv *AgentChatView) init() {
 			}
 			if err != nil {
 				log.Printf("chat: failed to start ACP session: %v", err)
+				cv.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+					Content:  fmt.Sprintf(i18n.Translate("Failed to start AI Assistant: %v"), err),
+					Level:    2,
+					Duration: 15 * time.Second,
+				})
 				cv.chatErr = err
 				cv.chatReady.Store(false)
 				cv.srv.RefreshWindow()
@@ -176,6 +184,11 @@ func (cv *AgentChatView) startRemoteSession(ctx context.Context, rs *settings.Re
 	sessions, err := client.ListAgentSessions()
 	if err != nil {
 		log.Printf("chat: remote: failed to list sessions, starting fresh: %v", err)
+		cv.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+			Content:  fmt.Sprintf(i18n.Translate("Remote agent list sessions failed: %v"), err),
+			Level:    1,
+			Duration: 15 * time.Second,
+		})
 		sessions = nil
 	}
 
@@ -205,6 +218,11 @@ func (cv *AgentChatView) loadExisting(sn *agent.ACPSession) {
 			session, err := cv.srv.AcpSessionManager().LoadSession(context.Background(), sn)
 			if err != nil {
 				log.Printf("chat: failed to load ACP session: %v", err)
+				cv.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+					Content:  fmt.Sprintf(i18n.Translate("Failed to load AI Assistant session: %v"), err),
+					Level:    2,
+					Duration: 15 * time.Second,
+				})
 				cv.chatErr = err
 				if errors.Is(err, agent.AuthRequiredErr) {
 					cv.pendingLoadSession = sn
@@ -306,6 +324,11 @@ func (cv *AgentChatView) togglePreview(previewFile string) error {
 	serverAddr := previewSrv.Address()
 	if serverAddr == "" {
 		log.Println("preview ERR: no preview server address")
+		cv.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+			Content:  i18n.Translate("Preview server is not running"),
+			Level:    2,
+			Duration: 15 * time.Second,
+		})
 		return errors.New("no preview server address")
 	}
 

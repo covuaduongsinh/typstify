@@ -5,6 +5,7 @@ import (
 
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"path/filepath"
 	"regexp"
@@ -25,11 +26,13 @@ import (
 	"looz.ws/typstify/lsp"
 	lspProtocol "looz.ws/typstify/lsp/protocol"
 	"looz.ws/typstify/service"
+	"looz.ws/typstify/service/bus"
 	"looz.ws/typstify/service/mcp"
 	"looz.ws/typstify/service/remote"
 	"looz.ws/typstify/service/settings"
 	"looz.ws/typstify/ui/dialog"
 	uipreview "looz.ws/typstify/ui/preview"
+	"looz.ws/typstify/ui/statusbar"
 	"looz.ws/typstify/ui/viewer"
 	"looz.ws/typstify/utils"
 	"looz.ws/typstify/widgets"
@@ -480,6 +483,11 @@ func (te *TypstEditor) toggleChat() {
 			}
 			if err != nil {
 				log.Printf("chat: failed to start ACP session: %v", err)
+				te.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+					Content:  fmt.Sprintf(i18n.Translate("Failed to start AI Assistant: %v"), err),
+					Level:    2,
+					Duration: 15 * time.Second,
+				})
 				te.showChat = false
 				te.chatErr = err
 				te.chatReady.Store(false)
@@ -512,6 +520,11 @@ func (te *TypstEditor) startRemoteChatSession(ctx context.Context, rs *settings.
 	sessions, err := client.ListAgentSessions()
 	if err != nil {
 		log.Printf("chat: remote: failed to list sessions, starting fresh: %v", err)
+		te.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+			Content:  fmt.Sprintf(i18n.Translate("Remote agent list sessions failed: %v"), err),
+			Level:    1,
+			Duration: 15 * time.Second,
+		})
 		sessions = nil
 	}
 

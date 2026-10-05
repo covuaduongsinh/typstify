@@ -2,6 +2,7 @@ package navpanel
 
 import (
 	"context"
+	"fmt"
 	"image/color"
 	"log"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	"looz.ws/typstify/ui/dialog"
 	"looz.ws/typstify/ui/pkgmgmt"
 	"looz.ws/typstify/ui/settings"
+	"looz.ws/typstify/ui/statusbar"
 	"looz.ws/typstify/ui/uitokens"
 	wg "looz.ws/typstify/widgets"
 	"looz.ws/typstify/widgets/icons"
@@ -183,6 +185,11 @@ func (cp *MenuPanel) startVPSSync() {
 		cp.srv.RefreshWindow()
 		if _, err := cp.srv.VPSSync().PerformSync(ctx); err != nil {
 			log.Println("vps sync failed: ", err)
+			cp.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+				Content:  fmt.Sprintf(i18n.Translate("VPS Sync failed: %v"), err),
+				Level:    2,
+				Duration: 15 * time.Second,
+			})
 		}
 		cp.srv.RefreshWindow()
 	}()
@@ -214,6 +221,11 @@ func (cp *MenuPanel) update(gtx C) {
 			projectDir, err := cp.srv.FileChooser().(*explorer.FileChooser).ChooseFolder()
 			if err != nil {
 				log.Println("failed to choose folder: ", projectDir, err)
+				cp.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+					Content:  fmt.Sprintf(i18n.Translate("Choose folder failed: %v"), err),
+					Level:    1,
+					Duration: 15 * time.Second,
+				})
 				return
 			}
 			if isFile(projectDir) {

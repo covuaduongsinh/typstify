@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"fmt"
 	"log"
+	"time"
 
 	"gioui.org/font"
 	"gioui.org/io/key"
@@ -21,6 +23,7 @@ import (
 	"looz.ws/typstify/ui/dialog"
 	"looz.ws/typstify/ui/pkgmgmt"
 	"looz.ws/typstify/ui/remoteproject"
+	"looz.ws/typstify/ui/statusbar"
 	"looz.ws/typstify/widgets/icons"
 )
 
@@ -234,6 +237,11 @@ func (vw *WelcomeView) update(gtx C) {
 			projectDir, err := vw.srv.FileChooser().(*explorer.FileChooser).ChooseFolder()
 			if err != nil {
 				log.Println("failed to choose folder: ", projectDir, err)
+				vw.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+					Content:  fmt.Sprintf(i18n.Translate("Choose folder failed: %v"), err),
+					Level:    1,
+					Duration: 15 * time.Second,
+				})
 				return
 			}
 

@@ -77,17 +77,17 @@ func (o *OutlineNav) Provider() OutlineProvider {
 
 func (o *OutlineNav) Layout(gtx C, th *theme.Theme) D {
 	if o.providerFunc == nil {
-		return D{}
+		return o.layoutEmptyState(gtx, th)
 	}
 
 	provider := o.providerFunc()
 	if provider == nil {
-		return D{}
+		return o.layoutEmptyState(gtx, th)
 	}
 
 	symbols := provider.OutlineSymbols()
 	if len(symbols) == 0 {
-		return D{}
+		return o.layoutEmptyState(gtx, th)
 	}
 
 	var items []flatSymbol
@@ -291,3 +291,17 @@ func symbolIcon(kind protocol.SymbolKind) *icons.SvgIcon {
 		return infoIcon
 	}
 }
+
+func (o *OutlineNav) layoutEmptyState(gtx C, th *theme.Theme) D {
+	return layout.Inset{
+		Top:    unit.Dp(24),
+		Bottom: unit.Dp(24),
+		Left:   unit.Dp(16),
+		Right:  unit.Dp(16),
+	}.Layout(gtx, func(gtx C) D {
+		lbl := material.Label(th.Theme, th.TextSize*0.9, i18n.Translate("No outline available"))
+		lbl.Color = misc.WithAlpha(th.Fg, 0x80)
+		return lbl.Layout(gtx)
+	})
+}
+

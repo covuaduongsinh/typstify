@@ -1,6 +1,7 @@
 package navpanel
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"gioui.org/font"
 	"gioui.org/io/pointer"
@@ -101,6 +103,11 @@ func (tn *FileTreeNav) switchRoot() {
 		restoredTree, err := filetree.RestoreTree(states)
 		if err != nil {
 			log.Println("Restore file tree error: ", err)
+			tn.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+				Content:  fmt.Sprintf(i18n.Translate("Restore file tree failed: %s"), err),
+				Level:    1,
+				Duration: 15 * time.Second,
+			})
 		} else {
 			newTree = restoredTree
 		}
@@ -110,6 +117,11 @@ func (tn *FileTreeNav) switchRoot() {
 		root, err := explorer.NewFileTree(newRoot)
 		if err != nil {
 			log.Println("open explorer failed: ", err)
+			tn.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+				Content:  fmt.Sprintf(i18n.Translate("Open project failed: %s"), err),
+				Level:    2,
+				Duration: 15 * time.Second,
+			})
 			return
 		}
 
@@ -123,7 +135,11 @@ func (tn *FileTreeNav) switchRoot() {
 	newTree.OnFileRemoveFunc = tn.onFileDeleted
 	newTree.OnErrorFunc = func(err error) {
 		log.Println("file tree error: ", err)
-		tn.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: err.Error(), Level: 1})
+		tn.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+			Content:  err.Error(),
+			Level:    1,
+			Duration: 15 * time.Second,
+		})
 	}
 
 	newTree.ExtraMenuOptionProvider = tn.extraMenuOptions
@@ -135,6 +151,11 @@ func (tn *FileTreeNav) switchRoot() {
 		node, err := explorer.NewFileTree(file)
 		if err != nil {
 			log.Println("open file failed: ", err)
+			tn.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+				Content:  fmt.Sprintf(i18n.Translate("Open file failed: %s"), err),
+				Level:    1,
+				Duration: 15 * time.Second,
+			})
 			continue
 		}
 		tn.onFileSelected(node)
@@ -312,6 +333,11 @@ func (tn *FileTreeNav) onFileDeleted(node *filetree.FileNode) {
 		result, err := caller.Call(dialog.DeleteFileDialogViewID, map[string]any{"destination": destPath})
 		if err != nil {
 			log.Println("delete file error: ", err)
+			tn.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+				Content:  fmt.Sprintf(i18n.Translate("Delete file failed: %s"), err),
+				Level:    2,
+				Duration: 15 * time.Second,
+			})
 		}
 
 		if result.Params {

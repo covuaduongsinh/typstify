@@ -135,6 +135,7 @@ func (d *CreateProjectDialog) createPackageProject(req *ProjectCreateReq) (strin
 	dir, err := d.srv.PkgService().CreatePkg(req.ProjectDir, req.Name, req.Kind == TemplateKind)
 	if err != nil {
 		log.Println("create package error: ", err)
+		return "", err
 	}
 
 	return dir, nil

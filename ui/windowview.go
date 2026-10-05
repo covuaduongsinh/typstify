@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"gioui.org/app"
+	"gioui.org/font"
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -83,7 +84,7 @@ func LoadTheme(ws *service.WindowService) *theme.Theme {
 
 	themeName := ws.Settings().General().Theme
 	if themeName == "" {
-		themeName = "Default Light"
+		themeName = "Dương Sinh Light"
 	}
 
 	cfg, err := palette.ThemeConfig(themeName)
@@ -93,6 +94,9 @@ func LoadTheme(ws *service.WindowService) *theme.Theme {
 	}
 
 	th.TextSize = unit.Sp(ws.Settings().General().TextSize)
+	th.Face = font.Typeface(ws.Settings().General().TypeFace)
 	th = th.WithPalette(cfg.Palette)
+	th.Register("codeColorScheme", cfg.CodeColorScheme)
+	th.Register("semanticPalette", cfg.Semantic)
 	return th
 }

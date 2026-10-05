@@ -12,6 +12,8 @@ import (
 	"gioui.org/widget/material"
 	"github.com/oligo/gioview/misc"
 	"github.com/oligo/gioview/theme"
+	"looz.ws/typstify/i18n"
+	wg "looz.ws/typstify/widgets"
 	appIcons "looz.ws/typstify/widgets/icons"
 )
 
@@ -27,7 +29,7 @@ type editorHeaderAction struct {
 
 type ViewActionState struct {
 	btn widget.Clickable
-	//tip wg.TipArea
+	tip wg.TipArea
 }
 
 type editorHeader struct {
@@ -143,16 +145,22 @@ func (eh *editorHeader) layoutActions(gtx C, th *theme.Theme) D {
 				action.OnClicked(gtx)
 			}
 
-			return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx C) D {
-				return state.btn.Layout(gtx, func(gtx C) D {
-					iconColor := th.Fg
-					if state.btn.Hovered() {
-						iconColor = th.ContrastBg
-					}
-					return action.Icon.Layout(gtx, iconColor, th.TextSize)
+			tipText := action.Name
+			if tipText != "" {
+				tipText = i18n.Translate(tipText)
+			}
+
+			return wg.TipIconButton(th, &state.tip, tipText).Layout(gtx, func(gtx C) D {
+				return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx C) D {
+					return state.btn.Layout(gtx, func(gtx C) D {
+						iconColor := th.Fg
+						if state.btn.Hovered() {
+							iconColor = th.ContrastBg
+						}
+						return action.Icon.Layout(gtx, iconColor, th.TextSize)
+					})
 				})
 			})
-
 		}))
 	}
 

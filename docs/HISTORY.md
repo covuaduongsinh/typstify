@@ -43,6 +43,18 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-05 — Đợt 4: Cải thiện UI desktop — Tooltip cho nút icon, hiển thị lỗi đầy đủ & dọn layout
+- **Yêu cầu**: Thêm tooltip cho toàn bộ nút icon trong header editor (`ui/editors/editor_header.go`), thanh trạng thái (`ui/statusbar/statusbar.go`) và thanh preview (`ui/viewer/preview_op.go`). Chuyển toàn bộ lỗi bị nuốt (chỉ log) sang phát notification `statusbar.Notification` qua `bus.TopicStatusbarNotifyEvent` với duration 15s. Dọn dead field trong `ui/preview/previewer.go`, thêm empty state cho `ui/navpanel/outline.go`, và sửa `LoadTheme` trong `ui/windowview.go` tránh panic.
+- **Quyết định & Thực hiện**:
+  1. `ui/editors/editor_header.go`: Khôi phục `ViewActionState.tip wg.TipArea`, bọc các action header qua `wg.TipIconButton` và dịch tooltip qua `i18n.Translate(action.Name)`.
+  2. `ui/statusbar/statusbar.go`: Thêm tooltip `"AI Assistant"` và `"Console"` cho hai nút góc phải statusbar.
+  3. `ui/viewer/preview_op.go`: Dịch tooltip "Refresh preview" qua `i18n.Translate`.
+  4. Emit notification lỗi (Level 2/1, Duration 15s) thay vì chỉ log: `ui/navpanel/filetree.go` (lỗi restore tree, open explorer, open file, delete file), `ui/editors/typst_view.go` (lỗi start ACP session, list remote sessions), `ui/assistant/chat.go` (lỗi ACP session, load session, preview server address), `ui/settings/fonts.go` (lỗi file chooser, upload font, delete font), `ui/dialog/create_project.go` (trả lỗi đúng từ `createPackageProject`), `ui/navpanel/menu_panel.go` (lỗi VPS sync, choose folder), `ui/welcome.go` (lỗi choose folder).
+  5. `ui/preview/previewer.go`: Xóa field chết `err error`.
+  6. `ui/navpanel/outline.go`: Thêm `layoutEmptyState` hiển thị nhãn "No outline available" khi tài liệu chưa có heading thay vì để trống khung.
+  7. `ui/windowview.go`: Cập nhật `LoadTheme` bổ sung `th.Face`, đăng ký `"codeColorScheme"`, `"semanticPalette"` và fallback `"Dương Sinh Light"`.
+- **File đã đổi**: `ui/editors/editor_header.go`, `ui/statusbar/statusbar.go`, `ui/viewer/preview_op.go`, `ui/navpanel/filetree.go`, `ui/editors/typst_view.go`, `ui/assistant/chat.go`, `ui/settings/fonts.go`, `ui/dialog/create_project.go`, `ui/navpanel/menu_panel.go`, `ui/welcome.go`, `ui/preview/previewer.go`, `ui/navpanel/outline.go`, `ui/windowview.go`, `docs/HISTORY.md`.
+
 ### 2026-10-05 — Đợt 3: Cải thiện UI desktop — Token spacing/màu semantic & Theme thương hiệu Dương Sinh
 - **Yêu cầu**: Xây dựng hệ thống design tokens cho desktop (`ui/uitokens/`), cung cấp bảng màu semantic (lỗi, cảnh báo, thành công, thông tin), thêm theme thương hiệu Dương Sinh (sáng/tối) tương thích với chessbook/web và đặt làm mặc định.
 - **Quyết định & Thực hiện**:

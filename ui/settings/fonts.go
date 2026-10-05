@@ -1,10 +1,12 @@
 package settings
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"sync/atomic"
+	"time"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -16,7 +18,9 @@ import (
 	"github.com/oligo/gioview/theme"
 	"looz.ws/typstify/i18n"
 	"looz.ws/typstify/service"
+	"looz.ws/typstify/service/bus"
 	"looz.ws/typstify/service/fonts"
+	"looz.ws/typstify/ui/statusbar"
 )
 
 // FontsSettingsView lets the user list, add, and remove extra font files
@@ -157,11 +161,21 @@ func (f *FontsSettingsView) addFonts() {
 		chooser, ok := f.srv.FileChooser().(*explorer.FileChooser)
 		if !ok {
 			log.Println("fonts settings: FileChooser is not available")
+			f.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+				Content:  i18n.Translate("File chooser is not available"),
+				Level:    2,
+				Duration: 15 * time.Second,
+			})
 			return
 		}
 		readers, err := chooser.ChooseFiles(".ttf", ".otf", ".ttc")
 		if err != nil {
 			log.Println("fonts settings: choose files failed:", err)
+			f.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+				Content:  fmt.Sprintf(i18n.Translate("Choose font files failed: %v"), err),
+				Level:    1,
+				Duration: 15 * time.Second,
+			})
 			return
 		}
 
@@ -177,6 +191,11 @@ func (f *FontsSettingsView) addFonts() {
 			}
 			if err := fonts.Upload(f.srv.Settings(), name, rc); err != nil {
 				log.Println("fonts settings: upload failed:", err)
+				f.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+					Content:  fmt.Sprintf(i18n.Translate("Upload font %s failed: %v"), name, err),
+					Level:    2,
+					Duration: 15 * time.Second,
+				})
 			}
 			rc.Close()
 		}
@@ -189,6 +208,11 @@ func (f *FontsSettingsView) deleteFont(name string) {
 	go func() {
 		if err := fonts.Delete(f.srv.Settings(), name); err != nil {
 			log.Println("fonts settings: delete failed:", err)
+			f.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{
+				Content:  fmt.Sprintf(i18n.Translate("Delete font %s failed: %v"), name, err),
+				Level:    2,
+				Duration: 15 * time.Second,
+			})
 		}
 		f.refresh()
 	}()

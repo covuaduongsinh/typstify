@@ -68,6 +68,8 @@ type StatusBar struct {
 	gitStatusIndicator *GitStatusIndicator
 	showConsoleBtn     widget.Clickable
 	showChatBtn        widget.Clickable
+	consoleTip         widgets.TipArea
+	chatTip            widgets.TipArea
 }
 
 func (n *NotificationBar) Layout(gtx C, th *theme.Theme) D {
@@ -172,21 +174,25 @@ func (s *StatusBar) Layout(gtx C, th *theme.Theme) D {
 					}),
 					layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
 					layout.Rigid(func(gtx C) D {
-						return material.Clickable(gtx, &s.showChatBtn, func(gtx C) D {
-							fillColor := th.Fg
-							if s.showChatBtn.Hovered() {
-								fillColor = th.ContrastBg
-							}
-							return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx C) D {
-								return chatIcon.Layout(gtx, fillColor, th.TextSize)
+						return widgets.TipIconButton(th, &s.chatTip, i18n.Translate("AI Assistant")).Layout(gtx, func(gtx C) D {
+							return material.Clickable(gtx, &s.showChatBtn, func(gtx C) D {
+								fillColor := th.Fg
+								if s.showChatBtn.Hovered() {
+									fillColor = th.ContrastBg
+								}
+								return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx C) D {
+									return chatIcon.Layout(gtx, fillColor, th.TextSize)
+								})
 							})
 						})
 					}),
 					layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
 					layout.Rigid(func(gtx C) D {
-						return material.Clickable(gtx, &s.showConsoleBtn, func(gtx C) D {
-							return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx C) D {
-								return consoleIcon.Layout(gtx, th.Fg, th.TextSize)
+						return widgets.TipIconButton(th, &s.consoleTip, i18n.Translate("Console")).Layout(gtx, func(gtx C) D {
+							return material.Clickable(gtx, &s.showConsoleBtn, func(gtx C) D {
+								return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx C) D {
+									return consoleIcon.Layout(gtx, th.Fg, th.TextSize)
+								})
 							})
 						})
 					}),
