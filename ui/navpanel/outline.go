@@ -104,7 +104,7 @@ func (o *OutlineNav) Layout(gtx C, th *theme.Theme) D {
 		// When ScrollTo jumped the list to index 6, the slice is too short, as List start painting at index 6.
 		// Using for loop to keep appending until it catches up.
 		for len(o.clickables) <= index {
-			o.clickables = append(o.clickables, &widgets.InteractiveLabel{})
+			o.clickables = append(o.clickables, &widgets.InteractiveLabel{Focusable: true})
 		}
 
 		label := o.clickables[index]

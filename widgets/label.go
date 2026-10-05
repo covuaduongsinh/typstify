@@ -6,6 +6,7 @@ import (
 
 	"gioui.org/gesture"
 	"gioui.org/io/event"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -22,7 +23,17 @@ type InteractiveLabel struct {
 	isSelected bool
 	hovering   bool
 	activated  bool
+	isFocused  bool
+	Focusable  bool
 	Radius     unit.Dp
+}
+
+func (l *InteractiveLabel) IsFocused() bool {
+	return l.isFocused
+}
+
+func (l *InteractiveLabel) Click() {
+	l.isSelected = true
 }
 
 func (l *InteractiveLabel) IsSelected() bool {
@@ -73,6 +84,33 @@ func (l *InteractiveLabel) Update(gtx layout.Context) bool {
 		if e.Kind == gesture.KindClick {
 			l.isSelected = true
 			clicked = true
+			if l.Focusable {
+				gtx.Execute(key.FocusCmd{Tag: l})
+			}
+		}
+	}
+
+	if l.Focusable {
+		for {
+			ke, ok := gtx.Event(
+				key.FocusFilter{Target: l},
+				key.Filter{Focus: l, Name: key.NameEnter},
+				key.Filter{Focus: l, Name: key.NameReturn},
+				key.Filter{Focus: l, Name: key.NameSpace},
+			)
+			if !ok {
+				break
+			}
+			switch ev := ke.(type) {
+			case key.FocusEvent:
+				l.isFocused = ev.Focus
+			case key.Event:
+				if (ev.Name == key.NameEnter || ev.Name == key.NameReturn || ev.Name == key.NameSpace) && ev.State == key.Release {
+					l.isSelected = true
+					clicked = true
+					gtx.Execute(op.InvalidateCmd{})
+				}
+			}
 		}
 	}
 
@@ -80,12 +118,13 @@ func (l *InteractiveLabel) Update(gtx layout.Context) bool {
 }
 
 func (l *InteractiveLabel) layoutBackground(gtx layout.Context, th *theme.Theme) layout.Dimensions {
-	if !l.isSelected && !l.hovering && !l.activated {
+	isFocused := l.Focusable && (l.isFocused || gtx.Focused(l))
+	if !l.isSelected && !l.hovering && !l.activated && !isFocused {
 		return layout.Dimensions{Size: gtx.Constraints.Min}
 	}
 
 	var border widget.Border
-	if l.activated {
+	if l.activated || isFocused {
 		border = widget.Border{
 			Color:        th.ContrastBg,
 			CornerRadius: l.Radius,

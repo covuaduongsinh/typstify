@@ -43,6 +43,14 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-05 — Đợt 5: Cải thiện UI desktop — Bàn phím & Focus ring cho InteractiveLabel và FileTree
+- **Yêu cầu**: Thêm hỗ trợ điều hướng bàn phím và focus ring cho `InteractiveLabel` (mặc định tắt, bật qua cờ `Focusable`), áp dụng trước cho outline (`ui/navpanel/outline.go`); bổ sung điều hướng phím (Mũi tên lên/xuống/trái/phải, Enter, Delete) cho `TreeView` (`widgets/filetree/tree.go`).
+- **Quyết định & Thực hiện**:
+  1. `widgets/label.go`: Thêm trường `Focusable` và `isFocused` vào `InteractiveLabel`. Khi `Focusable == true`, lắng nghe `key.FocusFilter`, các phím Enter / Return / Space để kích hoạt chọn; vẽ focus ring đường viền 1dp `th.ContrastBg` khi widget có focus; tự động focus khi click chuột. Mặc định `Focusable: false` giữ trọn vẹn tương thích cho toàn bộ các nơi khác dùng `InteractiveLabel`.
+  2. `ui/navpanel/outline.go`: Bật `Focusable: true` khi khởi tạo các `InteractiveLabel` trong outline items.
+  3. `widgets/filetree/tree.go`: Bổ sung filter và xử lý phím điều hướng cho cây thư mục: Mũi tên Lên/Xuống chuyển chọn node liền kề; Mũi tên Trái đóng thư mục hoặc nhảy về thư mục cha; Mũi tên Phải mở thư mục hoặc mở file; Enter/Return mở file hoặc toggle thư mục; Delete xoá node đang chọn qua `OnFileRemoveFunc`.
+- **File đã đổi**: `widgets/label.go`, `ui/navpanel/outline.go`, `widgets/filetree/tree.go`, `docs/HISTORY.md`.
+
 ### 2026-10-05 — Đợt 4: Cải thiện UI desktop — Tooltip cho nút icon, hiển thị lỗi đầy đủ & dọn layout
 - **Yêu cầu**: Thêm tooltip cho toàn bộ nút icon trong header editor (`ui/editors/editor_header.go`), thanh trạng thái (`ui/statusbar/statusbar.go`) và thanh preview (`ui/viewer/preview_op.go`). Chuyển toàn bộ lỗi bị nuốt (chỉ log) sang phát notification `statusbar.Notification` qua `bus.TopicStatusbarNotifyEvent` với duration 15s. Dọn dead field trong `ui/preview/previewer.go`, thêm empty state cho `ui/navpanel/outline.go`, và sửa `LoadTheme` trong `ui/windowview.go` tránh panic.
 - **Quyết định & Thực hiện**:

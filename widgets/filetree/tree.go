@@ -339,6 +339,14 @@ func (t *TreeView) processKeyEvents(gtx layout.Context) error {
 		key.Filter{Focus: t, Name: "C", Required: key.ModShortcut},
 		key.Filter{Focus: t, Name: "V", Required: key.ModShortcut},
 		key.Filter{Focus: t, Name: "X", Required: key.ModShortcut},
+		key.Filter{Focus: t, Name: key.NameUpArrow},
+		key.Filter{Focus: t, Name: key.NameDownArrow},
+		key.Filter{Focus: t, Name: key.NameLeftArrow},
+		key.Filter{Focus: t, Name: key.NameRightArrow},
+		key.Filter{Focus: t, Name: key.NameEnter},
+		key.Filter{Focus: t, Name: key.NameReturn},
+		key.Filter{Focus: t, Name: key.NameDeleteForward},
+		key.Filter{Focus: t, Name: key.NameDeleteBackward},
 		transfer.TargetFilter{Target: t, Type: mimeText},
 		transfer.TargetFilter{Target: t, Type: mimeDnd},
 		// Detect if pointer is inside of the dir item, so we can highlight it when dropping items to it.
@@ -353,18 +361,36 @@ func (t *TreeView) processKeyEvents(gtx layout.Context) error {
 
 		switch event := ke.(type) {
 		case key.Event:
-			if !event.Modifiers.Contain(key.ModShortcut) {
+			if event.Modifiers.Contain(key.ModShortcut) {
+				switch event.Name {
+				// Initiate a paste operation, by requesting the clipboard contents; other
+				// half is in DataEvent.
+				case "V":
+					t.onPasteByShortcut(gtx)
+				// Copy or Cut selection -- ignored if nothing selected.
+				case "C", "X":
+					t.OnCopyOrCut(gtx, t.selectedNode, event.Name == "X")
+				}
 				break
 			}
 
-			switch event.Name {
-			// Initiate a paste operation, by requesting the clipboard contents; other
-			// half is in DataEvent.
-			case "V":
-				t.onPasteByShortcut(gtx)
-			// Copy or Cut selection -- ignored if nothing selected.
-			case "C", "X":
-				t.OnCopyOrCut(gtx, t.selectedNode, event.Name == "X")
+			if event.State == key.Release {
+				switch event.Name {
+				case key.NameUpArrow:
+					t.navigateUp(gtx)
+				case key.NameDownArrow:
+					t.navigateDown(gtx)
+				case key.NameLeftArrow:
+					t.navigateLeft(gtx)
+				case key.NameRightArrow:
+					t.navigateRight(gtx)
+				case key.NameEnter, key.NameReturn:
+					t.activateSelected(gtx)
+				case key.NameDeleteForward:
+					if t.selectedNode != nil && t.OnFileRemoveFunc != nil {
+						t.OnFileRemoveFunc(t.selectedNode)
+					}
+				}
 			}
 
 		case pointer.Event:
@@ -878,3 +904,114 @@ func RestoreTree(state *TreeState) (*TreeView, error) {
 
 	return tree, nil
 }
+
+func (t *TreeView) findSelectedIdx() int {
+	if t.selectedNode == nil || len(t.visibleNodes) == 0 {
+		return -1
+	}
+	for i, fn := range t.visibleNodes {
+		if fn.Node != nil && fn.Node.Path == t.selectedNode.Path {
+			return i
+		}
+	}
+	return -1
+}
+
+func (t *TreeView) selectVisibleNode(gtx layout.Context, idx int) {
+	if idx < 0 || idx >= len(t.visibleNodes) {
+		return
+	}
+	target := t.visibleNodes[idx].Node
+	if target == nil {
+		return
+	}
+	if t.selectedNode != nil {
+		prevState := t.GetState(t.selectedNode.Path)
+		prevState.Label.Unselect()
+	}
+	t.selectedNode = target
+	state := t.GetState(target.Path)
+	state.Label.Select()
+	gtx.Execute(op.InvalidateCmd{})
+}
+
+func (t *TreeView) navigateUp(gtx layout.Context) {
+	if len(t.visibleNodes) == 0 {
+		return
+	}
+	idx := t.findSelectedIdx()
+	if idx <= 0 {
+		t.selectVisibleNode(gtx, 0)
+	} else {
+		t.selectVisibleNode(gtx, idx-1)
+	}
+}
+
+func (t *TreeView) navigateDown(gtx layout.Context) {
+	if len(t.visibleNodes) == 0 {
+		return
+	}
+	idx := t.findSelectedIdx()
+	if idx < 0 {
+		t.selectVisibleNode(gtx, 0)
+	} else if idx < len(t.visibleNodes)-1 {
+		t.selectVisibleNode(gtx, idx+1)
+	}
+}
+
+func (t *TreeView) navigateLeft(gtx layout.Context) {
+	if t.selectedNode == nil {
+		return
+	}
+	state := t.GetState(t.selectedNode.Path)
+	if t.selectedNode.IsDir() && state.Expanded {
+		state.Expanded = false
+		t.pendingRebuild = true
+		gtx.Execute(op.InvalidateCmd{})
+		return
+	}
+	// Jump to parent if available
+	if t.selectedNode.Parent != nil {
+		for i, fn := range t.visibleNodes {
+			if fn.Node != nil && fn.Node.Path == t.selectedNode.Parent.Path {
+				t.selectVisibleNode(gtx, i)
+				break
+			}
+		}
+	}
+}
+
+func (t *TreeView) navigateRight(gtx layout.Context) {
+	if t.selectedNode == nil {
+		return
+	}
+	state := t.GetState(t.selectedNode.Path)
+	if t.selectedNode.IsDir() {
+		if !state.Expanded {
+			state.Expanded = true
+			t.pendingRebuild = true
+			gtx.Execute(op.InvalidateCmd{})
+		}
+	} else {
+		if t.OnFileSelectedFunc != nil {
+			t.OnFileSelectedFunc(t.selectedNode)
+		}
+	}
+}
+
+func (t *TreeView) activateSelected(gtx layout.Context) {
+	if t.selectedNode == nil {
+		return
+	}
+	state := t.GetState(t.selectedNode.Path)
+	if t.selectedNode.IsDir() {
+		state.Expanded = !state.Expanded
+		t.pendingRebuild = true
+		gtx.Execute(op.InvalidateCmd{})
+	} else {
+		if t.OnFileSelectedFunc != nil {
+			t.OnFileSelectedFunc(t.selectedNode)
+		}
+	}
+}
+
