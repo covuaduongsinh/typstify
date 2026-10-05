@@ -10,6 +10,7 @@ type VPSSyncSettings struct {
 
 	Enabled        bool     `key:"enabled" json:"enabled"`
 	ServerURL      string   `key:"serverUrl" json:"server_url"`
+	Username       string   `key:"username" json:"username"`
 	Token          string   `key:"token" json:"token"`
 	AutoSync       bool     `key:"autoSync" json:"auto_sync"`
 	IntervalSec    int      `key:"intervalSec" json:"interval_sec"`

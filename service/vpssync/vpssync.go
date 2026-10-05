@@ -292,6 +292,29 @@ func (e *SyncEngine) PushFile(ctx context.Context, rel string) error {
 	return err
 }
 
+// PullFile tải một file từ VPS về máy local (ghi đè hoặc tạo mới).
+func (e *SyncEngine) PullFile(ctx context.Context, rel string) error {
+	root := e.projectDir()
+	if root == "" {
+		return errNoProject
+	}
+	req, err := e.newRequest(ctx, http.MethodGet, "/api/sync/pull",
+		url.Values{"path": {rel}}, nil)
+	if err != nil {
+		return err
+	}
+	data, err := e.do(req)
+	if err != nil {
+		return err
+	}
+
+	dest := filepath.Join(root, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(dest, data, 0644)
+}
+
 // DeleteFile xoá rel trên VPS (dùng khi file bị xoá ở local).
 func (e *SyncEngine) DeleteFile(ctx context.Context, rel string) error {
 	body, err := json.Marshal(map[string]string{"path": rel})
@@ -307,8 +330,9 @@ func (e *SyncEngine) DeleteFile(ctx context.Context, rel string) error {
 	return err
 }
 
-// PerformSync đẩy mọi file local mới hoặc đã đổi nội dung so với VPS. Không
-// xoá file chỉ có trên VPS. Chỉ một lần chạy tại một thời điểm.
+// PerformSync thực hiện đồng bộ hai chiều (Local <-> VPS):
+// - Đẩy file local mới/đổi lên VPS.
+// - Tải file VPS mới/đổi về máy local.
 func (e *SyncEngine) PerformSync(ctx context.Context) (*SyncResult, error) {
 	e.mu.Lock()
 	if e.syncing {
@@ -350,19 +374,49 @@ func (e *SyncEngine) performSync(ctx context.Context, start time.Time) (*SyncRes
 		return nil, err
 	}
 
+	localMap := make(map[string]FileItem, len(local))
+	for _, f := range local {
+		localMap[f.Path] = f
+	}
+
 	res := &SyncResult{Uploaded: []string{}, Errors: []string{}}
+
+	// 1. Chiều Local -> VPS (Push các file local mới hoặc sửa sau)
 	for _, f := range local {
 		if IsIgnored(f.Path, patterns) {
 			continue
 		}
-		if r, ok := remote[f.Path]; ok && r.Hash == f.Hash {
+		r, existsOnRemote := remote[f.Path]
+		if existsOnRemote && r.Hash == f.Hash {
 			continue
 		}
-		if err := e.PushFile(ctx, f.Path); err != nil {
-			res.Errors = append(res.Errors, f.Path+": "+err.Error())
+		// Nếu remote chưa có HOẶC local mới hơn remote
+		if !existsOnRemote || f.ModTime.After(r.ModTime) {
+			if err := e.PushFile(ctx, f.Path); err != nil {
+				res.Errors = append(res.Errors, "push "+f.Path+": "+err.Error())
+				continue
+			}
+			res.Uploaded = append(res.Uploaded, f.Path)
+		}
+	}
+
+	// 2. Chiều VPS -> Local (Pull các file remote mới hoặc sửa sau)
+	for rPath, r := range remote {
+		if IsIgnored(rPath, patterns) {
 			continue
 		}
-		res.Uploaded = append(res.Uploaded, f.Path)
+		l, existsOnLocal := localMap[rPath]
+		if existsOnLocal && l.Hash == r.Hash {
+			continue
+		}
+		// Nếu local chưa có HOẶC remote mới hơn local
+		if !existsOnLocal || r.ModTime.After(l.ModTime) {
+			if err := e.PullFile(ctx, rPath); err != nil {
+				res.Errors = append(res.Errors, "pull "+rPath+": "+err.Error())
+				continue
+			}
+			res.Uploaded = append(res.Uploaded, rPath+" (downloaded)")
+		}
 	}
 
 	res.DurationMs = time.Since(start).Milliseconds()

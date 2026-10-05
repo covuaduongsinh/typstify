@@ -20,21 +20,19 @@ import (
 	"looz.ws/typstify/service/vpssync"
 )
 
-// VPSSyncTabIdx là chỉ số tab VPS Sync trong NewSettingsView (đặt sau Agent).
-const VPSSyncTabIdx = 8
-
 // VPSSyncView cấu hình đồng bộ file lên typstify-server (VPS). Trạng thái
 // và nút Sync Now nằm ở thanh menu (ui/navpanel).
 type VPSSyncView struct {
-	srv         *service.ServiceFacade
-	serverInput gvwidget.TextField
-	tokenInput  gvwidget.TextField
-	enabled     widget.Bool
-	autoSync    widget.Bool
-	testBtn     widget.Clickable
-	saveBtn     widget.Clickable
-	testing     atomic.Bool
-	once        sync.Once
+	srv           *service.ServiceFacade
+	serverInput   gvwidget.TextField
+	usernameInput gvwidget.TextField
+	tokenInput    gvwidget.TextField
+	enabled       widget.Bool
+	autoSync      widget.Bool
+	testBtn       widget.Clickable
+	saveBtn       widget.Clickable
+	testing       atomic.Bool
+	once          sync.Once
 
 	mu     sync.Mutex
 	msg    string
@@ -66,6 +64,7 @@ func (v *VPSSyncView) message() (string, bool) {
 func (v *VPSSyncView) loadFromSettings() {
 	cfg := v.srv.Settings().VPSSync()
 	v.serverInput.SetText(cfg.ServerURL)
+	v.usernameInput.SetText(cfg.Username)
 	v.tokenInput.SetText(cfg.Token)
 	v.enabled.Value = cfg.Enabled
 	v.autoSync.Value = cfg.AutoSync
@@ -76,6 +75,7 @@ func (v *VPSSyncView) loadFromSettings() {
 func (v *VPSSyncView) save() error {
 	cfg := v.srv.Settings().VPSSync()
 	cfg.ServerURL = strings.TrimSpace(v.serverInput.Text())
+	cfg.Username = strings.TrimSpace(v.usernameInput.Text())
 	cfg.Token = strings.TrimSpace(v.tokenInput.Text())
 	cfg.Enabled = v.enabled.Value
 	cfg.AutoSync = v.autoSync.Value
@@ -105,26 +105,42 @@ func (v *VPSSyncView) update(gtx C) {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 
+			serverURL := strings.TrimSpace(v.serverInput.Text())
+			username := strings.TrimSpace(v.usernameInput.Text())
+			passOrToken := strings.TrimSpace(v.tokenInput.Text())
+
+			// 1. Thử test connection với token hiện tại
 			err := v.srv.VPSSync().TestConnection(ctx)
-			if err != nil {
-				// Thử tự động login nếu tokenInput là password
-				serverURL := strings.TrimSpace(v.serverInput.Text())
-				passOrToken := strings.TrimSpace(v.tokenInput.Text())
-				if passOrToken != "" && serverURL != "" {
-					if tok, loginErr := vpssync.LoginWithPassword(ctx, serverURL, "", passOrToken); loginErr == nil && tok != "" {
-						v.tokenInput.SetText(tok)
-						_ = v.save()
-						if testErr := v.srv.VPSSync().TestConnection(ctx); testErr == nil {
-							v.setMsg(i18n.Translate("Login successful & Connection OK"), false)
-							v.srv.RefreshWindow()
-							return
-						}
+			if err == nil {
+				v.setMsg(i18n.Translate("Connection OK"), false)
+				v.srv.RefreshWindow()
+				return
+			}
+
+			// 2. Nếu thất bại, thử login bằng username + password để lấy Bearer token mới
+			if passOrToken != "" && serverURL != "" {
+				tok, loginErr := vpssync.LoginWithPassword(ctx, serverURL, username, passOrToken)
+				if loginErr != nil {
+					v.setMsg(fmt.Sprintf("%s: %v", i18n.Translate("Authentication failed"), loginErr), true)
+					v.srv.RefreshWindow()
+					return
+				}
+				if tok != "" {
+					v.tokenInput.SetText(tok)
+					_ = v.save()
+					if testErr := v.srv.VPSSync().TestConnection(ctx); testErr == nil {
+						v.setMsg(i18n.Translate("Login successful & Connection OK"), false)
+						v.srv.RefreshWindow()
+						return
+					} else {
+						v.setMsg(fmt.Sprintf("%s: %v", i18n.Translate("Connection failed"), testErr), true)
+						v.srv.RefreshWindow()
+						return
 					}
 				}
-				v.setMsg(fmt.Sprintf("%s: %v", i18n.Translate("Connection failed"), err), true)
-			} else {
-				v.setMsg(i18n.Translate("Connection OK"), false)
 			}
+
+			v.setMsg(fmt.Sprintf("%s: %v", i18n.Translate("Connection failed"), err), true)
 			v.srv.RefreshWindow()
 		}()
 	}
@@ -135,7 +151,7 @@ func (v *VPSSyncView) Layout(gtx C, th *theme.Theme) D {
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx C) D {
-			label := material.Label(th.Theme, th.TextSize, i18n.Translate("Upload project files from this computer to a typstify server (VPS). Token is the Bearer token issued by the server."))
+			label := material.Label(th.Theme, th.TextSize, i18n.Translate("Upload project files from this computer to a typstify server (VPS). Enter username & password or a Bearer token."))
 			label.LineHeightScale = 1.5
 			return label.Layout(gtx)
 		}),
@@ -147,7 +163,19 @@ func (v *VPSSyncView) Layout(gtx C, th *theme.Theme) D {
 				layout.Flexed(1, func(gtx C) D {
 					v.serverInput.Alignment = text.Start
 					v.serverInput.SingleLine = true
-					return v.serverInput.Layout(gtx, th, "Server URL, e.g. https://typst.example.com")
+					return v.serverInput.Layout(gtx, th, "Server URL, e.g. https://typst.dsc.edu.vn")
+				}),
+			)
+		}),
+
+		layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+
+		layout.Rigid(func(gtx C) D {
+			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+				layout.Flexed(1, func(gtx C) D {
+					v.usernameInput.Alignment = text.Start
+					v.usernameInput.SingleLine = true
+					return v.usernameInput.Layout(gtx, th, "Username (optional if using Bearer token)")
 				}),
 			)
 		}),
@@ -159,7 +187,7 @@ func (v *VPSSyncView) Layout(gtx C, th *theme.Theme) D {
 				layout.Flexed(1, func(gtx C) D {
 					v.tokenInput.Alignment = text.Start
 					v.tokenInput.SingleLine = true
-					return v.tokenInput.Layout(gtx, th, "Token")
+					return v.tokenInput.Layout(gtx, th, "Password or Bearer Token")
 				}),
 			)
 		}),

@@ -20,6 +20,8 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"golang.org/x/exp/shiny/materialdesign/icons"
+	"looz.ws/typstify/i18n"
+	wg "looz.ws/typstify/widgets"
 )
 
 type TabEvent string
@@ -51,6 +53,7 @@ type Tab struct {
 	vw         view.View
 	tabClick   gesture.Click
 	closeBtn   widget.Clickable
+	closeTip   wg.TipArea
 	isSelected bool
 	hovering   bool
 	events     []TabEvent
@@ -198,9 +201,9 @@ func (tab *Tab) Layout(gtx C, th *theme.Theme) D {
 		func(gtx C) D {
 			gtx.Constraints.Min.Y = gtx.Constraints.Max.Y
 			color := th.Fg
-			// if tab.isSelected {
-			// 	color = th.ContrastFg
-			// }
+			if tab.isSelected {
+				color = th.ContrastFg
+			}
 			return layout.Inset{
 				Left:  unit.Dp(18),
 				Right: unit.Dp(4),
@@ -219,16 +222,18 @@ func (tab *Tab) Layout(gtx C, th *theme.Theme) D {
 						})
 					}),
 					layout.Rigid(func(gtx C) D {
-						iconAlpha := uint8(1)
+						iconAlpha := uint8(0x60)
 						if tab.hovering {
 							iconAlpha = uint8(255)
 						}
 						return layout.Inset{Left: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
-							return material.Clickable(gtx, &tab.closeBtn, func(gtx C) D {
-								return misc.Icon{Icon: closeIcon,
-									Color: misc.WithAlpha(color, iconAlpha),
-									Size:  max(16, unit.Dp(16*th.TextSize/14)),
-								}.Layout(gtx, th)
+							return wg.TipIconButton(th, &tab.closeTip, i18n.Translate("Close tab")).Layout(gtx, func(gtx C) D {
+								return material.Clickable(gtx, &tab.closeBtn, func(gtx C) D {
+									return misc.Icon{Icon: closeIcon,
+										Color: misc.WithAlpha(color, iconAlpha),
+										Size:  max(16, unit.Dp(16*th.TextSize/14)),
+									}.Layout(gtx, th)
+								})
 							})
 						})
 

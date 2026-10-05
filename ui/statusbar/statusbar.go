@@ -212,6 +212,7 @@ func NewStatusBar(srv *service.ServiceFacade, vm view.ViewManager) *StatusBar {
 			if msg.Duration <= 0 {
 				msg.Duration = defaultActiveDuration
 			}
+			sb.notification.lastUpdateTime = time.Time{}
 			sb.notification.lastMessage = &msg
 			vm.Invalidate()
 		}

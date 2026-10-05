@@ -135,7 +135,7 @@ func (hv *HomeView) update(gtx C) {
 		hv.RequestSwitch(view.Intent{
 			Target: settings.SettingViewID,
 			Params: map[string]any{
-				"tabIdx": 4, // hardcoded tpix tab index in setting page.
+				"tabIdx": settings.TPIXTabIdx,
 			},
 		})
 	}

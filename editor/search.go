@@ -85,9 +85,14 @@ func (sb *TextSearchBar) Update(gtx C) {
 	if sb.anim.Visible() {
 		for {
 			e, ok := gtx.Event(
-				//key.Filter{Focus: sb.searchInput.State(), Name: key.NameEscape},
-				//key.Filter{Focus: sb.replaceInput.State(), Name: key.NameEscape},
-				key.Filter{Name: key.NameEscape}, // global key handler, without a focused target.
+				key.Filter{Focus: sb.searchInput.State(), Name: key.NameEscape},
+				key.Filter{Focus: sb.replaceInput.State(), Name: key.NameEscape},
+				key.Filter{Focus: sb.searchInput.State(), Name: key.NameReturn},
+				key.Filter{Focus: sb.searchInput.State(), Name: key.NameEnter},
+				key.Filter{Focus: sb.searchInput.State(), Name: "F3"},
+				key.Filter{Focus: sb.replaceInput.State(), Name: key.NameReturn},
+				key.Filter{Focus: sb.replaceInput.State(), Name: key.NameEnter},
+				key.Filter{Focus: sb.replaceInput.State(), Name: "F3"},
 			)
 			if !ok {
 				break
@@ -95,8 +100,16 @@ func (sb *TextSearchBar) Update(gtx C) {
 
 			switch event := e.(type) {
 			case key.Event:
-				if event.Name == key.NameEscape {
-					sb.Hide(gtx)
+				if event.State == key.Press {
+					if event.Name == key.NameEscape {
+						sb.Hide(gtx)
+					} else if event.Name == key.NameReturn || event.Name == key.NameEnter || event.Name == "F3" {
+						if event.Modifiers.Contain(key.ModShift) {
+							sb.moveToPrevMatch()
+						} else {
+							sb.moveToNextMatch()
+						}
+					}
 				}
 			}
 		}
