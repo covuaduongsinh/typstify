@@ -111,6 +111,18 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
   - Tích hợp phím tắt toàn cục trong `ui/home.go` (`Ctrl+W`, `Ctrl+Tab`, `Ctrl+Shift+Tab`, `Ctrl+1..9`, `Ctrl+Shift+P`).
 - **File đã cập nhật**: `editor/editor.go`, `ui/settings/subviews.go`, `ui/commandbar/commandbar.go`, `ui/home.go`, `service/bus/topics.go`, `docs/HISTORY.md`.
 
+### 2026-10-05 — Cải thiện giao diện Desktop (7 đợt)
+- **Yêu cầu**: rà soát và cải thiện giao diện Desktop theo cách vá dần, an toàn; ưu tiên Việt hoá, hiệu suất làm việc, thẩm mỹ/nhất quán, cấu trúc layout. Kế hoạch: `docs/plans/plan_desktop_ui_improvements.md`.
+- **Thực hiện** (Antigravity triển khai, Claude Code rà soát và kiểm chứng):
+  1. `39848df` — Ctrl+L mở AI Assistant (toggle read-only chuyển sang Ctrl+Shift+R); phím điều hướng search (Enter/Shift+Enter/F3); tab Settings đúng qua `ui/settings/tabs.go`; nút đóng tab nhìn thấy được; thông báo thứ hai không bị cắt.
+  2. `c23a651` — locale vi-VN (gotext, sinh lại `catalog.go`); chuẩn hoá chuỗi nguồn tiếng Anh; sửa lệch mã `en-us`/`en-US`. Đóng ROADMAP A3, A4. **Lưu ý**: kế hoạch ban đầu đề xuất bảng Go thay vì gotext để tránh diff lớn; commit này đã sinh lại `catalog.go` (~2089 dòng).
+  3. `ad1e80d` — token giao diện trong `ui/uitokens` (kế hoạch ghi `ui/palette`); theme Dương Sinh sáng (mặc định) và tối, lấy từ `chessbook/lib/theme.typ`.
+  4. `bf5bc80` — tooltip cho nút icon; lỗi hiện trên statusbar 15 giây thay vì chỉ log; empty state outline.
+  5. `b7e21bc` — bàn phím và focus ring cho `InteractiveLabel` (bật ở outline); file tree điều hướng bằng mũi tên/Enter/Delete.
+  6. `3e25805` — phím tắt Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+1..9; command palette Ctrl+Shift+P; wrap line chuyển sang Ctrl+Alt+W, có công tắc trong Settings.
+  7. `be1060b` — bộ gõ Telex nối vào editor, công tắc `EnableTelex` trong Settings → Editor, mặc định tắt.
+- **Kiểm chứng**: `go test` pass cho `editor`, `service`, `server`, `utils`; `go build` root và `cmd/typstify-server` thành công. **Chưa** kiểm tra giao diện bằng mắt trên màn hình.
+- **Việc còn lại**: chủ dự án duyệt bản dịch tiếng Việt, cảm quan theme Dương Sinh, nghiệm thu Telex; deploy bản mới lên VPS.
 ### 2026-10-05 — Đồng bộ file một chiều Local -> VPS (typstify-server)
 - **Yêu cầu**: thay Dropbox (hay hết hạn access token) bằng đồng bộ file trực tiếp từ desktop lên VPS chạy `typstify-server`, xác thực bằng Bearer token.
 - **Quyết định**:
