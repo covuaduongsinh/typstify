@@ -2,7 +2,6 @@ package dialog
 
 import (
 	"errors"
-	"image/color"
 	"sync/atomic"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"looz.ws/typstify/service"
 	"looz.ws/typstify/service/bus"
 	"looz.ws/typstify/ui/statusbar"
+	"looz.ws/typstify/ui/uitokens"
 	"looz.ws/typstify/widgets"
 )
 
@@ -179,7 +179,7 @@ func (d *PublishPkgDialog) LayoutBody(gtx C, th *theme.Theme) D {
 
 func (d *PublishPkgDialog) layoutErr(gtx C, th *theme.Theme, err error) D {
 	label := material.Label(th.Theme, th.TextSize, err.Error())
-	label.Color = color.NRGBA{R: 255, A: 255}
+	label.Color = uitokens.ErrorColor(th)
 	label.Alignment = text.Start
 	return label.Layout(gtx)
 }

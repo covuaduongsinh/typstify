@@ -21,6 +21,7 @@ import (
 	"looz.ws/typstify/ui/dialog"
 	"looz.ws/typstify/ui/pkgmgmt"
 	"looz.ws/typstify/ui/settings"
+	"looz.ws/typstify/ui/uitokens"
 	wg "looz.ws/typstify/widgets"
 	"looz.ws/typstify/widgets/icons"
 )
@@ -37,10 +38,6 @@ var (
 	cloudUpIcon    = icons.NewSvgIcon(icons.CloudUpload)
 	cloudOkIcon    = icons.NewSvgIcon(icons.CloudCheck)
 	cloudErrIcon   = icons.NewSvgIcon(icons.CloudAlert)
-
-	cloudSyncingColor = color.NRGBA{R: 0x15, G: 0x65, B: 0xc0, A: 0xff}
-	cloudOkColor      = color.NRGBA{R: 0x2e, G: 0x7d, B: 0x32, A: 0xff}
-	cloudErrColor     = color.NRGBA{R: 0xc6, G: 0x28, B: 0x28, A: 0xff}
 )
 
 type MenuPanel struct {
@@ -153,11 +150,11 @@ func (cp *MenuPanel) vpsSyncIcon(th *theme.Theme) (*icons.SvgIcon, color.NRGBA) 
 	st := cp.srv.VPSSync().Status()
 	switch {
 	case st.Syncing:
-		return cloudUpIcon, cloudSyncingColor
+		return cloudUpIcon, uitokens.InfoColor(th)
 	case st.LastError != "":
-		return cloudErrIcon, cloudErrColor
+		return cloudErrIcon, uitokens.ErrorColor(th)
 	case !st.LastSyncTime.IsZero():
-		return cloudOkIcon, cloudOkColor
+		return cloudOkIcon, uitokens.SuccessColor(th)
 	default:
 		return cloudIcon, th.Fg
 	}

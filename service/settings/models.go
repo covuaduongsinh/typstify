@@ -417,7 +417,7 @@ func init() {
 		RootDir:     configRoot(),
 		Language:    "en-us",
 		DeviceID:    genDeviceID(),
-		Theme:       "Default Light",
+		Theme:       "Dương Sinh Light",
 		TextSize:    13,
 		TypeFace:    "",
 		CheckUpdate: "true",

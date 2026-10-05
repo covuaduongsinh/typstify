@@ -2,7 +2,6 @@ package editor
 
 import (
 	"image"
-	"image/color"
 
 	"gioui.org/layout"
 	"gioui.org/text"
@@ -16,6 +15,7 @@ import (
 	"looz.ws/typstify/i18n"
 	"looz.ws/typstify/service"
 	"looz.ws/typstify/ui/dialog"
+	"looz.ws/typstify/ui/uitokens"
 	"looz.ws/typstify/widgets/icons"
 )
 
@@ -86,7 +86,7 @@ func (s *EditorStatus) Layout(gtx C, th *theme.Theme, ed *TextEditor, srv *servi
 				Right: unit.Dp(12),
 			}.Layout(gtx, func(gtx C) D {
 				label := material.Label(th.Theme, th.TextSize*0.9, "Error: "+s.SaveErr.Error())
-				label.Color = color.NRGBA{R: 255, A: 255}
+				label.Color = uitokens.ErrorColor(th)
 				label.Alignment = text.Middle
 				return label.Layout(gtx)
 			})

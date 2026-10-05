@@ -43,6 +43,16 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-05 — Đợt 3: Cải thiện UI desktop — Token spacing/màu semantic & Theme thương hiệu Dương Sinh
+- **Yêu cầu**: Xây dựng hệ thống design tokens cho desktop (`ui/uitokens/`), cung cấp bảng màu semantic (lỗi, cảnh báo, thành công, thông tin), thêm theme thương hiệu Dương Sinh (sáng/tối) tương thích với chessbook/web và đặt làm mặc định.
+- **Quyết định & Thực hiện**:
+  1. `ui/uitokens/tokens.go`: Khai báo hằng số khoảng cách chuẩn `SpacingXXS` (2dp) -> `SpacingXXL` (32dp), `RadiusSmall`/`Medium`/`Large`, và helper hàm `ErrorColor`, `WarningColor`, `SuccessColor`, `InfoColor` tra cứu theo theme.
+  2. `ui/palette/palette.go`: Thêm struct `SemanticPalette`, đăng ký hai theme thương hiệu `"Dương Sinh Light"` (Navy `#2B3990`, `#1F2A6E`, Accent Gold `#C9A227`, Background `#F8F9FA`) và `"Dương Sinh Dark"` (Navy `#1C2140`, Accent Gold `#E5B83A`, Background `#0F141C`) đồng nhất với bảng màu trong `chessbook/lib/theme.typ` và `web/src/lib/theme.ts`. Cập nhật `ThemeNames()` đưa 2 theme Dương Sinh lên đầu danh sách.
+  3. `ui/ui.go`: Khởi tạo semantic palette và đặt theme mặc định là `"Dương Sinh Light"`.
+  4. `service/settings/models.go`: Đặt giá trị mặc định `Theme: "Dương Sinh Light"`.
+  5. Chuyển đổi toàn bộ màu thông báo/lỗi/thành công hardcode sang `uitokens` trong `ui/dialog/dialog.go`, `ui/dialog/bibliography.go`, `ui/dialog/publish_pkg.go`, `ui/settings/update_check.go`, `editor/statusbar.go`, `ui/settings/agent.go`, `ui/navpanel/menu_panel.go`, `ui/statusbar/statusbar.go`.
+- **File đã đổi**: `ui/uitokens/tokens.go`, `ui/palette/palette.go`, `ui/ui.go`, `service/settings/models.go`, `ui/dialog/dialog.go`, `ui/dialog/bibliography.go`, `ui/dialog/publish_pkg.go`, `ui/settings/update_check.go`, `editor/statusbar.go`, `ui/settings/agent.go`, `ui/navpanel/menu_panel.go`, `ui/statusbar/statusbar.go`, `docs/REPLICATION.md`, `docs/HISTORY.md`.
+
 ### 2026-10-05 — Đợt 2: Cải thiện UI desktop — Việt hoá i18n & chuẩn hoá chuỗi nguồn (đóng ROADMAP A3, A4)
 - **Yêu cầu**: Thêm locale tiếng Việt `vi-VN` vào desktop app, sửa lỗi lệch mã locale (`en-US` vs `en-us`), chuẩn hoá chuỗi nguồn về tiếng Anh, bọc toàn bộ chuỗi còn sót trong `i18n.Translate()`, cập nhật catalog đa ngôn ngữ.
 - **Quyết định & Thực hiện**:

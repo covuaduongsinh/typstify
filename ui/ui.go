@@ -200,7 +200,7 @@ func (ui *UI) loadTheme(s *settings.Settings) {
 
 	themeName := s.General().Theme
 	if themeName == "" {
-		themeName = "Default Light"
+		themeName = "Dương Sinh Light"
 	}
 
 	cfg, err := palette.ThemeConfig(themeName)
@@ -213,4 +213,5 @@ func (ui *UI) loadTheme(s *settings.Settings) {
 	ui.theme.Face = font.Typeface(s.General().TypeFace)
 	ui.theme = ui.theme.WithPalette(cfg.Palette)
 	ui.theme.Register("codeColorScheme", cfg.CodeColorScheme)
+	ui.theme.Register("semanticPalette", cfg.Semantic)
 }

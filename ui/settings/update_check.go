@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"image/color"
 	"log"
 
 	"gioui.org/layout"
@@ -16,6 +15,7 @@ import (
 	"looz.ws/typstify/i18n"
 	"looz.ws/typstify/service"
 	"looz.ws/typstify/service/net"
+	"looz.ws/typstify/ui/uitokens"
 	"looz.ws/typstify/version"
 )
 
@@ -131,7 +131,7 @@ func layoutErrorLabel(gtx C, th *theme.Theme, err error) D {
 			Right:  unit.Dp(15),
 		}.Layout(gtx, func(gtx C) D {
 			label := material.Label(th.Theme, th.TextSize*0.8, err.Error())
-			label.Color = color.NRGBA{R: 255, A: 255}
+			label.Color = uitokens.ErrorColor(th)
 			label.Alignment = text.Middle
 			return label.Layout(gtx)
 		})

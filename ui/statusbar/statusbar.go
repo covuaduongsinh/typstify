@@ -21,6 +21,7 @@ import (
 	"looz.ws/typstify/i18n"
 	"looz.ws/typstify/service"
 	"looz.ws/typstify/service/bus"
+	"looz.ws/typstify/ui/uitokens"
 	"looz.ws/typstify/utils"
 	"looz.ws/typstify/widgets"
 	"looz.ws/typstify/widgets/icons"
@@ -91,19 +92,23 @@ func (n *NotificationBar) Layout(gtx C, th *theme.Theme) D {
 	}.Layout(gtx,
 		layout.Rigid(func(gtx C) D {
 			var icon *icons.SvgIcon
+			var iconColor color.NRGBA
 			switch n.lastMessage.Level {
 			case 0:
 				icon = infoIcon
+				iconColor = uitokens.InfoColor(th)
 			case 1:
 				icon = warnIcon
-
+				iconColor = uitokens.WarningColor(th)
 			case 2:
 				icon = errorIcon
+				iconColor = uitokens.ErrorColor(th)
 			default:
 				icon = errorIcon
+				iconColor = uitokens.ErrorColor(th)
 			}
 
-			return icon.Layout(gtx, th.Fg, th.TextSize)
+			return icon.Layout(gtx, iconColor, th.TextSize)
 		}),
 
 		layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),

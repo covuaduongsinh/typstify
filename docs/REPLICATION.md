@@ -57,7 +57,7 @@ Mẫu tham chiếu nên đọc trước:
 |---|---|
 | Đổi tên module Go | `go.mod` (`looz.ws/typstify`) và mọi import; dùng công cụ đổi hàng loạt rồi `go build ./...` |
 | Tên/biểu tượng ứng dụng | `version/appicon.png`, README, tiêu đề web (`web/index.html`, `BrandMark.tsx`, `LoginPage.tsx`) |
-| Bảng màu, giao diện | design tokens/theme trong `web/src/lib/theme.ts`, `editorTheme.ts` và CSS |
+| Bảng màu, giao diện | design tokens/theme trong `web/src/lib/theme.ts`, `editorTheme.ts` và CSS; desktop: `ui/palette/palette.go`, `ui/uitokens/tokens.go`, `chessbook/lib/theme.typ` |
 | Ngôn ngữ giao diện | `web/src/lib/vi.ts`, `i18n.ts`; desktop `i18n/translations/` |
 | Dịch vụ ngoài | cấu hình Tpix, Dropbox app key/secret, endpoint đăng ký thiết bị/kiểm tra cập nhật (`service/net/`) — thay bằng của bạn hoặc tắt |
 | Tên thư viện Typst | `@local/chessbook` trong `chessbook/`, `scripts/install-chessbook.*`, `Dockerfile`, `CLAUDE.md`/`AGENTS.md` |

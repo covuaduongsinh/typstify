@@ -3,7 +3,6 @@ package settings
 import (
 	"context"
 	"image"
-	"image/color"
 	"log"
 	"os/exec"
 	"sort"
@@ -24,6 +23,7 @@ import (
 
 	"looz.ws/typstify/i18n"
 	"looz.ws/typstify/service/settings"
+	"looz.ws/typstify/ui/uitokens"
 	"looz.ws/typstify/widgets"
 
 	"github.com/oligo/gioview/theme"
@@ -181,7 +181,7 @@ func (v *AgentView) Layout(gtx C, th *theme.Theme) D {
 			layout.Rigid(func(gtx C) D {
 				if v.lastErr != nil {
 					label := material.Label(th.Theme, th.TextSize, v.lastErr.Error())
-					label.Color = color.NRGBA{R: 0xc0, G: 0x40, B: 0x40, A: 0xff}
+					label.Color = uitokens.ErrorColor(th)
 					return label.Layout(gtx)
 				}
 				return D{}
@@ -367,11 +367,11 @@ func (v *AgentView) layoutInstallGuide(gtx C, th *theme.Theme, entry *settings.A
 	case "npx":
 		ok := v.npxReady
 		status := i18n.Translate("Ready \u2014 npx is available on your system.")
-		statusColor := color.NRGBA{R: 0x40, G: 0xa0, B: 0x40, A: 0xff}
+		statusColor := uitokens.SuccessColor(th)
 		fallback := ""
 		if !ok {
 			status = i18n.Translate("Requires Node.js. Install from https://nodejs.org, then restart Typstify.")
-			statusColor = color.NRGBA{R: 0xc0, G: 0x40, B: 0x40, A: 0xff}
+			statusColor = uitokens.ErrorColor(th)
 		} else {
 			pkg := entry.Distribution.Npx
 			if pkg != nil && pkg.Package != "" {
@@ -403,11 +403,11 @@ func (v *AgentView) layoutInstallGuide(gtx C, th *theme.Theme, entry *settings.A
 	case "uvx":
 		ok := v.uvxReady
 		status := i18n.Translate("Ready \u2014 uvx is available on your system.")
-		statusColor := color.NRGBA{R: 0x40, G: 0xa0, B: 0x40, A: 0xff}
+		statusColor := uitokens.SuccessColor(th)
 		fallback := ""
 		if !ok {
 			status = i18n.Translate("Requires uvx. Install via `pip install uv` or https://docs.astral.sh/uv, then restart Typstify.")
-			statusColor = color.NRGBA{R: 0xc0, G: 0x40, B: 0x40, A: 0xff}
+			statusColor = uitokens.ErrorColor(th)
 		} else {
 			pkg := entry.Distribution.Uvx
 			if pkg != nil && pkg.Package != "" {

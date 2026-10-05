@@ -1,7 +1,6 @@
 package dialog
 
 import (
-	"image/color"
 	"time"
 
 	"gioui.org/font"
@@ -14,6 +13,7 @@ import (
 	"github.com/oligo/gioview/theme"
 	"github.com/oligo/gioview/view"
 	"looz.ws/typstify/i18n"
+	"looz.ws/typstify/ui/uitokens"
 )
 
 const errorShowDuration = time.Second * 2
@@ -173,7 +173,7 @@ func (d *DialogModal) layoutError(gtx C, th *theme.Theme) D {
 
 	return layout.Inset{Right: unit.Dp(36)}.Layout(gtx, func(gtx C) D {
 		label := material.Label(th.Theme, th.TextSize, d.err.Error())
-		label.Color = color.NRGBA{R: 255, A: 255}
+		label.Color = uitokens.ErrorColor(th)
 		label.Alignment = text.Start
 		return label.Layout(gtx)
 	})
