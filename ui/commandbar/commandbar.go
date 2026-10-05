@@ -16,7 +16,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/oligo/gioview/explorer"
+	"looz.ws/typstify/ui/filechooser"
 	"github.com/oligo/gioview/misc"
 	"github.com/oligo/gioview/theme"
 	"github.com/oligo/gioview/view"
@@ -88,7 +88,7 @@ func (cb *CommandBar) initCommands() {
 			Shortcut: "Ctrl+O",
 			Action: func(srv *service.ServiceFacade, vm view.ViewManager) {
 				go func() {
-					if chooser, ok := srv.FileChooser().(*explorer.FileChooser); ok {
+					if chooser, ok := srv.FileChooser().(*filechooser.FileChooser); ok {
 						if folder, err := chooser.ChooseFolder(); err == nil && folder != "" {
 							srv.EventBus().Emit(bus.TopicProjectSwitched, folder)
 						}

@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"github.com/oligo/gioview/explorer"
+	"looz.ws/typstify/ui/filechooser"
 	"github.com/oligo/gioview/theme"
 	"github.com/oligo/gioview/view"
 	"looz.ws/typstify/i18n"
@@ -173,7 +173,7 @@ func (hv *HomeView) update(gtx C) {
 
 			if event.Name == "O" && event.Modifiers == key.ModShortcut {
 				go func() {
-					if ch, ok := hv.srv.FileChooser().(*explorer.FileChooser); ok {
+					if ch, ok := hv.srv.FileChooser().(*filechooser.FileChooser); ok {
 						if folder, err := ch.ChooseFolder(); err == nil && folder != "" {
 							hv.srv.EventBus().Emit(bus.TopicProjectSwitched, folder)
 						}

@@ -12,7 +12,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/inkeliz/giohyperlink"
-	"github.com/oligo/gioview/explorer"
+	"looz.ws/typstify/ui/filechooser"
 	"github.com/oligo/gioview/misc"
 	"github.com/oligo/gioview/page"
 	"github.com/oligo/gioview/theme"
@@ -234,7 +234,7 @@ func (vw *WelcomeView) update(gtx C) {
 
 	if vw.openBtn.Clicked(gtx) {
 		go func() {
-			projectDir, err := vw.srv.FileChooser().(*explorer.FileChooser).ChooseFolder()
+			projectDir, err := vw.srv.FileChooser().(*filechooser.FileChooser).ChooseFolder()
 			if err != nil {
 				log.Println("failed to choose folder: ", projectDir, err)
 				vw.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{

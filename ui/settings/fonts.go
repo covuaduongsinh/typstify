@@ -13,7 +13,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/dustin/go-humanize"
-	"github.com/oligo/gioview/explorer"
+	"looz.ws/typstify/ui/filechooser"
 	"github.com/oligo/gioview/misc"
 	"github.com/oligo/gioview/theme"
 	"looz.ws/typstify/i18n"
@@ -158,7 +158,7 @@ func (f *FontsSettingsView) addFonts() {
 	go func() {
 		defer f.busy.Store(false)
 
-		chooser, ok := f.srv.FileChooser().(*explorer.FileChooser)
+		chooser, ok := f.srv.FileChooser().(*filechooser.FileChooser)
 		if !ok {
 			log.Println("fonts settings: FileChooser is not available")
 			f.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{

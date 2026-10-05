@@ -37,7 +37,10 @@ function Get-Verified([string]$Url, [string]$Name, [string]$Sha256) {
         Invoke-WebRequest -Uri $Url -OutFile $path -UseBasicParsing
     }
     if ($Sha256) {
-        $got = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
+        $stream = [System.IO.File]::OpenRead($path)
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        $got = [System.BitConverter]::ToString($sha.ComputeHash($stream)).Replace("-", "").ToLower()
+        $stream.Close()
         if ($got -ne $Sha256) {
             Remove-Item $path -Force
             throw "SHA-256 khong khop cho $Name (nhan $got, can $Sha256)"

@@ -42,3 +42,21 @@ func SuccessColor(th *theme.Theme) color.NRGBA {
 func InfoColor(th *theme.Theme) color.NRGBA {
 	return palette.GetSemanticColor(th, palette.SemanticInfo)
 }
+
+func SubtleTextColor(th *theme.Theme) color.NRGBA {
+	c := th.Fg
+	c.A = 160
+	return c
+}
+
+func BorderColor(th *theme.Theme) color.NRGBA {
+	c := th.Fg
+	c.A = 40
+	return c
+}
+
+func HoverBgColor(th *theme.Theme) color.NRGBA {
+	c := th.Fg
+	c.A = 20
+	return c
+}

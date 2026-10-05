@@ -40,8 +40,25 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 | `plan_ui_data_import_and_markdown_enhancements.md` | 2026-09-27 | Giao diện nhập liệu cờ, Markdown, xuất bản |
 | `plan_desktop_installer.md` | 2026-09-29 | Đóng gói desktop Windows: `gogio` + typst/tinymist/chessbook → bộ cài Inno Setup hoặc zip portable |
 | `plan_user_auth_and_persistence.md` | 2026-09-27 | Tài khoản, đổi mật khẩu, duy trì đăng nhập |
+| `plan_desktop_file_chooser.md` | 2026-10-05 | Cải tiến toàn diện File Chooser & Quản lý File/Thư mục Desktop |
 
 ## Phiên làm việc
+
+### 2026-10-05 — Đợt 7: Cải tiến toàn diện File Chooser & Quản lý File/Thư mục Desktop (thay thế gioview/explorer)
+- **Yêu cầu**: Xây dựng mới hoàn toàn component `ui/filechooser` thay thế cho `github.com/oligo/gioview/explorer`. Sửa lỗi ổ đĩa Windows hiển thị thành dấu `\`, thiếu Volume Label (`Local Disk (C:)`, `Data (D:)`, `Google Drive (G:)`); thêm Breadcrumbs có thể click từng cấp và ô nhập trực tiếp đường dẫn (Address Bar) hỗ trợ paste/enter; bổ sung danh mục Favorites đầy đủ (Home, Desktop, Documents, Downloads); sắp xếp danh sách file luôn gom Thư mục lên trước Files, hỗ trợ sort đa cột (Name, Date Modified, Size) kèm icon nhận diện từng loại file (.typ, .pdf, image, font, code, binary); hỗ trợ tạo New Folder inline và phím tắt (Enter, Esc, F5).
+- **Quyết định & Thực hiện**:
+  1. `ui/filechooser/locations_windows.go` & `locations_unix.go`: Tự động quét và phát hiện các ổ đĩa logic trên Windows (`GetLogicalDrives`, `GetVolumeInformation`, `GetDriveType`), format tên hiển thị chuẩn mực `Tên Ổ Đĩa (C:)` / `Local Disk (C:)`. Trên Unix/macOS quét mount points từ `/`, `/Volumes`, `/media`.
+  2. `ui/filechooser/locations.go`: Tự động lấy các thư mục Favorites khả dụng (Home, Desktop, Documents, Downloads).
+  3. `ui/filechooser/breadcrumbs.go` & `navigation.go`: Tách đường dẫn thành từng cấp phân cấp (Breadcrumb segments) cho phép nhảy nhanh; hỗ trợ Direct Address Bar mode để nhập/dán đường dẫn trực tiếp và tìm kiếm file tức thời; nút điều hướng Back, Forward, Up, Refresh.
+  4. `ui/filechooser/entry_list.go`: Đọc thư mục và áp dụng quy tắc sắp xếp cốt lõi: Thư mục (Folders) luôn luôn đứng trước Files; hỗ trợ sort 2 chiều theo Name, Date Modified, Size; hiển thị icon nhận diện theo loại file (màu vàng cho thư mục, cyan cho .typ, đỏ cho .pdf, xanh cho ảnh, tím cho font, xanh dương cho code).
+  5. `ui/filechooser/bottom_bar.go`: Thêm form inline tạo "New Folder", vùng hiển thị file đang chọn, ô nhập tên file cho Save As, và các nút thao tác Cancel / Open / Select Folder / Save.
+  6. `ui/filechooser/dialog.go` & `file_chooser.go`: Cài đặt view modal dialog tương thích 100% với API `ChooseFolder()`, `ChooseFile()`, `ChooseFiles()`, `CreateFile()`.
+  7. Chuyển đổi toàn bộ 7 callsites trong `ui/ui.go`, `ui/welcome.go`, `ui/home.go`, `ui/commandbar/commandbar.go`, `ui/dialog/create_project.go`, `ui/navpanel/menu_panel.go`, `ui/settings/fonts.go`.
+- **Kiểm chứng**:
+  - Unit test `ui/filechooser`: `TestDetectVolumes`, `TestGetFavorites`, `TestParseBreadcrumbs`, `TestHistoryStack`, `TestReadDirectoryAndSorting` (Sort Name, Size DESC, Name DESC, Folders first), `TestExtensionFilter` PASS 100%.
+  - `go test ./ui/...` PASS.
+  - `go build .` và `go build ./cmd/typstify-server` build thành công hoàn hảo.
+- **File đã đổi**: `ui/filechooser/*`, `ui/ui.go`, `ui/welcome.go`, `ui/home.go`, `ui/commandbar/commandbar.go`, `ui/dialog/create_project.go`, `ui/navpanel/menu_panel.go`, `ui/settings/fonts.go`, `ui/uitokens/tokens.go`, `docs/HISTORY.md`.
 
 ### 2026-10-05 — Đợt 6: Cải thiện UI desktop — Shortcut còn thiếu, Command Palette & công tắc WrapLine
 - **Yêu cầu**: Bổ sung các phím tắt còn thiếu (Ctrl+W đóng tab, Ctrl+Tab/Ctrl+Shift+Tab/Ctrl+1..9 chuyển tab, Ctrl+, mở Cài đặt, Ctrl+N tạo dự án, Ctrl+O mở thư mục); chuyển phím tắt wrap-line trong editor sang Ctrl+Alt+W; thêm công tắc `WrapLine` vào Settings tab Editor; xây dựng Command Palette (`ui/commandbar`) mở bằng Ctrl+Shift+P.

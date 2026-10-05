@@ -14,7 +14,7 @@ import (
 	"gioui.org/widget"
 
 	"github.com/gioui-plugins/gio-plugins/plugin/gioplugins"
-	"github.com/oligo/gioview/explorer"
+	"looz.ws/typstify/ui/filechooser"
 	"github.com/oligo/gioview/image"
 	"github.com/oligo/gioview/theme"
 	"github.com/oligo/gioview/view"
@@ -62,7 +62,7 @@ func (ui *UI) Loop(ctx context.Context) error {
 
 	ui.srv.InitFileChooser(func() any {
 		// init file explorer
-		exp, err := explorer.NewFileChooser(ui.vm.ViewManager)
+		exp, err := filechooser.NewFileChooser(ui.vm.ViewManager)
 		if err != nil {
 			log.Println("cannot build file chooser", err)
 			return nil
