@@ -2,6 +2,7 @@ package i18n
 
 import (
 	"errors"
+	"strings"
 
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
@@ -40,14 +41,22 @@ var Locales = []Localizer{
 		Name:    "Deutschland",
 		printer: message.NewPrinter(language.MustParse("de-DE")),
 	},
+
+	{
+		// Vietnam
+		ID:      "vi-vn",
+		Name:    "Tiếng Việt",
+		printer: message.NewPrinter(language.MustParse("vi-VN")),
+	},
 }
 
 // The Get() function accepts a locale ID and returns the corresponding
 // Localizer for that locale. If the locale ID is not supported then
 // this returns `false` as the second return value.
 func Get(id string) (Localizer, bool) {
+	norm := strings.ToLower(strings.TrimSpace(id))
 	for _, locale := range Locales {
-		if id == locale.ID {
+		if norm == locale.ID {
 			return locale, true
 		}
 	}
@@ -65,6 +74,7 @@ func SetLocale(id string) error {
 	var found bool
 	defaultLocalizer, found = Get(id)
 	if !found {
+		defaultLocalizer, _ = Get("en-us")
 		return errors.New("Locales not supported: " + id)
 	}
 	return nil

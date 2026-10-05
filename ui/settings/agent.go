@@ -226,7 +226,7 @@ Some agents does not support runtime registration, you have to fix the MCP serve
 							Axis:      layout.Horizontal,
 							Alignment: layout.Middle,
 						}.Layout(gtx,
-							layout.Rigid(material.Switch(th.Theme, &v.useStaticMCPPort, "Use static port").Layout),
+							layout.Rigid(material.Switch(th.Theme, &v.useStaticMCPPort, i18n.Translate("Use static port")).Layout),
 						)
 					})
 			}),

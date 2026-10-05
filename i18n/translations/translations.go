@@ -11,4 +11,4 @@
 //  5. Commit these updated files with the name messages.gotext.json in the folder for the appropriate language.
 package translations
 
-//go:generate gotext -srclang=en-US update -out=catalog.go -lang=en-US,zh-CN,de-DE looz.ws/typstify
+//go:generate gotext -srclang=en-US update -out=catalog.go -lang=en-US,zh-CN,de-DE,vi-VN looz.ws/typstify/...

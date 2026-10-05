@@ -415,7 +415,7 @@ func init() {
 	// do a initialize here:
 	defaultGeneralSettings = &GeneralSettings{
 		RootDir:     configRoot(),
-		Language:    "en-US",
+		Language:    "en-us",
 		DeviceID:    genDeviceID(),
 		Theme:       "Default Light",
 		TextSize:    13,
@@ -424,7 +424,7 @@ func init() {
 	}
 
 	defaultEditorSettings = &EditorSettings{
-		TypeFace:         "Hack, Roboto Mono, Go Mono, Noto Emoji, monospace",
+		TypeFace:         "Roboto Mono, Hack, Go Mono, Noto Emoji, monospace",
 		TextSize:         13,
 		Weight:           int(font.Normal),
 		LineHeightScale:  1.6,

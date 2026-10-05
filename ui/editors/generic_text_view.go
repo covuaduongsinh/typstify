@@ -7,6 +7,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"looz.ws/typstify/editor"
+	"looz.ws/typstify/i18n"
 	"looz.ws/typstify/service"
 
 	"github.com/oligo/gioview/page"
@@ -35,7 +36,7 @@ func (te *GenericTextEditor) ID() view.ViewID {
 
 func (te *GenericTextEditor) Title() string {
 	if te.currentFile == "" {
-		return "Text Editor"
+		return i18n.Translate("Text Editor")
 	} else {
 		return filepath.Base(te.currentFile)
 	}

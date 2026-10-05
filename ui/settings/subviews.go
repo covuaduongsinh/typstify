@@ -288,7 +288,7 @@ func (g *GeneralView) Layout(gtx C, th *theme.Theme) D {
 						Axis:      layout.Horizontal,
 						Alignment: layout.Middle,
 					}.Layout(gtx,
-						layout.Rigid(material.Switch(th.Theme, &g.checkUpdate, "Check for updates on app startup").Layout),
+						layout.Rigid(material.Switch(th.Theme, &g.checkUpdate, i18n.Translate("Check for updates on app startup")).Layout),
 					)
 				})
 		}),
@@ -643,7 +643,7 @@ Need to restart or reload to take effect for code linter, auto-completion, and p
 						Axis:      layout.Horizontal,
 						Alignment: layout.Middle,
 					}.Layout(gtx,
-						layout.Rigid(material.Switch(th.Theme, &t.useSysInputs, "Load sys-inputs.json").Layout),
+						layout.Rigid(material.Switch(th.Theme, &t.useSysInputs, i18n.Translate("Load sys-inputs.json")).Layout),
 					)
 				})
 		}),
@@ -656,7 +656,7 @@ Need to restart or reload to take effect for code linter, auto-completion, and p
 						Axis:      layout.Horizontal,
 						Alignment: layout.Middle,
 					}.Layout(gtx,
-						layout.Rigid(material.Switch(th.Theme, &t.ignoreSystemFonts, "Ignore system fonts").Layout),
+						layout.Rigid(material.Switch(th.Theme, &t.ignoreSystemFonts, i18n.Translate("Ignore system fonts")).Layout),
 					)
 				})
 		}),
@@ -669,7 +669,7 @@ Need to restart or reload to take effect for code linter, auto-completion, and p
 						Axis:      layout.Horizontal,
 						Alignment: layout.Middle,
 					}.Layout(gtx,
-						layout.Rigid(material.Switch(th.Theme, &t.ignoreEmbeddedFonts, "Ignore embedded fonts").Layout),
+						layout.Rigid(material.Switch(th.Theme, &t.ignoreEmbeddedFonts, i18n.Translate("Ignore embedded fonts")).Layout),
 					)
 				})
 		}),
@@ -682,7 +682,7 @@ Need to restart or reload to take effect for code linter, auto-completion, and p
 						Axis:      layout.Horizontal,
 						Alignment: layout.Middle,
 					}.Layout(gtx,
-						layout.Rigid(material.Switch(th.Theme, &t.buildDeps, "Generate deps file").Layout),
+						layout.Rigid(material.Switch(th.Theme, &t.buildDeps, i18n.Translate("Generate deps file")).Layout),
 					)
 				})
 		}),

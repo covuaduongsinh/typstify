@@ -133,7 +133,7 @@ func (s *SessionHistory) layout(gtx C, th *theme.Theme) D {
 
 	if len(s.filteredSessions) == 0 {
 		return layout.Center.Layout(gtx, func(gtx C) D {
-			label := material.Label(th.Theme, th.TextSize, "No previous sessions")
+			label := material.Label(th.Theme, th.TextSize, i18n.Translate("No previous sessions"))
 			label.Color = misc.WithAlpha(th.Fg, 0x60)
 			return label.Layout(gtx)
 		})

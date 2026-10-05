@@ -38,7 +38,7 @@ type (
 
 var RemoteProjectViewID = view.NewViewID("RemoteProjectView")
 
-var errNotConnected = errors.New("chưa kết nối tới máy chủ nào -- vào Settings → Đồng bộ để kết nối trước")
+var errNotConnected = errors.New("not connected to any server -- go to Settings → Sync to connect first")
 
 type fileRow struct {
 	info  projectstore.FileInfo
@@ -151,7 +151,7 @@ func (v *RemoteProjectView) layoutProjectPicker(gtx C, th *theme.Theme) D {
 	return layout.UniformInset(unit.Dp(24)).Layout(gtx, func(gtx C) D {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(func(gtx C) D {
-				label := material.Label(th.Theme, th.TextSize, i18n.Translate("Nhập đường dẫn thư mục project trên máy chủ (đường dẫn tuyệt đối trên máy chủ, không phải máy này):"))
+				label := material.Label(th.Theme, th.TextSize, i18n.Translate("Enter the project folder path on the server (absolute path on the server, not this machine):"))
 				label.LineHeightScale = 1.5
 				return label.Layout(gtx)
 			}),
@@ -165,11 +165,11 @@ func (v *RemoteProjectView) layoutProjectPicker(gtx C, th *theme.Theme) D {
 			layout.Rigid(func(gtx C) D {
 				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 					layout.Rigid(func(gtx C) D {
-						return material.Button(th.Theme, &v.openBtn, i18n.Translate("Mở")).Layout(gtx)
+						return material.Button(th.Theme, &v.openBtn, i18n.Translate("Open")).Layout(gtx)
 					}),
 					layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
 					layout.Rigid(func(gtx C) D {
-						return material.Button(th.Theme, &v.createBtn, i18n.Translate("Tạo project mới")).Layout(gtx)
+						return material.Button(th.Theme, &v.createBtn, i18n.Translate("Create new project")).Layout(gtx)
 					}),
 				)
 			}),
@@ -178,7 +178,7 @@ func (v *RemoteProjectView) layoutProjectPicker(gtx C, th *theme.Theme) D {
 				if len(v.recent) == 0 {
 					return D{}
 				}
-				label := material.Subtitle2(th.Theme, i18n.Translate("Project gần đây trên máy chủ"))
+				label := material.Subtitle2(th.Theme, i18n.Translate("Recent projects on server"))
 				return label.Layout(gtx)
 			}),
 			layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
@@ -261,7 +261,7 @@ func (v *RemoteProjectView) layoutEditor(gtx C, th *theme.Theme) D {
 		layout.Rigid(func(gtx C) D {
 			title := v.activeFile
 			if title == "" {
-				title = i18n.Translate("(chưa mở file nào)")
+				title = i18n.Translate("(no file opened)")
 			}
 			if v.dirty {
 				title += " *"
@@ -275,7 +275,7 @@ func (v *RemoteProjectView) layoutEditor(gtx C, th *theme.Theme) D {
 					if !v.dirty {
 						gtx = gtx.Disabled()
 					}
-					return material.Button(th.Theme, &v.saveBtn, i18n.Translate("Lưu")).Layout(gtx)
+					return material.Button(th.Theme, &v.saveBtn, i18n.Translate("Save")).Layout(gtx)
 				}),
 			)
 		}),
@@ -397,7 +397,7 @@ func (v *RemoteProjectView) saveActiveFile() {
 			return
 		}
 		v.dirty = false
-		v.status = i18n.Translate("Đã lưu.")
+		v.status = i18n.Translate("Saved.")
 		v.err = nil
 		v.srv.RefreshWindow()
 	}()

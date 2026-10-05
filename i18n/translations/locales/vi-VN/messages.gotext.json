@@ -1,10 +1,10 @@
 {
-    "language": "en-US",
+    "language": "vi-VN",
     "messages": [
         {
             "id": "Please choose a method to authenticate the agent:",
             "message": "Please choose a method to authenticate the agent:",
-            "translation": "Please choose a method to authenticate the agent:"
+            "translation": "Vui lòng chọn phương thức xác thực cho agent:"
         },
         {
             "id": "Authenticating... if the agent needs you to open a login link or enter a code, check the Console panel for it.",
@@ -19,52 +19,52 @@
         {
             "id": "Name",
             "message": "Name",
-            "translation": "Name"
+            "translation": "Tên"
         },
         {
             "id": "Description",
             "message": "Description",
-            "translation": "Description"
+            "translation": "Mô tả"
         },
         {
             "id": "Link",
             "message": "Link",
-            "translation": "Link"
+            "translation": "Liên kết"
         },
         {
             "id": "Required environment variables:",
             "message": "Required environment variables:",
-            "translation": "Required environment variables:"
+            "translation": "Các biến môi trường bắt buộc:"
         },
         {
             "id": "Args",
             "message": "Args",
-            "translation": "Args"
+            "translation": "Tham số"
         },
         {
             "id": "Env",
             "message": "Env",
-            "translation": "Env"
+            "translation": "Biến môi trường"
         },
         {
             "id": "Type to start a conversation, press Shift+Enter to send",
             "message": "Type to start a conversation, press Shift+Enter to send",
-            "translation": "Type to start a conversation, press Shift+Enter to send"
+            "translation": "Nhập để bắt đầu cuộc trò chuyện, nhấn Shift+Enter để gửi"
         },
         {
             "id": "Send",
             "message": "Send",
-            "translation": "Send"
+            "translation": "Gửi"
         },
         {
             "id": "Stop",
             "message": "Stop",
-            "translation": "Stop"
+            "translation": "Dừng"
         },
         {
             "id": "Off",
             "message": "Off",
-            "translation": "Off"
+            "translation": "Tắt"
         },
         {
             "id": "On",
@@ -144,17 +144,17 @@
         {
             "id": "Copy",
             "message": "Copy",
-            "translation": "Copy"
+            "translation": "Sao chép"
         },
         {
             "id": "Cut",
             "message": "Cut",
-            "translation": "Cut"
+            "translation": "Cắt"
         },
         {
             "id": "Paste",
             "message": "Paste",
-            "translation": "Paste"
+            "translation": "Dán"
         },
         {
             "id": "Find \u0026 Replace",
@@ -184,12 +184,12 @@
         {
             "id": "Match Case",
             "message": "Match Case",
-            "translation": "Match Case"
+            "translation": "Phân biệt hoa/thường"
         },
         {
             "id": "Whole Word",
             "message": "Whole Word",
-            "translation": "Whole Word"
+            "translation": "Toàn bộ từ"
         },
         {
             "id": "Use Regex",
@@ -227,12 +227,12 @@
         {
             "id": "Replace",
             "message": "Replace",
-            "translation": "Replace"
+            "translation": "Thay thế"
         },
         {
             "id": "Replace All",
             "message": "Replace All",
-            "translation": "Replace All"
+            "translation": "Thay thế tất cả"
         },
         {
             "id": "Ln {Y__1}, Col {X__1}",
@@ -275,17 +275,17 @@
         {
             "id": "Typstify Crashed!",
             "message": "Typstify Crashed!",
-            "translation": "Typstify Crashed!"
+            "translation": "Typstify gặp sự cố!"
         },
         {
             "id": "Exit",
             "message": "Exit",
-            "translation": "Exit"
+            "translation": "Thoát"
         },
         {
             "id": "Restart",
             "message": "Restart",
-            "translation": "Restart"
+            "translation": "Khởi động lại"
         },
         {
             "id": "Sign In",
@@ -345,7 +345,7 @@
         {
             "id": "Remote Project...",
             "message": "Remote Project...",
-            "translation": "Remote Project..."
+            "translation": "Dự án Từ xa..."
         },
         {
             "id": "Learn more",
@@ -425,7 +425,7 @@
         {
             "id": "AI Assistant",
             "message": "AI Assistant",
-            "translation": "AI Assistant"
+            "translation": "Trợ lý AI"
         },
         {
             "id": "Starting AI Assistant...",
@@ -440,7 +440,7 @@
         {
             "id": "No previous sessions",
             "message": "No previous sessions",
-            "translation": "No previous sessions"
+            "translation": "Không có phiên trò chuyện nào trước đây"
         },
         {
             "id": "Sync Bibliography",
@@ -703,7 +703,7 @@
         {
             "id": "Confirm",
             "message": "Confirm",
-            "translation": "Confirm"
+            "translation": "Xác nhận"
         },
         {
             "id": "Are you sure you want to delete '{Dest}'?",
@@ -728,7 +728,7 @@
         {
             "id": "Cancel",
             "message": "Cancel",
-            "translation": "Cancel"
+            "translation": "Huỷ"
         },
         {
             "id": "Move File/Folder",
@@ -779,12 +779,12 @@
         {
             "id": "Export",
             "message": "Export",
-            "translation": "Export"
+            "translation": "Xuất bản"
         },
         {
             "id": "Exporting file...",
             "message": "Exporting file...",
-            "translation": "Exporting file..."
+            "translation": "Đang xuất tệp..."
         },
         {
             "id": "File export error: {Error}",
@@ -799,7 +799,7 @@
                     "underlyingType": "string"
                 }
             ],
-            "translation": "File export error: {Error}"
+            "translation": "Lỗi xuất tệp: {Error}"
         },
         {
             "id": "Files exported to {OutDir}",
@@ -814,7 +814,7 @@
                     "underlyingType": "string"
                 }
             ],
-            "translation": "Files exported to {OutDir}"
+            "translation": "Đã xuất tệp tới {OutDir}"
         },
         {
             "id": "Exported File Format",
@@ -1029,17 +1029,17 @@
         {
             "id": "Text Editor",
             "message": "Text Editor",
-            "translation": "Text Editor"
+            "translation": "Trình soạn thảo Văn bản"
         },
         {
             "id": "Typst Editor",
             "message": "Typst Editor",
-            "translation": "Typst Editor"
+            "translation": "Trình soạn thảo Typst"
         },
         {
             "id": "Starting document preview server...",
             "message": "Starting document preview server...",
-            "translation": "Starting document preview server..."
+            "translation": "Đang khởi động máy chủ xem trước tài liệu..."
         },
         {
             "id": "No project",
@@ -1094,12 +1094,12 @@
         {
             "id": "Open Folder",
             "message": "Open Folder",
-            "translation": "Open Folder"
+            "translation": "Mở Thư mục"
         },
         {
             "id": "New Project",
             "message": "New Project",
-            "translation": "New Project"
+            "translation": "Dự án Mới"
         },
         {
             "id": "Typst Package Center",
@@ -1109,27 +1109,27 @@
         {
             "id": "Settings",
             "message": "Settings",
-            "translation": "Settings"
+            "translation": "Cài đặt"
         },
         {
             "id": "VPS Sync: not configured",
             "message": "VPS Sync: not configured",
-            "translation": "VPS Sync: not configured"
+            "translation": "Đồng bộ VPS: chưa cấu hình"
         },
         {
             "id": "VPS Sync: syncing...",
             "message": "VPS Sync: syncing...",
-            "translation": "VPS Sync: syncing..."
+            "translation": "Đồng bộ VPS: đang đồng bộ..."
         },
         {
             "id": "VPS Sync error:",
             "message": "VPS Sync error:",
-            "translation": "VPS Sync error:"
+            "translation": "Lỗi đồng bộ VPS:"
         },
         {
             "id": "VPS Sync: click to sync now",
             "message": "VPS Sync: click to sync now",
-            "translation": "VPS Sync: click to sync now"
+            "translation": "Đồng bộ VPS: bấm để đồng bộ ngay"
         },
         {
             "id": "File Explorer",
@@ -1139,7 +1139,7 @@
         {
             "id": "Outline",
             "message": "Outline",
-            "translation": "Outline"
+            "translation": "Mục lục"
         },
         {
             "id": "A new version is avaliable: {LatestVersion}",
@@ -1164,12 +1164,12 @@
         {
             "id": "Download",
             "message": "Download",
-            "translation": "Download"
+            "translation": "Tải xuống"
         },
         {
             "id": "Close tab",
             "message": "Close tab",
-            "translation": "Close tab"
+            "translation": "Đóng tab"
         },
         {
             "id": "Cached",
@@ -1179,17 +1179,17 @@
         {
             "id": "Read the docs",
             "message": "Read the docs",
-            "translation": "Read the docs"
+            "translation": "Đọc tài liệu"
         },
         {
             "id": "Copy import path",
             "message": "Copy import path",
-            "translation": "Copy import path"
+            "translation": "Sao chép đường dẫn import"
         },
         {
             "id": "Choose version",
             "message": "Choose version",
-            "translation": "Choose version"
+            "translation": "Chọn phiên bản"
         },
         {
             "id": "Loading packages...",
@@ -1214,7 +1214,7 @@
         {
             "id": "Typst Packages",
             "message": "Typst Packages",
-            "translation": "Typst Packages"
+            "translation": "Gói Typst"
         },
         {
             "id": "Package kind",
@@ -1239,7 +1239,7 @@
         {
             "id": "Pull all dependencies",
             "message": "Pull all dependencies",
-            "translation": "Pull all dependencies"
+            "translation": "Tải tất cả phụ thuộc"
         },
         {
             "id": "Query packages...",
@@ -1297,27 +1297,27 @@
                     "underlyingType": "int"
                 }
             ],
-            "translation": "Downloaded package {PkgSpec} and {Count___1} transitive dependencies."
+            "translation": "Đã tải gói {PkgSpec} và {Count___1} gói phụ thuộc liên đới."
         },
         {
             "id": "No project is open.",
             "message": "No project is open.",
-            "translation": "No project is open."
+            "translation": "Chưa mở dự án nào."
         },
         {
             "id": "Pulling project dependencies...",
             "message": "Pulling project dependencies...",
-            "translation": "Pulling project dependencies..."
+            "translation": "Đang tải các gói phụ thuộc của dự án..."
         },
         {
             "id": "Pull dependencies failed:",
             "message": "Pull dependencies failed:",
-            "translation": "Pull dependencies failed:"
+            "translation": "Tải gói phụ thuộc thất bại:"
         },
         {
             "id": "All project dependencies pulled.",
             "message": "All project dependencies pulled.",
-            "translation": "All project dependencies pulled."
+            "translation": "Đã tải xong toàn bộ phụ thuộc của dự án."
         },
         {
             "id": "Found {LastFetchedCount} packages.",
@@ -1337,42 +1337,42 @@
         {
             "id": "Remote Project",
             "message": "Remote Project",
-            "translation": "Remote Project"
+            "translation": "Dự án Từ xa"
         },
         {
             "id": "Enter the project folder path on the server (absolute path on the server, not this machine):",
             "message": "Enter the project folder path on the server (absolute path on the server, not this machine):",
-            "translation": "Enter the project folder path on the server (absolute path on the server, not this machine):"
+            "translation": "Nhập đường dẫn thư mục dự án trên máy chủ (đường dẫn tuyệt đối trên máy chủ, không phải máy này):"
         },
         {
             "id": "Open",
             "message": "Open",
-            "translation": "Open"
+            "translation": "Mở"
         },
         {
             "id": "Create new project",
             "message": "Create new project",
-            "translation": "Create new project"
+            "translation": "Tạo dự án mới"
         },
         {
             "id": "Recent projects on server",
             "message": "Recent projects on server",
-            "translation": "Recent projects on server"
+            "translation": "Dự án gần đây trên máy chủ"
         },
         {
             "id": "(no file opened)",
             "message": "(no file opened)",
-            "translation": "(no file opened)"
+            "translation": "(chưa mở tệp nào)"
         },
         {
             "id": "Save",
             "message": "Save",
-            "translation": "Save"
+            "translation": "Lưu"
         },
         {
             "id": "Saved.",
             "message": "Saved.",
-            "translation": "Saved."
+            "translation": "Đã lưu."
         },
         {
             "id": "Agent",
@@ -1407,7 +1407,7 @@
         {
             "id": "Use static port",
             "message": "Use static port",
-            "translation": "Use static port"
+            "translation": "Dùng cổng tĩnh"
         },
         {
             "id": "Use",
@@ -1417,7 +1417,7 @@
         {
             "id": "Refresh",
             "message": "Refresh",
-            "translation": "Refresh"
+            "translation": "Làm mới"
         },
         {
             "id": "ID:",
@@ -1572,32 +1572,32 @@
         {
             "id": "Fonts",
             "message": "Fonts",
-            "translation": "Fonts"
+            "translation": "Phông chữ"
         },
         {
             "id": "Add font...",
             "message": "Add font...",
-            "translation": "Add font..."
+            "translation": "Thêm phông chữ..."
         },
         {
             "id": "No extra fonts installed.",
             "message": "No extra fonts installed.",
-            "translation": "No extra fonts installed."
+            "translation": "Chưa cài thêm phông chữ nào ngoài hệ thống."
         },
         {
             "id": "Remove",
             "message": "Remove",
-            "translation": "Remove"
+            "translation": "Gỡ bỏ"
         },
         {
             "id": "Version",
             "message": "Version",
-            "translation": "Version"
+            "translation": "Phiên bản"
         },
         {
             "id": "Preview In Browser",
             "message": "Preview In Browser",
-            "translation": "Preview In Browser"
+            "translation": "Xem trước trong Trình duyệt"
         },
         {
             "id": "When checked, document preview will be opening in your default browser. Otherwise the preview will use built-in previewer.",
@@ -1607,52 +1607,52 @@
         {
             "id": "Open in browser",
             "message": "Open in browser",
-            "translation": "Open in browser"
+            "translation": "Mở trong trình duyệt"
         },
         {
             "id": "Enable Partial Preview",
             "message": "Enable Partial Preview",
-            "translation": "Enable Partial Preview"
+            "translation": "Bật xem trước từng phần"
         },
         {
             "id": "The previewer will only render pages inside the viewport if enabled. This improves performance especially for large document.",
             "message": "The previewer will only render pages inside the viewport if enabled. This improves performance especially for large document.",
-            "translation": "The previewer will only render pages inside the viewport if enabled. This improves performance especially for large document."
+            "translation": "Trình xem trước sẽ chỉ kết xuất các trang nằm trong khung nhìn khi bật. Tăng hiệu năng cho tài liệu lớn."
         },
         {
             "id": "Enable partial rendering",
             "message": "Enable partial rendering",
-            "translation": "Enable partial rendering"
+            "translation": "Bật kết xuất từng phần"
         },
         {
             "id": "Debug Log",
             "message": "Debug Log",
-            "translation": "Debug Log"
+            "translation": "Nhật ký gỡ lỗi"
         },
         {
             "id": "When checked, logs from the built-in LSP (Language Server Procotol) server is written to the console panel. It needs to restart or reload to take effect.",
             "message": "When checked, logs from the built-in LSP (Language Server Procotol) server is written to the console panel. It needs to restart or reload to take effect.",
-            "translation": "When checked, logs from the built-in LSP (Language Server Procotol) server is written to the console panel. It needs to restart or reload to take effect."
+            "translation": "Khi bật, nhật ký từ LSP sẽ được ghi vào bảng điều khiển console. Cần khởi động lại hoặc tải lại để có hiệu lực."
         },
         {
             "id": "Enable debug log",
             "message": "Enable debug log",
-            "translation": "Enable debug log"
+            "translation": "Bật nhật ký gỡ lỗi"
         },
         {
             "id": "Power Saving",
             "message": "Power Saving",
-            "translation": "Power Saving"
+            "translation": "Tiết kiệm năng lượng"
         },
         {
             "id": "When checked, LSP server runs in power saving mode, only basic syntax checking and code completion are avaliable, diagnostics and previewing will not work. It needs to restart or reload to take effect.",
             "message": "When checked, LSP server runs in power saving mode, only basic syntax checking and code completion are avaliable, diagnostics and previewing will not work. It needs to restart or reload to take effect.",
-            "translation": "When checked, LSP server runs in power saving mode, only basic syntax checking and code completion are avaliable, diagnostics and previewing will not work. It needs to restart or reload to take effect."
+            "translation": "Khi bật, LSP chạy ở chế độ tiết kiệm, chỉ kiểm tra cú pháp cơ bản và gợi ý mã. Chẩn đoán và xem trước sẽ tắt."
         },
         {
             "id": "Enable power saving",
             "message": "Enable power saving",
-            "translation": "Enable power saving"
+            "translation": "Bật tiết kiệm năng lượng"
         },
         {
             "id": "Language Server",
@@ -1662,7 +1662,7 @@
         {
             "id": "Language",
             "message": "Language",
-            "translation": "Language"
+            "translation": "Ngôn ngữ"
         },
         {
             "id": "Set the displaying language of the user interface.",
@@ -1692,12 +1692,12 @@
         {
             "id": "Font Family",
             "message": "Font Family",
-            "translation": "Font Family"
+            "translation": "Phông chữ"
         },
         {
             "id": "Theme",
             "message": "Theme",
-            "translation": "Theme"
+            "translation": "Giao diện"
         },
         {
             "id": "Choose your favorite color theme for the user interface.",
@@ -1727,22 +1727,22 @@
         {
             "id": "Check Update",
             "message": "Check Update",
-            "translation": "Check Update"
+            "translation": "Kiểm tra cập nhật"
         },
         {
             "id": "Check for updates on app startup. Please enable it to keep up to date for new features and bugfixes.",
             "message": "Check for updates on app startup. Please enable it to keep up to date for new features and bugfixes.",
-            "translation": "Check for updates on app startup. Please enable it to keep up to date for new features and bugfixes."
+            "translation": "Kiểm tra bản cập nhật khi khởi động ứng dụng để nhận tính năng mới và sửa lỗi."
         },
         {
             "id": "Check for updates on app startup",
             "message": "Check for updates on app startup",
-            "translation": "Check for updates on app startup"
+            "translation": "Kiểm tra cập nhật khi khởi động"
         },
         {
             "id": "General",
             "message": "General",
-            "translation": "General"
+            "translation": "Cài đặt chung"
         },
         {
             "id": "Auto Save Interval",
@@ -1807,7 +1807,7 @@
         {
             "id": "Editor",
             "message": "Editor",
-            "translation": "Editor"
+            "translation": "Soạn thảo"
         },
         {
             "id": "Typst",
@@ -1867,82 +1867,82 @@
         {
             "id": "Load sys-inputs.json",
             "message": "Load sys-inputs.json",
-            "translation": "Load sys-inputs.json"
+            "translation": "Tải sys-inputs.json"
         },
         {
             "id": "Ignore System Fonts",
             "message": "Ignore System Fonts",
-            "translation": "Ignore System Fonts"
+            "translation": "Bỏ qua phông hệ thống"
         },
         {
             "id": "Ignore system fonts or not. For code linter, auto-completion and previewing, it needs to restart or reload to take effect.",
             "message": "Ignore system fonts or not. For code linter, auto-completion and previewing, it needs to restart or reload to take effect.",
-            "translation": "Ignore system fonts or not. For code linter, auto-completion and previewing, it needs to restart or reload to take effect."
+            "translation": "Bỏ qua phông hệ thống hay không. Cần khởi động lại hoặc tải lại để có hiệu lực."
         },
         {
             "id": "Ignore system fonts",
             "message": "Ignore system fonts",
-            "translation": "Ignore system fonts"
+            "translation": "Bỏ qua phông hệ thống"
         },
         {
             "id": "Ignore Compiler Embedded Fonts",
             "message": "Ignore Compiler Embedded Fonts",
-            "translation": "Ignore Compiler Embedded Fonts"
+            "translation": "Bỏ qua phông nhúng của trình biên dịch"
         },
         {
             "id": "Ignore embedded Fonts or not. This only works when exporting files.",
             "message": "Ignore embedded Fonts or not. This only works when exporting files.",
-            "translation": "Ignore embedded Fonts or not. This only works when exporting files."
+            "translation": "Bỏ qua phông nhúng của trình biên dịch hay không. Chỉ áp dụng khi xuất tệp."
         },
         {
             "id": "Ignore embedded fonts",
             "message": "Ignore embedded fonts",
-            "translation": "Ignore embedded fonts"
+            "translation": "Bỏ qua phông nhúng"
         },
         {
             "id": "Generate Dependencies file",
             "message": "Generate Dependencies file",
-            "translation": "Generate Dependencies file"
+            "translation": "Tạo tệp phụ thuộc"
         },
         {
             "id": "Write dependencies of the file compiled to a file named deps.json in your project directory.",
             "message": "Write dependencies of the file compiled to a file named deps.json in your project directory.",
-            "translation": "Write dependencies of the file compiled to a file named deps.json in your project directory."
+            "translation": "Ghi các phụ thuộc của tệp biên dịch vào tệp deps.json trong thư mục dự án."
         },
         {
             "id": "Generate deps file",
             "message": "Generate deps file",
-            "translation": "Generate deps file"
+            "translation": "Tạo tệp deps"
         },
         {
             "id": "Sync",
             "message": "Sync",
-            "translation": "Sync"
+            "translation": "Đồng bộ"
         },
         {
             "id": "Connect to a self-hosted Typstify server (e.g. web version on your VPS) to synchronize settings (appearance, editor, Typst, LSP) between desktop and web.",
             "message": "Connect to a self-hosted Typstify server (e.g. web version on your VPS) to synchronize settings (appearance, editor, Typst, LSP) between desktop and web.",
-            "translation": "Connect to a self-hosted Typstify server (e.g. web version on your VPS) to synchronize settings (appearance, editor, Typst, LSP) between desktop and web."
+            "translation": "Kết nối tới một máy chủ Typstify tự host (ví dụ bản web trên VPS) để đồng bộ cấu hình (giao diện, soạn thảo, Typst, LSP) giữa desktop và web."
         },
         {
             "id": "Server address, e.g. https://typstify.example.com",
             "message": "Server address, e.g. https://typstify.example.com",
-            "translation": "Server address, e.g. https://typstify.example.com"
+            "translation": "Địa chỉ máy chủ, vd: https://typstify.example.com"
         },
         {
             "id": "Password",
             "message": "Password",
-            "translation": "Password"
+            "translation": "Mật khẩu"
         },
         {
             "id": "Connect",
             "message": "Connect",
-            "translation": "Connect"
+            "translation": "Kết nối"
         },
         {
             "id": "Connecting...",
             "message": "Connecting...",
-            "translation": "Connecting..."
+            "translation": "Đang kết nối..."
         },
         {
             "id": "Connected to {ServerURL}",
@@ -1957,32 +1957,32 @@
                     "underlyingType": "string"
                 }
             ],
-            "translation": "Connected to {ServerURL}"
+            "translation": "Đã kết nối tới {ServerURL}"
         },
         {
             "id": "Sync Now",
             "message": "Sync Now",
-            "translation": "Sync Now"
+            "translation": "Đồng bộ ngay"
         },
         {
             "id": "Syncing...",
             "message": "Syncing...",
-            "translation": "Syncing..."
+            "translation": "Đang đồng bộ..."
         },
         {
             "id": "Disconnect",
             "message": "Disconnect",
-            "translation": "Disconnect"
+            "translation": "Ngắt kết nối"
         },
         {
             "id": "Use AI Agent on this server instead of running locally",
             "message": "Use AI Agent on this server instead of running locally",
-            "translation": "Use AI Agent on this server instead of running locally"
+            "translation": "Dùng AI Agent trên máy chủ này thay vì chạy cục bộ"
         },
         {
             "id": "Connected successfully.",
             "message": "Connected successfully.",
-            "translation": "Connected successfully."
+            "translation": "Kết nối thành công."
         },
         {
             "id": "Synced at {Format150405}",
@@ -1997,7 +1997,7 @@
                     "underlyingType": "string"
                 }
             ],
-            "translation": "Synced at {Format150405}"
+            "translation": "Đồng bộ xong lúc {Format150405}"
         },
         {
             "id": "TPIX",
@@ -2007,12 +2007,12 @@
         {
             "id": "TPIX is a free cloud search that you can use to find \u0026 manage personal or team packages, and even bibliographies.",
             "message": "TPIX is a free cloud search that you can use to find \u0026 manage personal or team packages, and even bibliographies.",
-            "translation": "TPIX is a free cloud search that you can use to find \u0026 manage personal or team packages, and even bibliographies."
+            "translation": "TPIX là dịch vụ tìm kiếm đám mây miễn phí để quản lý các gói cá nhân, nhóm và tài liệu tham khảo."
         },
         {
             "id": "Paste your API Key issued from TPIX server to start using TPIX service.",
             "message": "Paste your API Key issued from TPIX server to start using TPIX service.",
-            "translation": "Paste your API Key issued from TPIX server to start using TPIX service."
+            "translation": "Dán mã API Key từ máy chủ TPIX để bắt đầu sử dụng dịch vụ."
         },
         {
             "id": "To learn more about TPIX, go to",
@@ -2042,62 +2042,62 @@
         {
             "id": "About",
             "message": "About",
-            "translation": "About"
+            "translation": "Giới thiệu"
         },
         {
             "id": "VPS Sync",
             "message": "VPS Sync",
-            "translation": "VPS Sync"
+            "translation": "Đồng bộ VPS"
         },
         {
             "id": "Saved",
             "message": "Saved",
-            "translation": "Saved"
+            "translation": "Đã lưu"
         },
         {
             "id": "Testing connection...",
             "message": "Testing connection...",
-            "translation": "Testing connection..."
+            "translation": "Đang kiểm tra kết nối..."
         },
         {
             "id": "Connection OK",
             "message": "Connection OK",
-            "translation": "Connection OK"
+            "translation": "Kết nối thành công"
         },
         {
             "id": "Authentication failed",
             "message": "Authentication failed",
-            "translation": "Authentication failed"
+            "translation": "Xác thực thất bại"
         },
         {
             "id": "Login successful \u0026 Connection OK",
             "message": "Login successful \u0026 Connection OK",
-            "translation": "Login successful \u0026 Connection OK"
+            "translation": "Đăng nhập và kết nối thành công"
         },
         {
             "id": "Connection failed",
             "message": "Connection failed",
-            "translation": "Connection failed"
+            "translation": "Kết nối thất bại"
         },
         {
             "id": "Upload project files from this computer to a typstify server (VPS). Enter username \u0026 password or a Bearer token.",
             "message": "Upload project files from this computer to a typstify server (VPS). Enter username \u0026 password or a Bearer token.",
-            "translation": "Upload project files from this computer to a typstify server (VPS). Enter username \u0026 password or a Bearer token."
+            "translation": "Tải tệp dự án từ máy tính này lên máy chủ Typstify (VPS). Nhập tên đăng nhập \u0026 mật khẩu hoặc mã Bearer token."
         },
         {
             "id": "Enable VPS sync",
             "message": "Enable VPS sync",
-            "translation": "Enable VPS sync"
+            "translation": "Bật đồng bộ VPS"
         },
         {
             "id": "Auto-sync on save",
             "message": "Auto-sync on save",
-            "translation": "Auto-sync on save"
+            "translation": "Tự động đồng bộ khi lưu"
         },
         {
             "id": "Test Connection",
             "message": "Test Connection",
-            "translation": "Test Connection"
+            "translation": "Kiểm tra kết nối"
         },
         {
             "id": "git checkout {Name} failed: {Err}",
@@ -2125,7 +2125,7 @@
         {
             "id": "Image Viewer",
             "message": "Image Viewer",
-            "translation": "Image Viewer"
+            "translation": "Trình xem Ảnh"
         },
         {
             "id": "Width: {X}, Height: {Y}",

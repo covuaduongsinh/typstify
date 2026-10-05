@@ -33,7 +33,7 @@ func (vw *ImageViewerView) ID() view.ViewID {
 
 func (vw *ImageViewerView) Title() string {
 	if vw.currentFile == "" {
-		return "Image Viewer"
+		return i18n.Translate("Image Viewer")
 	} else {
 		return vw.currentFile
 	}

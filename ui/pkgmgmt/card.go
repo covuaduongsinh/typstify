@@ -247,14 +247,14 @@ func (c *PkgCard) layout(gtx C, th *theme.Theme) D {
 							Spacing:   layout.SpaceBetween,
 						}.Layout(gtx,
 							layout.Rigid(func(gtx C) D {
-								btn := material.Button(th.Theme, &c.docBtn, "Read the docs")
+								btn := material.Button(th.Theme, &c.docBtn, i18n.Translate("Read the docs"))
 								btn.Inset = layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(4), Right: unit.Dp(4)}
 								return btn.Layout(gtx)
 							}),
 							layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
 
 							layout.Rigid(func(gtx C) D {
-								btn := material.Button(th.Theme, &c.copyBtn, "Copy import path")
+								btn := material.Button(th.Theme, &c.copyBtn, i18n.Translate("Copy import path"))
 								btn.Inset = layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(4), Right: unit.Dp(4)}
 								return btn.Layout(gtx)
 							}),
@@ -274,7 +274,7 @@ func (c *PkgCard) layout(gtx C, th *theme.Theme) D {
 
 							layout.Rigid(func(gtx C) D {
 
-								btn := material.Button(th.Theme, &c.downloadBtn, "Download")
+								btn := material.Button(th.Theme, &c.downloadBtn, i18n.Translate("Download"))
 								btn.Inset = layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(4), Right: unit.Dp(4)}
 								return btn.Layout(gtx)
 							}),

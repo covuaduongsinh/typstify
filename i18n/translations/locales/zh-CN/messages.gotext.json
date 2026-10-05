@@ -7,6 +7,11 @@
             "translation": "请选择一种方式验证代理："
         },
         {
+            "id": "Authenticating... if the agent needs you to open a login link or enter a code, check the Console panel for it.",
+            "message": "Authenticating... if the agent needs you to open a login link or enter a code, check the Console panel for it.",
+            "translation": ""
+        },
+        {
             "id": "ID",
             "message": "ID",
             "translation": "ID"
@@ -94,47 +99,47 @@
         {
             "id": "Raw Input",
             "message": "Raw Input",
-            "translation": "原始输入",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "rawInput",
                     "id": "RawInput",
                     "string": "%[1]v",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "rawInput"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "原始输入"
         },
         {
             "id": "Raw Output",
             "message": "Raw Output",
-            "translation": "原始输出",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "rawOutput",
                     "id": "RawOutput",
                     "string": "%[1]v",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "rawOutput"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "原始输出"
         },
         {
             "id": "Terminal: {TerminalId}",
             "message": "Terminal: {TerminalId}",
-            "translation": "终端: {TerminalId}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "content.TerminalId",
                     "id": "TerminalId",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "content.TerminalId"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "终端: {TerminalId}"
         },
         {
             "id": "Copy",
@@ -199,25 +204,25 @@
         {
             "id": "{CurrentMatch__1} of {MatchCount}",
             "message": "{CurrentMatch__1} of {MatchCount}",
-            "translation": "{CurrentMatch__1} / {MatchCount}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "sb.currentMatch + 1",
                     "id": "CurrentMatch__1",
                     "string": "%[1]d",
                     "type": "int",
-                    "underlyingType": "int",
-                    "argNum": 1,
-                    "expr": "sb.currentMatch + 1"
+                    "underlyingType": "int"
                 },
                 {
+                    "argNum": 2,
+                    "expr": "sb.matchCount",
                     "id": "MatchCount",
                     "string": "%[2]d",
                     "type": "int",
-                    "underlyingType": "int",
-                    "argNum": 2,
-                    "expr": "sb.matchCount"
+                    "underlyingType": "int"
                 }
-            ]
+            ],
+            "translation": "{CurrentMatch__1} / {MatchCount}"
         },
         {
             "id": "Replace",
@@ -232,45 +237,55 @@
         {
             "id": "Ln {Y__1}, Col {X__1}",
             "message": "Ln {Y__1}, Col {X__1}",
-            "translation": "行 {Y__1}, 列 {X__1}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "s.Pos.Y + 1",
                     "id": "Y__1",
                     "string": "%[1]d",
                     "type": "int",
-                    "underlyingType": "int",
-                    "argNum": 1,
-                    "expr": "s.Pos.Y + 1"
+                    "underlyingType": "int"
                 },
                 {
+                    "argNum": 2,
+                    "expr": "s.Pos.X + 1",
                     "id": "X__1",
                     "string": "%[2]d",
                     "type": "int",
-                    "underlyingType": "int",
-                    "argNum": 2,
-                    "expr": "s.Pos.X + 1"
+                    "underlyingType": "int"
                 }
-            ]
+            ],
+            "translation": "行 {Y__1}, 列 {X__1}"
         },
         {
             "id": "({SelectedChars} selected)",
             "message": "({SelectedChars} selected)",
-            "translation": "（已选 {SelectedChars} 个字符）",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "s.SelectedChars",
                     "id": "SelectedChars",
                     "string": "%[1]d",
                     "type": "int",
-                    "underlyingType": "int",
-                    "argNum": 1,
-                    "expr": "s.SelectedChars"
+                    "underlyingType": "int"
                 }
-            ]
+            ],
+            "translation": "（已选 {SelectedChars} 个字符）"
+        },
+        {
+            "id": "Typstify Crashed!",
+            "message": "Typstify Crashed!",
+            "translation": ""
         },
         {
             "id": "Exit",
             "message": "Exit",
             "translation": "退出"
+        },
+        {
+            "id": "Restart",
+            "message": "Restart",
+            "translation": ""
         },
         {
             "id": "Sign In",
@@ -295,17 +310,17 @@
         {
             "id": "Welcome, {Username}!",
             "message": "Welcome, {Username}!",
-            "translation": "欢迎, {Username}!",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "vw.srv.Settings().Tpix().Username",
                     "id": "Username",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "vw.srv.Settings().Tpix().Username"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "欢迎, {Username}!"
         },
         {
             "id": "Getting Started",
@@ -328,6 +343,11 @@
             "translation": "浏览包/模板..."
         },
         {
+            "id": "Remote Project...",
+            "message": "Remote Project...",
+            "translation": ""
+        },
+        {
             "id": "Learn more",
             "message": "Learn more",
             "translation": "了解更多"
@@ -345,62 +365,67 @@
         {
             "id": "Open/Hide File Explorer: {String} + D",
             "message": "Open/Hide File Explorer: {String} + D",
-            "translation": "打开/隐藏文件管理器: {String} + D",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "key.ModShortcut.String()",
                     "id": "String",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "key.ModShortcut.String()"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "打开/隐藏文件管理器: {String} + D"
         },
         {
             "id": "Open/Hide Console: {String} + K",
             "message": "Open/Hide Console: {String} + K",
-            "translation": "打开/隐藏控制台: {String} + K",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "key.ModShortcut.String()",
                     "id": "String",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "key.ModShortcut.String()"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "打开/隐藏控制台: {String} + K"
         },
         {
             "id": "Open/Hide Previewer: {String} + P",
             "message": "Open/Hide Previewer: {String} + P",
-            "translation": "打开/隐藏预览器: {String} + P",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "key.ModShortcut.String()",
                     "id": "String",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "key.ModShortcut.String()"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "打开/隐藏预览器: {String} + P"
         },
         {
             "id": "Open AI Assistant: {String} + L",
             "message": "Open AI Assistant: {String} + L",
-            "translation": "打开 AI 助手: {String} + L",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "key.ModShortcut.String()",
                     "id": "String",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "key.ModShortcut.String()"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "打开 AI 助手: {String} + L"
+        },
+        {
+            "id": "AI Assistant",
+            "message": "AI Assistant",
+            "translation": "AI助手"
         },
         {
             "id": "Starting AI Assistant...",
@@ -411,6 +436,11 @@
             "id": "Sessions",
             "message": "Sessions",
             "translation": "会话"
+        },
+        {
+            "id": "No previous sessions",
+            "message": "No previous sessions",
+            "translation": ""
         },
         {
             "id": "Sync Bibliography",
@@ -425,32 +455,32 @@
         {
             "id": "Creating managed bibliography error: {Error}",
             "message": "Creating managed bibliography error: {Error}",
-            "translation": "创建托管参考文献出错: {Error}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "err.Error()",
                     "id": "Error",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "err.Error()"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "创建托管参考文献出错: {Error}"
         },
         {
             "id": "Creating managed bibliography succeeded: {Filename}",
             "message": "Creating managed bibliography succeeded: {Filename}",
-            "translation": "创建托管参考文献成功: {Filename}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "filename",
                     "id": "Filename",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "filename"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "创建托管参考文献成功: {Filename}"
         },
         {
             "id": "Bibliography File Name",
@@ -495,32 +525,32 @@
         {
             "id": "Unlink managed bibliography error: {Error}",
             "message": "Unlink managed bibliography error: {Error}",
-            "translation": "取消关联托管参考文献出错: {Error}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "err.Error()",
                     "id": "Error",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "err.Error()"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "取消关联托管参考文献出错: {Error}"
         },
         {
             "id": "Unlink managed bibliography succeeded: {File}",
             "message": "Unlink managed bibliography succeeded: {File}",
-            "translation": "取消关联托管参考文献成功: {File}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "d.meta.File",
                     "id": "File",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "d.meta.File"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "取消关联托管参考文献成功: {File}"
         },
         {
             "id": "The path of the managed bibliography file. Clicking unlink below will turn it to a regular file, and it will not sync with remote Zotero collection anymore.",
@@ -540,47 +570,47 @@
         {
             "id": "Namespace: {Namespace}",
             "message": "Namespace: {Namespace}",
-            "translation": "命名空间: {Namespace}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "d.meta.Meta.Namespace",
                     "id": "Namespace",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "d.meta.Meta.Namespace"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "命名空间: {Namespace}"
         },
         {
             "id": "Library: {Library}",
             "message": "Library: {Library}",
-            "translation": "文库: {Library}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "d.meta.Meta.Library",
                     "id": "Library",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "d.meta.Meta.Library"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "文库: {Library}"
         },
         {
             "id": "Collection: {Collection}",
             "message": "Collection: {Collection}",
-            "translation": "集合: {Collection}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "d.meta.Meta.Collection",
                     "id": "Collection",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "d.meta.Meta.Collection"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "集合: {Collection}"
         },
         {
             "id": [
@@ -623,17 +653,17 @@
         {
             "id": "Create project error: {Error}",
             "message": "Create project error: {Error}",
-            "translation": "创建项目出错: {Error}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "err.Error()",
                     "id": "Error",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "err.Error()"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "创建项目出错: {Error}"
         },
         {
             "id": "Project Type",
@@ -678,17 +708,17 @@
         {
             "id": "Are you sure you want to delete '{Dest}'?",
             "message": "Are you sure you want to delete '{Dest}'?",
-            "translation": "确定要删除 '{Dest}' 吗?",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "d.dest",
                     "id": "Dest",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "d.dest"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "确定要删除 '{Dest}' 吗?"
         },
         {
             "id": "You can restore this file from the Trash.",
@@ -713,25 +743,25 @@
         {
             "id": "'{Src}' into '{Dest}'",
             "message": "'{Src}' into '{Dest}'",
-            "translation": "'{Src}' 到 '{Dest}' 吗?",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "d.src",
                     "id": "Src",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "d.src"
+                    "underlyingType": "string"
                 },
                 {
+                    "argNum": 2,
+                    "expr": "d.dest",
                     "id": "Dest",
                     "string": "%[2]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 2,
-                    "expr": "d.dest"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "'{Src}' 到 '{Dest}' 吗?"
         },
         {
             "id": [
@@ -755,6 +785,36 @@
             "id": "Exporting file...",
             "message": "Exporting file...",
             "translation": "正在导出文件..."
+        },
+        {
+            "id": "File export error: {Error}",
+            "message": "File export error: {Error}",
+            "placeholders": [
+                {
+                    "argNum": 1,
+                    "expr": "err.Error()",
+                    "id": "Error",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string"
+                }
+            ],
+            "translation": ""
+        },
+        {
+            "id": "Files exported to {OutDir}",
+            "message": "Files exported to {OutDir}",
+            "placeholders": [
+                {
+                    "argNum": 1,
+                    "expr": "params.OutDir",
+                    "id": "OutDir",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string"
+                }
+            ],
+            "translation": ""
         },
         {
             "id": "Exported File Format",
@@ -869,17 +929,17 @@
         {
             "id": "Are you sure you want to open file '{TargetFile}'?",
             "message": "Are you sure you want to open file '{TargetFile}'?",
-            "translation": "确定要打开文件 '{TargetFile}' 吗?",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "filepath.Base(d.targetFile)",
                     "id": "TargetFile",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "filepath.Base(d.targetFile)"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "确定要打开文件 '{TargetFile}' 吗?"
         },
         {
             "id": "Publish Package",
@@ -889,32 +949,32 @@
         {
             "id": "publish package error: {Error}",
             "message": "publish package error: {Error}",
-            "translation": "发布包出错: {Error}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "err.Error()",
                     "id": "Error",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "err.Error()"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "发布包出错: {Error}"
         },
         {
             "id": "publish package succeeded: {BundlePath}",
             "message": "publish package succeeded: {BundlePath}",
-            "translation": "发布包成功: {BundlePath}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "bundlePath",
                     "id": "BundlePath",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "d.bundlePath"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "发布包成功: {BundlePath}"
         },
         {
             "id": "Bundle",
@@ -934,17 +994,17 @@
         {
             "id": "Created Bundle: {BundlePath}",
             "message": "Created Bundle: {BundlePath}",
-            "translation": "已创建打包文件: {BundlePath}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "d.bundlePath",
                     "id": "BundlePath",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "d.bundlePath"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "已创建打包文件: {BundlePath}"
         },
         {
             "id": "Namespace",
@@ -967,6 +1027,21 @@
             "translation": "没有可写的命名空间"
         },
         {
+            "id": "Text Editor",
+            "message": "Text Editor",
+            "translation": ""
+        },
+        {
+            "id": "Typst Editor",
+            "message": "Typst Editor",
+            "translation": ""
+        },
+        {
+            "id": "Starting document preview server...",
+            "message": "Starting document preview server...",
+            "translation": ""
+        },
+        {
             "id": "No project",
             "message": "No project",
             "translation": "无项目"
@@ -979,17 +1054,17 @@
         {
             "id": "pull dependencies error: {Error}",
             "message": "pull dependencies error: {Error}",
-            "translation": "拉取依赖出错: {Error}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "err.Error()",
                     "id": "Error",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "err.Error()"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "拉取依赖出错: {Error}"
         },
         {
             "id": "pull dependencies succeeded!",
@@ -1037,6 +1112,26 @@
             "translation": "设置"
         },
         {
+            "id": "VPS Sync: not configured",
+            "message": "VPS Sync: not configured",
+            "translation": ""
+        },
+        {
+            "id": "VPS Sync: syncing...",
+            "message": "VPS Sync: syncing...",
+            "translation": ""
+        },
+        {
+            "id": "VPS Sync error:",
+            "message": "VPS Sync error:",
+            "translation": ""
+        },
+        {
+            "id": "VPS Sync: click to sync now",
+            "message": "VPS Sync: click to sync now",
+            "translation": ""
+        },
+        {
             "id": "File Explorer",
             "message": "File Explorer",
             "translation": "文件资源管理器"
@@ -1049,17 +1144,17 @@
         {
             "id": "A new version is avaliable: {LatestVersion}",
             "message": "A new version is avaliable: {LatestVersion}",
-            "translation": "有新版本可用: {LatestVersion}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "ut.latestVersion",
                     "id": "LatestVersion",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "ut.latestVersion"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "有新版本可用: {LatestVersion}"
         },
         {
             "id": "Later",
@@ -1072,9 +1167,29 @@
             "translation": "下载"
         },
         {
+            "id": "Close tab",
+            "message": "Close tab",
+            "translation": ""
+        },
+        {
             "id": "Cached",
             "message": "Cached",
             "translation": "已缓存"
+        },
+        {
+            "id": "Read the docs",
+            "message": "Read the docs",
+            "translation": ""
+        },
+        {
+            "id": "Copy import path",
+            "message": "Copy import path",
+            "translation": ""
+        },
+        {
+            "id": "Choose version",
+            "message": "Choose version",
+            "translation": ""
         },
         {
             "id": "Loading packages...",
@@ -1097,6 +1212,11 @@
             "translation": "清除"
         },
         {
+            "id": "Typst Packages",
+            "message": "Typst Packages",
+            "translation": ""
+        },
+        {
             "id": "Package kind",
             "message": "Package kind",
             "translation": "包类型"
@@ -1115,6 +1235,11 @@
             "id": "Search TPIX...",
             "message": "Search TPIX...",
             "translation": "搜索 TPIX..."
+        },
+        {
+            "id": "Pull all dependencies",
+            "message": "Pull all dependencies",
+            "translation": ""
         },
         {
             "id": "Query packages...",
@@ -1139,60 +1264,115 @@
         {
             "id": "Downloaded package {PkgSpec}.",
             "message": "Downloaded package {PkgSpec}.",
-            "translation": "已下载包 {PkgSpec}。",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "pkgSpec",
                     "id": "PkgSpec",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "pkgSpec"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "已下载包 {PkgSpec}。"
         },
         {
-            "id": "Downloaded package {PkgSpec} and {Count} transitive dependencies.",
-            "message": "Downloaded package {PkgSpec} and {Count} transitive dependencies.",
-            "translation": "已下载包 {PkgSpec} 及 {Count} 个传递依赖。",
+            "id": "Downloaded package {PkgSpec} and {Count___1} transitive dependencies.",
+            "message": "Downloaded package {PkgSpec} and {Count___1} transitive dependencies.",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "pkgSpec",
                     "id": "PkgSpec",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "pkgSpec"
+                    "underlyingType": "string"
                 },
                 {
-                    "id": "Count",
+                    "argNum": 2,
+                    "expr": "count - 1",
+                    "id": "Count___1",
                     "string": "%[2]d",
                     "type": "int",
-                    "underlyingType": "int",
-                    "argNum": 2,
-                    "expr": "count"
+                    "underlyingType": "int"
                 }
-            ]
+            ],
+            "translation": ""
+        },
+        {
+            "id": "No project is open.",
+            "message": "No project is open.",
+            "translation": ""
+        },
+        {
+            "id": "Pulling project dependencies...",
+            "message": "Pulling project dependencies...",
+            "translation": ""
+        },
+        {
+            "id": "Pull dependencies failed:",
+            "message": "Pull dependencies failed:",
+            "translation": ""
+        },
+        {
+            "id": "All project dependencies pulled.",
+            "message": "All project dependencies pulled.",
+            "translation": ""
         },
         {
             "id": "Found {LastFetchedCount} packages.",
             "message": "Found {LastFetchedCount} packages.",
-            "translation": "找到 {LastFetchedCount} 个包。",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "vw.lastFetchedCount",
                     "id": "LastFetchedCount",
                     "string": "%[1]d",
                     "type": "int",
-                    "underlyingType": "int",
-                    "argNum": 1,
-                    "expr": "vw.lastFetchedCount"
+                    "underlyingType": "int"
                 }
-            ]
+            ],
+            "translation": "找到 {LastFetchedCount} 个包。"
         },
         {
-            "id": "AI Assistant",
-            "message": "AI Assistant",
-            "translation": "AI助手"
+            "id": "Remote Project",
+            "message": "Remote Project",
+            "translation": ""
+        },
+        {
+            "id": "Enter the project folder path on the server (absolute path on the server, not this machine):",
+            "message": "Enter the project folder path on the server (absolute path on the server, not this machine):",
+            "translation": ""
+        },
+        {
+            "id": "Open",
+            "message": "Open",
+            "translation": ""
+        },
+        {
+            "id": "Create new project",
+            "message": "Create new project",
+            "translation": ""
+        },
+        {
+            "id": "Recent projects on server",
+            "message": "Recent projects on server",
+            "translation": ""
+        },
+        {
+            "id": "(no file opened)",
+            "message": "(no file opened)",
+            "translation": ""
+        },
+        {
+            "id": "Save",
+            "message": "Save",
+            "translation": ""
+        },
+        {
+            "id": "Saved.",
+            "message": "Saved.",
+            "translation": ""
         },
         {
             "id": "Agent",
@@ -1223,6 +1403,11 @@
             "id": "The built-in MCP server use dynamic network port by default, and it registers itself to agent at runtime. \nSome agents does not support runtime registration, you have to fix the MCP server port and register the server manually. When using static port, the server address is 127.0.0.1:5322, transport: http.",
             "message": "The built-in MCP server use dynamic network port by default, and it registers itself to agent at runtime. \nSome agents does not support runtime registration, you have to fix the MCP server port and register the server manually. When using static port, the server address is 127.0.0.1:5322, transport: http.",
             "translation": "内置 MCP 服务器默认使用动态网络端口，并在运行时向代理注册。\n某些代理不支持运行时注册，您需要固定 MCP 服务器端口并手动注册。使用静态端口时，服务器地址为 127.0.0.1:5322，传输方式: http。"
+        },
+        {
+            "id": "Use static port",
+            "message": "Use static port",
+            "translation": ""
         },
         {
             "id": "Use",
@@ -1272,17 +1457,17 @@
         {
             "id": "If the agent fails to start, try installing manually: npm install -g {Package}",
             "message": "If the agent fails to start, try installing manually: npm install -g {Package}",
-            "translation": "如果代理启动失败，请尝试手动安装: npm install -g {Package}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "pkg.Package",
                     "id": "Package",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "pkg.Package"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "如果代理启动失败，请尝试手动安装: npm install -g {Package}"
         },
         {
             "id": "Installation (npx)",
@@ -1302,17 +1487,17 @@
         {
             "id": "If the agent fails to start, try installing manually: uv pip install {Package}",
             "message": "If the agent fails to start, try installing manually: uv pip install {Package}",
-            "translation": "如果代理启动失败，请尝试手动安装: uv pip install {Package}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "pkg.Package",
                     "id": "Package",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "pkg.Package"
+                    "underlyingType": "string"
                 }
-            ]
+            ],
+            "translation": "如果代理启动失败，请尝试手动安装: uv pip install {Package}"
         },
         {
             "id": "Installation (uvx)",
@@ -1385,6 +1570,96 @@
             "translation": "FOO=bar BAZ=qux"
         },
         {
+            "id": "Fonts",
+            "message": "Fonts",
+            "translation": ""
+        },
+        {
+            "id": "Add font...",
+            "message": "Add font...",
+            "translation": ""
+        },
+        {
+            "id": "No extra fonts installed.",
+            "message": "No extra fonts installed.",
+            "translation": ""
+        },
+        {
+            "id": "Remove",
+            "message": "Remove",
+            "translation": ""
+        },
+        {
+            "id": "Version",
+            "message": "Version",
+            "translation": "版本"
+        },
+        {
+            "id": "Preview In Browser",
+            "message": "Preview In Browser",
+            "translation": ""
+        },
+        {
+            "id": "When checked, document preview will be opening in your default browser. Otherwise the preview will use built-in previewer.",
+            "message": "When checked, document preview will be opening in your default browser. Otherwise the preview will use built-in previewer.",
+            "translation": "勾选后，文档预览将在默认浏览器中打开。否则预览将使用内置预览器。"
+        },
+        {
+            "id": "Open in browser",
+            "message": "Open in browser",
+            "translation": ""
+        },
+        {
+            "id": "Enable Partial Preview",
+            "message": "Enable Partial Preview",
+            "translation": ""
+        },
+        {
+            "id": "The previewer will only render pages inside the viewport if enabled. This improves performance especially for large document.",
+            "message": "The previewer will only render pages inside the viewport if enabled. This improves performance especially for large document.",
+            "translation": ""
+        },
+        {
+            "id": "Enable partial rendering",
+            "message": "Enable partial rendering",
+            "translation": ""
+        },
+        {
+            "id": "Debug Log",
+            "message": "Debug Log",
+            "translation": "调试日志"
+        },
+        {
+            "id": "When checked, logs from the built-in LSP (Language Server Procotol) server is written to the console panel. It needs to restart or reload to take effect.",
+            "message": "When checked, logs from the built-in LSP (Language Server Procotol) server is written to the console panel. It needs to restart or reload to take effect.",
+            "translation": "勾选后，内置 LSP（语言服务器协议）服务器的日志将写入控制台面板。需要重启或重新加载才能生效。"
+        },
+        {
+            "id": "Enable debug log",
+            "message": "Enable debug log",
+            "translation": ""
+        },
+        {
+            "id": "Power Saving",
+            "message": "Power Saving",
+            "translation": "省电模式"
+        },
+        {
+            "id": "When checked, LSP server runs in power saving mode, only basic syntax checking and code completion are avaliable, diagnostics and previewing will not work. It needs to restart or reload to take effect.",
+            "message": "When checked, LSP server runs in power saving mode, only basic syntax checking and code completion are avaliable, diagnostics and previewing will not work. It needs to restart or reload to take effect.",
+            "translation": "勾选后，LSP 服务器将运行在省电模式，仅提供基本语法检查和代码补全功能，诊断和预览将无法使用。需要重启或重新加载才能生效。"
+        },
+        {
+            "id": "Enable power saving",
+            "message": "Enable power saving",
+            "translation": ""
+        },
+        {
+            "id": "Language Server",
+            "message": "Language Server",
+            "translation": ""
+        },
+        {
             "id": "Language",
             "message": "Language",
             "translation": "语言"
@@ -1430,36 +1705,6 @@
             "translation": "选择您喜欢的用户界面颜色主题。"
         },
         {
-            "id": "Preview",
-            "message": "Preview",
-            "translation": "预览"
-        },
-        {
-            "id": "When checked, document preview will be opening in your default browser. Otherwise the preview will use built-in previewer.",
-            "message": "When checked, document preview will be opening in your default browser. Otherwise the preview will use built-in previewer.",
-            "translation": "勾选后，文档预览将在默认浏览器中打开。否则预览将使用内置预览器。"
-        },
-        {
-            "id": "Debug Log",
-            "message": "Debug Log",
-            "translation": "调试日志"
-        },
-        {
-            "id": "When checked, logs from the built-in LSP (Language Server Procotol) server is written to the console panel. It needs to restart or reload to take effect.",
-            "message": "When checked, logs from the built-in LSP (Language Server Procotol) server is written to the console panel. It needs to restart or reload to take effect.",
-            "translation": "勾选后，内置 LSP（语言服务器协议）服务器的日志将写入控制台面板。需要重启或重新加载才能生效。"
-        },
-        {
-            "id": "Power Saving",
-            "message": "Power Saving",
-            "translation": "省电模式"
-        },
-        {
-            "id": "When checked, LSP server runs in power saving mode, only basic syntax checking and code completion are avaliable, diagnostics and previewing will not work. It needs to restart or reload to take effect.",
-            "message": "When checked, LSP server runs in power saving mode, only basic syntax checking and code completion are avaliable, diagnostics and previewing will not work. It needs to restart or reload to take effect.",
-            "translation": "勾选后，LSP 服务器将运行在省电模式，仅提供基本语法检查和代码补全功能，诊断和预览将无法使用。需要重启或重新加载才能生效。"
-        },
-        {
             "id": "External Typst Compiler Path",
             "message": "External Typst Compiler Path",
             "translation": "外部 Typst 编译器路径"
@@ -1488,6 +1733,11 @@
             "id": "Check for updates on app startup. Please enable it to keep up to date for new features and bugfixes.",
             "message": "Check for updates on app startup. Please enable it to keep up to date for new features and bugfixes.",
             "translation": "应用启动时检查更新。请启用以保持获取最新功能和错误修复。"
+        },
+        {
+            "id": "Check for updates on app startup",
+            "message": "Check for updates on app startup",
+            "translation": ""
         },
         {
             "id": "General",
@@ -1565,11 +1815,6 @@
             "translation": "Typst"
         },
         {
-            "id": "Versions",
-            "message": "Versions",
-            "translation": "版本"
-        },
-        {
             "id": "Package Dir",
             "message": "Package Dir",
             "translation": "包目录"
@@ -1620,6 +1865,11 @@
             "translation": "从名为 sys-inputs.json 的文件加载外部输入作为 sys.inputs。如果没有此文件，将在根目录创建。\nsys-inputs.json 文件包含用户定义的键值对，可通过 Typst 的 sys.inputs 访问。值应始终为字符串编码数据。\n更改后需要重启或重新加载才能对代码检查器、自动补全和预览生效。"
         },
         {
+            "id": "Load sys-inputs.json",
+            "message": "Load sys-inputs.json",
+            "translation": ""
+        },
+        {
             "id": "Ignore System Fonts",
             "message": "Ignore System Fonts",
             "translation": "忽略系统字体"
@@ -1628,6 +1878,11 @@
             "id": "Ignore system fonts or not. For code linter, auto-completion and previewing, it needs to restart or reload to take effect.",
             "message": "Ignore system fonts or not. For code linter, auto-completion and previewing, it needs to restart or reload to take effect.",
             "translation": "是否忽略系统字体。对于代码检查、自动补全和预览，需要重启或重新加载才能生效。"
+        },
+        {
+            "id": "Ignore system fonts",
+            "message": "Ignore system fonts",
+            "translation": ""
         },
         {
             "id": "Ignore Compiler Embedded Fonts",
@@ -1640,6 +1895,11 @@
             "translation": "是否忽略嵌入字体。仅在导出文件时生效。"
         },
         {
+            "id": "Ignore embedded fonts",
+            "message": "Ignore embedded fonts",
+            "translation": ""
+        },
+        {
             "id": "Generate Dependencies file",
             "message": "Generate Dependencies file",
             "translation": "生成依赖文件"
@@ -1650,34 +1910,109 @@
             "translation": "将编译文件的依赖写入项目目录中名为 deps.json 的文件。"
         },
         {
+            "id": "Generate deps file",
+            "message": "Generate deps file",
+            "translation": ""
+        },
+        {
+            "id": "Sync",
+            "message": "Sync",
+            "translation": ""
+        },
+        {
+            "id": "Connect to a self-hosted Typstify server (e.g. web version on your VPS) to synchronize settings (appearance, editor, Typst, LSP) between desktop and web.",
+            "message": "Connect to a self-hosted Typstify server (e.g. web version on your VPS) to synchronize settings (appearance, editor, Typst, LSP) between desktop and web.",
+            "translation": ""
+        },
+        {
+            "id": "Server address, e.g. https://typstify.example.com",
+            "message": "Server address, e.g. https://typstify.example.com",
+            "translation": ""
+        },
+        {
+            "id": "Password",
+            "message": "Password",
+            "translation": ""
+        },
+        {
+            "id": "Connect",
+            "message": "Connect",
+            "translation": ""
+        },
+        {
+            "id": "Connecting...",
+            "message": "Connecting...",
+            "translation": ""
+        },
+        {
+            "id": "Connected to {ServerURL}",
+            "message": "Connected to {ServerURL}",
+            "placeholders": [
+                {
+                    "argNum": 1,
+                    "expr": "rs.ServerURL",
+                    "id": "ServerURL",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string"
+                }
+            ],
+            "translation": ""
+        },
+        {
+            "id": "Sync Now",
+            "message": "Sync Now",
+            "translation": ""
+        },
+        {
+            "id": "Syncing...",
+            "message": "Syncing...",
+            "translation": ""
+        },
+        {
+            "id": "Disconnect",
+            "message": "Disconnect",
+            "translation": ""
+        },
+        {
+            "id": "Use AI Agent on this server instead of running locally",
+            "message": "Use AI Agent on this server instead of running locally",
+            "translation": ""
+        },
+        {
+            "id": "Connected successfully.",
+            "message": "Connected successfully.",
+            "translation": ""
+        },
+        {
+            "id": "Synced at {Format150405}",
+            "message": "Synced at {Format150405}",
+            "placeholders": [
+                {
+                    "argNum": 1,
+                    "expr": "time.Now().Format(\"15:04:05\")",
+                    "id": "Format150405",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string"
+                }
+            ],
+            "translation": ""
+        },
+        {
             "id": "TPIX",
             "message": "TPIX",
             "translation": "TPIX"
         },
         {
-            "id": "Loading...",
-            "message": "Loading...",
-            "translation": "加载中..."
+            "id": "TPIX is a free cloud search that you can use to find \u0026 manage personal or team packages, and even bibliographies.",
+            "message": "TPIX is a free cloud search that you can use to find \u0026 manage personal or team packages, and even bibliographies.",
+            "translation": ""
         },
         {
-            "id": "You have an active TPIX session",
-            "message": "You have an active TPIX session",
-            "translation": "您有一个活跃的 TPIX 会话"
-        },
-        {
-            "id": "Logout TPIX",
-            "message": "Logout TPIX",
-            "translation": "登出 TPIX"
-        },
-        {
-            "id": "Login TPIX to access all the features of Typstify, including package management, Zotero sync, MCP tools for AI assistant etc. Some features may need a subscription.",
-            "message": "Login TPIX to access all the features of Typstify, including package management, Zotero sync, MCP tools for AI assistant etc. Some features may need a subscription.",
-            "translation": "登录 TPIX 以访问 Typstify 的所有功能，包括包管理、Zotero 同步、AI 助手的 MCP 工具等。部分功能可能需要订阅。"
-        },
-        {
-            "id": "Login TPIX",
-            "message": "Login TPIX",
-            "translation": "登录 TPIX"
+            "id": "Paste your API Key issued from TPIX server to start using TPIX service.",
+            "message": "Paste your API Key issued from TPIX server to start using TPIX service.",
+            "translation": ""
         },
         {
             "id": "To learn more about TPIX, go to",
@@ -1685,19 +2020,9 @@
             "translation": "了解更多 TPIX 信息，请访问"
         },
         {
-            "id": "To get a subscription of TPIX, click",
-            "message": "To get a subscription of TPIX, click",
-            "translation": "获取 TPIX 订阅，请点击"
-        },
-        {
             "id": "Check new version",
             "message": "Check new version",
             "translation": "检查新版本"
-        },
-        {
-            "id": "Version",
-            "message": "Version",
-            "translation": "版本"
         },
         {
             "id": "Changelog",
@@ -1720,50 +2045,110 @@
             "translation": "关于"
         },
         {
+            "id": "VPS Sync",
+            "message": "VPS Sync",
+            "translation": ""
+        },
+        {
+            "id": "Saved",
+            "message": "Saved",
+            "translation": ""
+        },
+        {
+            "id": "Testing connection...",
+            "message": "Testing connection...",
+            "translation": ""
+        },
+        {
+            "id": "Connection OK",
+            "message": "Connection OK",
+            "translation": ""
+        },
+        {
+            "id": "Authentication failed",
+            "message": "Authentication failed",
+            "translation": ""
+        },
+        {
+            "id": "Login successful \u0026 Connection OK",
+            "message": "Login successful \u0026 Connection OK",
+            "translation": ""
+        },
+        {
+            "id": "Connection failed",
+            "message": "Connection failed",
+            "translation": ""
+        },
+        {
+            "id": "Upload project files from this computer to a typstify server (VPS). Enter username \u0026 password or a Bearer token.",
+            "message": "Upload project files from this computer to a typstify server (VPS). Enter username \u0026 password or a Bearer token.",
+            "translation": ""
+        },
+        {
+            "id": "Enable VPS sync",
+            "message": "Enable VPS sync",
+            "translation": ""
+        },
+        {
+            "id": "Auto-sync on save",
+            "message": "Auto-sync on save",
+            "translation": ""
+        },
+        {
+            "id": "Test Connection",
+            "message": "Test Connection",
+            "translation": ""
+        },
+        {
             "id": "git checkout {Name} failed: {Err}",
             "message": "git checkout {Name} failed: {Err}",
-            "translation": "git checkout {Name} 失败: {Err}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "info.Name",
                     "id": "Name",
                     "string": "%[1]s",
                     "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "info.Name"
+                    "underlyingType": "string"
                 },
                 {
+                    "argNum": 2,
+                    "expr": "err",
                     "id": "Err",
                     "string": "%[2]v",
                     "type": "error",
-                    "underlyingType": "interface{Error() string}",
-                    "argNum": 2,
-                    "expr": "err"
+                    "underlyingType": "interface{Error() string}"
                 }
-            ]
+            ],
+            "translation": "git checkout {Name} 失败: {Err}"
+        },
+        {
+            "id": "Image Viewer",
+            "message": "Image Viewer",
+            "translation": ""
         },
         {
             "id": "Width: {X}, Height: {Y}",
             "message": "Width: {X}, Height: {Y}",
-            "translation": "宽度: {X}, 高度: {Y}",
             "placeholders": [
                 {
+                    "argNum": 1,
+                    "expr": "src.Size().X",
                     "id": "X",
                     "string": "%[1]d",
                     "type": "int",
-                    "underlyingType": "int",
-                    "argNum": 1,
-                    "expr": "src.Size().X"
+                    "underlyingType": "int"
                 },
                 {
+                    "argNum": 2,
+                    "expr": "src.Size().Y",
                     "id": "Y",
                     "string": "%[2]d",
                     "type": "int",
-                    "underlyingType": "int",
-                    "argNum": 2,
-                    "expr": "src.Size().Y"
+                    "underlyingType": "int"
                 }
-            ]
+            ],
+            "translation": "宽度: {X}, 高度: {Y}"
         },
         {
             "id": "popup and display the preview in a dedicated window",

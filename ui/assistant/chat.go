@@ -66,7 +66,7 @@ func (cv *AgentChatView) ID() view.ViewID {
 }
 
 func (cv *AgentChatView) Title() string {
-	return "AI Assistant"
+	return i18n.Translate("AI Assistant")
 }
 
 func (cv *AgentChatView) OnNavTo(intent view.Intent) error {

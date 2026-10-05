@@ -101,7 +101,7 @@ func (l *LspSettingsView) Layout(gtx C, th *theme.Theme) D {
 						Axis:      layout.Horizontal,
 						Alignment: layout.Middle,
 					}.Layout(gtx,
-						layout.Rigid(material.Switch(th.Theme, &l.openInBrowser, "Open in browser").Layout),
+						layout.Rigid(material.Switch(th.Theme, &l.openInBrowser, i18n.Translate("Open in browser")).Layout),
 					)
 				})
 		}),
@@ -114,7 +114,7 @@ func (l *LspSettingsView) Layout(gtx C, th *theme.Theme) D {
 						Axis:      layout.Horizontal,
 						Alignment: layout.Middle,
 					}.Layout(gtx,
-						layout.Rigid(material.Switch(th.Theme, &l.enablePartialRenderPreview, "Enable partial rendering").Layout),
+						layout.Rigid(material.Switch(th.Theme, &l.enablePartialRenderPreview, i18n.Translate("Enable partial rendering")).Layout),
 					)
 				})
 		}),
@@ -127,7 +127,7 @@ func (l *LspSettingsView) Layout(gtx C, th *theme.Theme) D {
 						Axis:      layout.Horizontal,
 						Alignment: layout.Middle,
 					}.Layout(gtx,
-						layout.Rigid(material.Switch(th.Theme, &l.enableLspLogs, "Enable debug log").Layout),
+						layout.Rigid(material.Switch(th.Theme, &l.enableLspLogs, i18n.Translate("Enable debug log")).Layout),
 					)
 				})
 		}),
@@ -140,7 +140,7 @@ func (l *LspSettingsView) Layout(gtx C, th *theme.Theme) D {
 						Axis:      layout.Horizontal,
 						Alignment: layout.Middle,
 					}.Layout(gtx,
-						layout.Rigid(material.Switch(th.Theme, &l.enablePowerSaving, "Enable power saving").Layout),
+						layout.Rigid(material.Switch(th.Theme, &l.enablePowerSaving, i18n.Translate("Enable power saving")).Layout),
 					)
 				})
 		}),

@@ -54,7 +54,7 @@ func NewSyncView(srv *service.ServiceFacade) *SyncView {
 	return &SyncView{srv: srv}
 }
 
-func (sv *SyncView) Title() string { return i18n.Translate("Đồng bộ") }
+func (sv *SyncView) Title() string { return i18n.Translate("Sync") }
 
 func (sv *SyncView) Layout(gtx C, th *theme.Theme) D {
 	sv.update(gtx)
@@ -64,7 +64,7 @@ func (sv *SyncView) Layout(gtx C, th *theme.Theme) D {
 	rows := []layout.FlexChild{
 		layout.Rigid(func(gtx C) D {
 			label := material.Label(th.Theme, th.TextSize,
-				i18n.Translate("Kết nối tới một máy chủ Typstify tự host khác (ví dụ bản web trên VPS của bạn) để đồng bộ cấu hình (giao diện, editor, Typst, LSP) giữa desktop và web."))
+				i18n.Translate("Connect to a self-hosted Typstify server (e.g. web version on your VPS) to synchronize settings (appearance, editor, Typst, LSP) between desktop and web."))
 			label.LineHeightScale = 1.5
 			return label.Layout(gtx)
 		}),
@@ -92,20 +92,20 @@ func (sv *SyncView) layoutDisconnected(th *theme.Theme) []layout.FlexChild {
 		layout.Rigid(func(gtx C) D {
 			sv.serverURLInput.SingleLine = true
 			sv.serverURLInput.Alignment = text.Start
-			return sv.serverURLInput.Layout(gtx, th, i18n.Translate("Địa chỉ máy chủ, vd: https://typstify.example.com"))
+			return sv.serverURLInput.Layout(gtx, th, i18n.Translate("Server address, e.g. https://typstify.example.com"))
 		}),
 		layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
 		layout.Rigid(func(gtx C) D {
 			sv.passwordInput.SingleLine = true
 			sv.passwordInput.Alignment = text.Start
 			sv.passwordInput.Mask = '*'
-			return sv.passwordInput.Layout(gtx, th, i18n.Translate("Mật khẩu"))
+			return sv.passwordInput.Layout(gtx, th, i18n.Translate("Password"))
 		}),
 		layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
 		layout.Rigid(func(gtx C) D {
-			btn := material.Button(th.Theme, &sv.connectBtn, i18n.Translate("Kết nối"))
+			btn := material.Button(th.Theme, &sv.connectBtn, i18n.Translate("Connect"))
 			if sv.connecting.Load() {
-				btn.Text = i18n.Translate("Đang kết nối...")
+				btn.Text = i18n.Translate("Connecting...")
 			}
 			return btn.Layout(gtx)
 		}),
@@ -115,7 +115,7 @@ func (sv *SyncView) layoutDisconnected(th *theme.Theme) []layout.FlexChild {
 func (sv *SyncView) layoutConnected(th *theme.Theme, rs *settings.RemoteSettings) []layout.FlexChild {
 	return []layout.FlexChild{
 		layout.Rigid(func(gtx C) D {
-			label := material.Label(th.Theme, th.TextSize, i18n.Translate("Đã kết nối tới ")+rs.ServerURL)
+			label := material.Label(th.Theme, th.TextSize, i18n.Translate("Connected to %s", rs.ServerURL))
 			return label.Layout(gtx)
 		}),
 		layout.Rigid(layout.Spacer{Height: unit.Dp(4)}.Layout),
@@ -131,15 +131,15 @@ func (sv *SyncView) layoutConnected(th *theme.Theme, rs *settings.RemoteSettings
 		layout.Rigid(func(gtx C) D {
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 				layout.Rigid(func(gtx C) D {
-					btn := material.Button(th.Theme, &sv.syncBtn, i18n.Translate("Đồng bộ ngay"))
+					btn := material.Button(th.Theme, &sv.syncBtn, i18n.Translate("Sync Now"))
 					if sv.syncing.Load() {
-						btn.Text = i18n.Translate("Đang đồng bộ...")
+						btn.Text = i18n.Translate("Syncing...")
 					}
 					return btn.Layout(gtx)
 				}),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
 				layout.Rigid(func(gtx C) D {
-					return material.Button(th.Theme, &sv.disconnectBtn, i18n.Translate("Ngắt kết nối")).Layout(gtx)
+					return material.Button(th.Theme, &sv.disconnectBtn, i18n.Translate("Disconnect")).Layout(gtx)
 				}),
 			)
 		}),
@@ -150,7 +150,7 @@ func (sv *SyncView) layoutConnected(th *theme.Theme, rs *settings.RemoteSettings
 				sv.remoteAgentToggleInit = true
 			}
 			return material.Switch(th.Theme, &sv.remoteAgentToggle,
-				i18n.Translate("Dùng AI Agent trên máy chủ này thay vì chạy cục bộ")).Layout(gtx)
+				i18n.Translate("Use AI Agent on this server instead of running locally")).Layout(gtx)
 		}),
 	}
 }
@@ -202,7 +202,7 @@ func (sv *SyncView) connect() {
 
 		sv.lastErr = nil
 		sv.passwordInput.SetText("")
-		sv.status = i18n.Translate("Kết nối thành công.")
+		sv.status = i18n.Translate("Connected successfully.")
 		sv.srv.RefreshWindow()
 	}()
 }
@@ -250,7 +250,7 @@ func (sv *SyncView) syncNow() {
 			}
 		}
 		if sv.lastErr == nil {
-			sv.status = i18n.Translate("Đồng bộ xong lúc ") + time.Now().Format("15:04:05")
+			sv.status = i18n.Translate("Synced at %s", time.Now().Format("15:04:05"))
 		}
 		sv.srv.RefreshWindow()
 	}()

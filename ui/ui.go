@@ -169,7 +169,9 @@ func (ui *UI) getWindowSize() (width unit.Dp, height unit.Dp) {
 }
 
 func NewUI(srv *service.ServiceFacade, enableProfiler bool) *UI {
-	i18n.SetLocale(srv.Settings().General().Language)
+	if err := i18n.SetLocale(srv.Settings().General().Language); err != nil {
+		log.Printf("i18n: set locale %q failed: %v", srv.Settings().General().Language, err)
+	}
 	w := &app.Window{}
 
 	appUI := &UI{
@@ -182,7 +184,9 @@ func NewUI(srv *service.ServiceFacade, enableProfiler bool) *UI {
 
 	srv.EventBus().Subscribe(appUI, "ui.onSettingsChanged", `settings\.updated`, func(topic string, data interface{}) {
 		appUI.loadTheme(srv.Settings())
-		i18n.SetLocale(srv.Settings().General().Language)
+		if err := i18n.SetLocale(srv.Settings().General().Language); err != nil {
+			log.Printf("i18n: set locale %q failed: %v", srv.Settings().General().Language, err)
+		}
 		appUI.window.Invalidate()
 	})
 

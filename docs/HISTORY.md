@@ -43,6 +43,17 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-05 — Đợt 2: Cải thiện UI desktop — Việt hoá i18n & chuẩn hoá chuỗi nguồn (đóng ROADMAP A3, A4)
+- **Yêu cầu**: Thêm locale tiếng Việt `vi-VN` vào desktop app, sửa lỗi lệch mã locale (`en-US` vs `en-us`), chuẩn hoá chuỗi nguồn về tiếng Anh, bọc toàn bộ chuỗi còn sót trong `i18n.Translate()`, cập nhật catalog đa ngôn ngữ.
+- **Quyết định & Thực hiện**:
+  1. `i18n/localizer.go`: Thêm `vi-vn` vào `Locales`, chuẩn hoá tìm kiếm mã locale qua `strings.ToLower(strings.TrimSpace(id))` để tương thích cả `en-US` lẫn `en-us`, fallback an toàn `en-us` khi gặp locale lạ.
+  2. Chuẩn hoá chuỗi nguồn trong `ui/settings/sync.go`, `ui/remoteproject/view.go`, `ui/dialog/export.go` sang tiếng Anh chuẩn (`-srclang=en-US`), dùng placeholder format (`%s`, `{ServerURL}`, `{Format150405}`) thay vì nối chuỗi thủ công.
+  3. Bọc các chuỗi switch và tiêu đề còn sót trong `ui/settings/lsp.go`, `ui/settings/subviews.go`, `ui/settings/agent.go`, `ui/assistant/chat.go`, `ui/pkgmgmt/manage.go`, `ui/pkgmgmt/card.go`, `ui/editors/typst_view.go`, `ui/editors/generic_text_view.go`, `ui/viewer/image_view.go`, `ui/crash_report.go`, `ui/assistant/sessions.go` qua `i18n.Translate()`.
+  4. Tạo catalog `vi-VN/messages.gotext.json` với bản dịch tiếng Việt đầy đủ và chính xác cho toàn bộ giao diện; cập nhật `catalog.go` sinh tự động qua `gotext`.
+  5. Cập nhật `service/settings/models.go`: mặc định `Language: "en-us"`, ưu tiên `Roboto Mono` trong `TypeFace` để hỗ trợ dấu tiếng Việt đầy đủ.
+- **Kiểm chứng**: Unit test `TestVietnameseLocale` & `TestEnglishLocale` PASS; toàn bộ test `service/settings`, `editor`, `utils` PASS; `go build` sinh `typstify.exe` thành công.
+- **File đã đổi**: `i18n/localizer.go`, `i18n/localizer_test.go`, `i18n/translations/translations.go`, `i18n/translations/catalog.go`, `i18n/translations/locales/vi-VN/messages.gotext.json`, `service/settings/models.go`, `ui/ui.go`, `ui/settings/sync.go`, `ui/remoteproject/view.go`, `ui/dialog/export.go`, `ui/settings/lsp.go`, `ui/settings/subviews.go`, `ui/settings/agent.go`, `ui/assistant/chat.go`, `ui/pkgmgmt/manage.go`, `ui/pkgmgmt/card.go`, `ui/editors/typst_view.go`, `ui/editors/generic_text_view.go`, `ui/viewer/image_view.go`, `ui/crash_report.go`, `ui/assistant/sessions.go`, `docs/ROADMAP.md`, `docs/HISTORY.md`.
+
 ### 2026-10-05 — Đồng bộ file một chiều Local -> VPS (typstify-server)
 - **Yêu cầu**: thay Dropbox (hay hết hạn access token) bằng đồng bộ file trực tiếp từ desktop lên VPS chạy `typstify-server`, xác thực bằng Bearer token.
 - **Quyết định**:

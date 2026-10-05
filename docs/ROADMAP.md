@@ -8,8 +8,8 @@ Nguồn: khảo sát mã nguồn 2026-09-29 và `docs/plans/plan_codebase_review
 |---|---|---|---|---|
 | A1 | Preview SVG trên web chưa có click-to-source (chỉ iframe tinymist có) | `web/src/components/PreviewPane.tsx`, `server/preview_render.go` | Thêm bản đồ nguồn (typst `query`/span) hoặc chuyển chế độ tinymist làm mặc định khi cần nhảy về nguồn | Click vào chữ trong preview → editor nhảy đúng dòng |
 | A2 | Desktop chưa dùng anchors heading thật (chỉ web) | `typst.QueryHeadingPages` chỉ được `server/preview_anchors.go` gọi | Cân nhắc dùng cho desktop nếu tinymist scroll chưa đủ chính xác | So vị trí cuộn với tài liệu nhiều trang |
-| A3 | i18n desktop thiếu tiếng Việt (chỉ en-US, zh-CN, de-DE); web có `vi.ts` | `i18n/translations/locales/` | Thêm `vi-VN/messages.gotext.json` | Đổi ngôn ngữ trong Settings hiện tiếng Việt |
-| A4 | `docs/architecture_and_guide.md` nói i18n có tiếng Việt | file đó, mục bảng `i18n/` | Sửa cho khớp hoặc làm xong A3 | Tài liệu khớp mã |
+| A3 | (Đã hoàn thành) i18n desktop tiếng Việt | `i18n/translations/locales/vi-VN/` | Thêm `vi-VN/messages.gotext.json`, chuẩn hoá chuỗi nguồn & catalog | Đổi ngôn ngữ trong Settings hiện tiếng Việt đầy đủ |
+| A4 | (Đã hoàn thành) Tài liệu i18n tiếng Việt | `i18n/`, `docs/architecture_and_guide.md` | Đã hỗ trợ tiếng Việt đầy đủ và khớp với mã nguồn | Tài liệu khớp mã |
 | A5 | Agent từ xa: title, usage, available commands không đi qua WebSocket | `agent/remote_session.go` | Mở rộng giao thức `/ws/agent` | Phiên remote hiện đủ thông tin như local |
 | A6 | Không có Justfile/Makefile | gốc repo | Thêm target build/test/run thống nhất | `just test` chạy đủ Go + web |
 | A7 | (Đã hoàn thành) `docs/CHESSBOOK.md` | `docs/` | Đã viết đầy đủ tài liệu API, tham số, thuật toán và ví dụ | Mục lục `docs/README.md` đã có |

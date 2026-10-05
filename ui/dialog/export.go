@@ -106,11 +106,11 @@ func (d *ExportDialog) OnConfirm() error {
 		d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: i18n.Translate("Exporting file...")})
 		err := compiler.Compile(params)
 		if err != nil {
-			d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: "File export error: " + err.Error()})
+			d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: i18n.Translate("File export error: %s", err.Error())})
 			return
 		}
 
-		msg := fmt.Sprintf("Files exported to %s", params.OutDir)
+		msg := i18n.Translate("Files exported to %s", params.OutDir)
 		d.srv.EventBus().Emit(bus.TopicStatusbarNotifyEvent, statusbar.Notification{Content: msg})
 
 	}()

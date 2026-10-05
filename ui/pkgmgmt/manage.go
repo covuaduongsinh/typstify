@@ -56,7 +56,7 @@ func (vw *PkgListView) ID() view.ViewID {
 }
 
 func (vw *PkgListView) Title() string {
-	return "Typst Packages"
+	return i18n.Translate("Typst Packages")
 }
 
 func (vw *PkgListView) OnNavTo(intent view.Intent) error {

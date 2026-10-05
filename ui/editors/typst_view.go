@@ -94,7 +94,7 @@ func (te *TypstEditor) ID() view.ViewID {
 
 func (te *TypstEditor) Title() string {
 	if te.targetFile == "" {
-		return "Typst Editor"
+		return i18n.Translate("Typst Editor")
 	} else {
 		return filepath.Base(te.targetFile)
 	}

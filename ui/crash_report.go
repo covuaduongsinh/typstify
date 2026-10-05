@@ -72,7 +72,7 @@ func (cr *CrashReport) Layout(gtx C, th *theme.Theme) D {
 					}),
 					layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 					layout.Rigid(func(gtx C) D {
-						header := material.H5(th.Theme, "Typstify Crashed!")
+						header := material.H5(th.Theme, i18n.Translate("Typstify Crashed!"))
 						header.Alignment = text.Middle
 						return header.Layout(gtx)
 					}),
@@ -95,7 +95,7 @@ func (cr *CrashReport) Layout(gtx C, th *theme.Theme) D {
 					layout.Rigid(layout.Spacer{Width: unit.Dp(16)}.Layout),
 
 					layout.Rigid(func(gtx C) D {
-						btn := material.Button(th.Theme, &cr.restartBtn, "Restart")
+						btn := material.Button(th.Theme, &cr.restartBtn, i18n.Translate("Restart"))
 						btn.Inset = layout.UniformInset(unit.Dp(6))
 						return btn.Layout(gtx)
 					}),
