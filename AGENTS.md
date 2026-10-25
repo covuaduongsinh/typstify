@@ -26,7 +26,8 @@ Desktop và server dùng chung `service.ServiceFacade` (không phụ thuộc Gio
 | `typst/` | Bọc CLI `typst` (compile/watch/eval/query), `export.CompileHelper`, `pkg/` (Tpix) |
 | `editor/` | Editor lõi: autosave, git gutter diff, highlight, search |
 | `ui/` | Giao diện Gio: `editors`, `preview`, `navpanel`, `pkgmgmt`, `assistant`, `settings`, `dialog`, `remoteproject` |
-| `web/` | Frontend React (`src/components`, `src/lib`, `src/api`) |
+| `web/` | Frontend React (`src/components`, `src/lib`, `src/api`), PWA (`src/sw`, `public/manifest.webmanifest`) |
+| `apps/tauri/` | Ứng dụng desktop Tauri 2: vỏ Rust chạy `typstify-server` kèm theo (sidecar) và mở giao diện web (`src-tauri/src/main.rs`, `scripts/prepare.ps1`) |
 | `chessbook/` | Thư viện Typst cờ vua: `lib/`, `templates/`, `data/`, `demo_collection/` |
 | `i18n/`, `fonts/` | i18n desktop (en-US, zh-CN, de-DE); font nhúng của UI desktop |
 | `scripts/` | `check-chessbook.sh`, `install-chessbook.sh/.ps1` |
@@ -47,6 +48,7 @@ go test ./...                              # package UI desktop cần header X11
 scripts/check-chessbook.sh                 # biên dịch mọi demo/template chessbook
 powershell -File scripts/package-desktop.ps1 -Version 0.1.0   # bộ cài Windows -> dist/
 docker compose up -d --build               # server + Caddy TLS
+powershell -File apps/tauri/scripts/prepare.ps1 && cd apps/tauri && npm ci && npx tauri build   # desktop Tauri (Windows) -> src-tauri/target/release/bundle
 ```
 
 Không có Justfile/Makefile. Bản desktop phát hành cần `gogio` và CGO. CI: `.github/workflows/ci.yml`.

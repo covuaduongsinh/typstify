@@ -10,6 +10,7 @@ type Screen =
   | { kind: 'loading' }
   | { kind: 'unreachable' }
   | { kind: 'login' }
+  | { kind: 'desktopSignedOut' }
   | { kind: 'pickProject' }
   | { kind: 'workspace'; path: string; openFile?: string }
 
@@ -42,7 +43,9 @@ function App() {
         if (!current) return
         failuresRef.current = 0
         if (!status.authenticated) {
-          setScreen({ kind: 'login' })
+          // The desktop app signs in once at launch; its account has no
+          // password anyone knows.
+          setScreen(status.desktop ? { kind: 'desktopSignedOut' } : { kind: 'login' })
           return
         }
         await afterLogin()
@@ -125,6 +128,13 @@ function App() {
           >
             Thử lại
           </button>
+        </div>
+      )
+    case 'desktopSignedOut':
+      return (
+        <div className="entry-page app-unreachable" role="alert">
+          <h1>Phiên làm việc đã kết thúc</h1>
+          <p>Hãy đóng rồi mở lại ứng dụng để tiếp tục.</p>
         </div>
       )
     case 'login':

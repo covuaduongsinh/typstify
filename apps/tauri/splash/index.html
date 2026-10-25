@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dương Sinh Chess Studio</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font-family: 'Segoe UI', Roboto, sans-serif;
+        background: #2b3990;
+        color: #fff;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        text-align: center;
+        padding: 0 24px;
+        box-sizing: border-box;
+      }
+      .board {
+        display: grid;
+        grid-template-columns: repeat(4, 12px);
+        gap: 0;
+      }
+      .board span {
+        width: 12px;
+        height: 12px;
+      }
+      .board .g {
+        background: #c9a227;
+      }
+      #status {
+        font-size: 14px;
+        opacity: 0.9;
+        white-space: pre-line;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="board" aria-hidden="true">
+      <span class="g"></span><span></span><span class="g"></span><span></span>
+      <span></span><span class="g"></span><span></span><span class="g"></span>
+    </div>
+    <strong>Dương Sinh Chess Studio</strong>
+    <div id="status">Đang khởi động…</div>
+  </body>
+</html>

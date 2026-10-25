@@ -21,10 +21,13 @@ import (
 	"looz.ws/typstify/typst"
 )
 
+// The first initialize has to wait out a slow tinymist start (antivirus
+// scanning a freshly installed, unsigned exe can take tens of seconds): once
+// it times out the stdio pipes are closed, so a retry can never succeed.
 var (
-	StartTimeout         = 30 * time.Second
+	StartTimeout         = 60 * time.Second
 	ConnectTimeout       = 1000 * time.Millisecond
-	InitializeTimeout    = 15 * time.Second
+	InitializeTimeout    = 45 * time.Second
 	CommunicationTimeout = 1000 * time.Millisecond
 )
 

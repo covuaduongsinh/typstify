@@ -28,6 +28,10 @@ Lỗi trả về JSON `{"error": "..."}`. Riêng render preview trả HTTP 200 v
 | POST | `/api/auth/mfa/enable` | `{code, password}`: bật MFA, trả 10 `recoveryCodes` (chỉ hiện một lần), đăng xuất các phiên khác |
 | POST | `/api/auth/mfa/disable` | `{password, code}`: tắt MFA (có giới hạn tần suất), đăng xuất các phiên khác |
 
+`GET /api/auth/launch?token=` (không cần đăng nhập): chỉ dùng cho ứng dụng desktop (`apps/tauri`). Token so khớp `TYPSTIFY_LAUNCH_TOKEN` của tiến trình server, dùng được **một lần** trong 5 phút đầu (sai hoặc đã dùng thì 403, chỉ bị trễ chứ không tính vào giới hạn theo IP). Tạo phiên (cookie `SameSite=Strict`) cho tài khoản chốt lúc server khởi động: `desktop` (tự tạo, quản trị, mật khẩu ngẫu nhiên) hoặc tài khoản quản trị đã có từ trước, rồi chuyển hướng về `/`.
+
+Chế độ desktop (có `TYPSTIFY_LAUNCH_TOKEN`): xác thực luôn bật; `POST /api/auth/register` cần phiên đăng nhập (không có đăng ký bootstrap); mọi yêu cầu phải có `Host` là `127.0.0.1`/`localhost`/`::1` (chống DNS rebinding), yêu cầu ghi có `Origin` khác `http://<Host>` bị từ chối (chống CSRF); `/api/auth/status` trả thêm `desktop: true`; server in `TYPSTIFY_READY <địa chỉ>` ra stdout sau khi đã giữ cổng (bind độc quyền `SO_EXCLUSIVEADDRUSE` trên Windows).
+
 `POST /api/auth/login` và `POST /api/auth/token` nhận thêm `code` (mã TOTP hoặc mã khôi phục). Tài khoản đã bật MFA mà thiếu hoặc sai mã thì nhận 401 kèm `{"mfaRequired": true}`. `GET /api/auth/status` có thêm `admin`, `mfaEnabled`.
 
 ## Project, thành viên, chia sẻ (`server/projects_api.go`)

@@ -44,6 +44,25 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-25 — Giai đoạn 7b: ứng dụng desktop Tauri 2
+- **Yêu cầu**: làm tiếp Giai đoạn 7b; chủ dự án chọn build với cấu hình Cargo mặc định. Chi tiết ở `docs/plans/plan_phase7b_tauri_desktop.md`.
+- **Đã làm**:
+  1. `apps/tauri`: vỏ Tauri 2 (Rust, tauri 2.12.2) không có giao diện riêng: cửa sổ mở giao diện web do `typstify-server` chạy kèm phục vụ trên `127.0.0.1`, nên web và desktop dùng chung một mã nguồn. Typst, tinymist, gói chessbook và board-n-pieces đi kèm (chạy offline).
+  2. Đăng nhập không cần mật khẩu nhưng vẫn an toàn: token ngẫu nhiên mỗi lần mở, truyền qua biến môi trường, đổi lấy phiên ở `GET /api/auth/launch` (`server/launch.go`); có token thì server luôn bật xác thực, trang web khác trên máy không dùng được cổng cục bộ.
+  3. Một phiên bản duy nhất; Job Object dừng server, tinymist, typst khi app thoát hoặc bị giết; cổng được nhớ để dữ liệu trình duyệt của giao diện không mất giữa các lần mở; màn hình chờ báo lỗi kèm đường dẫn nhật ký.
+  4. `scripts/prepare.ps1` chuẩn bị sidecar và tài nguyên; `npx tauri build` ra bộ cài NSIS (khoảng 56 MB).
+- **Kiểm chứng**: test Go (token sai/thiếu bị từ chối, xác thực luôn bật, tạo tài khoản `desktop` hoặc dùng quản trị sẵn có); `cargo check` không cảnh báo; chạy bản build: server khởi động, cửa sổ đi qua `/api/auth/launch` và tải workspace, `/api/workspace/tree` không có phiên trả 401, token sai trả 403, token không hiện trên dòng lệnh; đóng app hoặc giết app thì không còn tiến trình nào; mở lần hai chỉ đưa cửa sổ cũ lên.
+- **Rà soát bảo mật và đã sửa** (2 lỗi cao, 3 trung bình):
+  - lần chạy đầu, kho tài khoản rỗng: trong lúc cửa sổ chưa kịp mở, người khác trên máy (hoặc một trang web) có thể đăng ký trước và thành tài khoản quản trị mà cửa sổ đăng nhập vào. Nay tài khoản được chốt trước khi server nghe cổng, chế độ desktop không cho đăng ký khi chưa có phiên, kiểm tra `Host`/`Origin` chống DNS rebinding và CSRF;
+  - kẻ khác chiếm cổng đã nhớ trước khi server bind thì cửa sổ (kèm token) đi tới chương trình của họ: nay server bind độc quyền rồi mới in `TYPSTIFY_READY`, vỏ chỉ mở cửa sổ khi đọc được dòng đó đúng cổng;
+  - trang web liên tục gửi token sai có thể khoá IP `127.0.0.1` và chặn cửa sổ thật: nay token sai chỉ bị trễ;
+  - gán vào Job Object lỗi thì server mồ côi: nay dừng ngay;
+  - token dùng lại được suốt đời server (và nằm trong lịch sử WebView2): nay dùng một lần, hạn 5 phút; mất phiên thì giao diện bảo mở lại app;
+  - cửa sổ không giới hạn điều hướng: link ngoài mở bằng trình duyệt hệ thống (`tauri-plugin-opener`), chỉ trang của chính app mới mở trong app;
+  - `board-n-pieces` tải về không kiểm SHA-256 (nay ghim, mọi tệp tải đều bắt buộc có SHA); `npm ci` luôn chạy; thông báo lỗi đưa vào trang qua `serde_json`; mutex bị poison không làm hỏng việc dừng server.
+- **Sửa khi chạy thử bản phát hành**: tinymist không bao giờ kết nối được trong app. `initialize` mất khoảng 16 giây (quét font hệ thống và thư mục dự án, Defender quét exe mới chưa ký số, máy thiếu RAM) nên vượt hạn 15 giây; sau lần đầu, pipe stdio đã đóng nên mọi lần thử lại đều hỏng (`file already closed`). Nâng `lsp.InitializeTimeout` lên 45 giây và `StartTimeout` lên 60 giây.
+- **Còn mở**: chưa ký số (SmartScreen sẽ cảnh báo); chưa có CI build Tauri; chưa chạy `cargo audit`/`govulncheck`; font in ấn của chessbook dùng font hệ thống (bản Docker thì đóng gói sẵn); chỉ Windows; Giai đoạn 7c (mobile).
+
 ### 2026-10-25 — Giai đoạn 7a: PWA
 - **Yêu cầu**: tiếp theo thứ tự đã chốt (Giai đoạn 7, PWA trước Tauri); chi tiết ở `docs/plans/plan_phase7_pwa.md`.
 - **Đã làm**:

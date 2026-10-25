@@ -65,6 +65,13 @@ type session struct {
 type authManager struct {
 	password   string
 	storageDir string
+	// Desktop mode (apps/tauri, launch.go): authentication is always on,
+	// nobody registers without a session, and launchToken (once, until
+	// launchExpires) signs the window in as launchUser.
+	desktopMode   bool
+	launchToken   string
+	launchUser    string
+	launchExpires time.Time
 
 	mu        sync.Mutex
 	users     map[string]User
@@ -89,7 +96,7 @@ func newAuthManager(password string, storageDir string) *authManager {
 func (a *authManager) enabled() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.password != "" || len(a.users) > 0
+	return a.password != "" || a.desktopMode || len(a.users) > 0
 }
 
 func (a *authManager) usersCount() int {
@@ -390,7 +397,12 @@ func (a *authManager) handleRegister(w http.ResponseWriter, r *http.Request) {
 	// Registration Policy:
 	// 1. If no users exist yet (Bootstrap mode / Server Owner): allow registration.
 	// 2. If users exist: require either an authenticated session/token OR valid server password.
-	if a.usersCount() > 0 {
+	a.mu.Lock()
+	desktop := a.desktopMode
+	a.mu.Unlock()
+	// The desktop app's account exists from the start (launch.go); there is
+	// no bootstrap registration on a desktop sidecar.
+	if a.usersCount() > 0 || desktop {
 		hasAuth := a.validRequest(r)
 		hasServerPass := a.password != "" && req.ServerPassword != "" &&
 			subtle.ConstantTimeCompare([]byte(req.ServerPassword), []byte(a.password)) == 1
@@ -659,5 +671,12 @@ func (a *authManager) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"hasUsers":      a.usersCount() > 0,
 		"admin":         authenticated && a.isAdmin(sess.Username),
 		"mfaEnabled":    mfaEnabled,
+		"desktop":       a.isDesktop(),
 	})
+}
+
+func (a *authManager) isDesktop() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.desktopMode
 }

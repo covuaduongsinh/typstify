@@ -18,6 +18,7 @@ File này gom những điều không suy ra được từ đọc mã một lần
 
 ## Cạm bẫy đã biết
 **Desktop / LSP**
+- Kết nối tinymist qua stdio chỉ có một lần: `initialize` quá hạn thì pipe bị đóng, các lần thử lại trong `Client.Connect` không thể thành công. Lần khởi động đầu có thể mất hơn 15 giây (quét font, antivirus quét exe mới), nên `InitializeTimeout` để 45 giây.
 - `tinymist.doKillPreview` phải truyền id `"default_preview"`; gọi không tham số thì lỗi.
 - Callback `window/showDocument` chạy trên goroutine LSP: sau `NavigateToLine` phải `RefreshWindow()`; và luôn trả `ShowDocumentResult` vì đó là request.
 - `bus.Subscribe` panic nếu đăng ký trùng khoá `%p:name`.
@@ -31,6 +32,7 @@ File này gom những điều không suy ra được từ đọc mã một lần
 - Trong Chrome tự động hoá (Claude in Chrome), trình duyệt cắt WebSocket sau khoảng 15 giây kể cả với server tối giản; đừng nhầm là lỗi của `/ws/lsp` hay `/ws/collab`.
 - Worker WASM tải font từ CDN phải dùng `credentials: 'same-origin'`: CDN trả `Access-Control-Allow-Origin: *`, yêu cầu kèm credentials bị chặn và font bị bỏ qua mà không báo lỗi.
 - typst.ts nhớ câu trả lời "không có tệp": phải có danh sách tệp trước lần biên dịch đầu, và `compiler.reset()` khi tệp thêm/bớt (`setManifest` trả `true`).
+- Desktop Tauri (`apps/tauri`): server chạy kèm trên `127.0.0.1` với cổng được nhớ trong `<app config>/port.txt` (đổi cổng là mất localStorage/IndexedDB/Cache Storage của giao diện, vì chúng theo origin). Token khởi động đi qua biến môi trường, không qua tham số. Job Object (`KILL_ON_JOB_CLOSE`) bảo đảm server, tinymist, typst dừng theo app kể cả khi app bị giết. Nhật ký server: `%LOCALAPPDATA%\vn.duongsinh.chessstudio\logs\typstify-server.log`. Không chạy cùng lúc với bản Gio hay một `typstify-server` khác dùng chung thư mục cấu hình (bbolt chỉ mở được một lần).
 - Máy chủ chỉ trả `index.html` cho đường dẫn kiểu route (không đuôi tệp); tệp không tồn tại (`/assets/*`, `*.js`, …) là 404. Đừng bỏ quy tắc này: service worker và trình duyệt sẽ lưu HTML dưới tên script.
 - Service worker (`web/src/sw/sw.ts` → `dist/sw.js`): không bao giờ cache `/api`, `/ws`, `/preview`; `.wasm` không cache sẵn khi cài (khoảng 30 MB) mà cache lần đầu dùng. Bản mới chỉ kích hoạt khi người dùng bấm "Tải lại" (`SKIP_WAITING`). Thử trên Chrome của người dùng xong thì gỡ đăng ký (`navigator.serviceWorker.getRegistrations()` → `unregister`) để không ảnh hưởng cổng đó về sau.
 - Chính tả: CodeMirror đặt `spellcheck=false` cho nội dung; chỉ các span văn bản được đánh dấu `spellcheck="true" lang="vi"`. Không đóng gói `dictionary-vi` (GPL).

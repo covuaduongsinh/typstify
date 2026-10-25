@@ -44,6 +44,10 @@ type Options struct {
 	// registry are stored (default: the General settings' RootDir). Tests
 	// point it at a temporary directory.
 	StorageDir string
+	// LaunchToken, set by the desktop app (apps/tauri) for its sidecar,
+	// signs its window in through /api/auth/launch (launch.go). It also
+	// turns authentication on even without a password or accounts.
+	LaunchToken string
 }
 
 // Server is the HTTP/WebSocket API described in Giai doan 1 of
@@ -142,6 +146,11 @@ func New(appSrv *service.ServiceFacade, opts Options) *Server {
 		compileSlots: make(chan struct{}, maxConcurrentCompiles),
 		wasmFonts:    wasmassets.NewFontIndex(),
 	}
+	if opts.LaunchToken != "" {
+		if err := s.auth.prepareLaunch(opts.LaunchToken); err != nil {
+			log.Printf("desktop launch: %v", err)
+		}
+	}
 	s.wasmPackages = s.newWasmPackages()
 	s.universe, s.universeThumbs = newUniverse(storageDir)
 	s.collab = s.newCollabHub()
@@ -160,7 +169,11 @@ func New(appSrv *service.ServiceFacade, opts Options) *Server {
 
 // Handler returns the root http.Handler to pass to http.Server.
 func (s *Server) Handler() http.Handler {
-	return withLogging(withBodyLimit(s.mux))
+	h := withBodyLimit(s.mux)
+	if s.opts.LaunchToken != "" {
+		h = desktopGuard(h)
+	}
+	return withLogging(h)
 }
 
 func (s *Server) routes() {
@@ -168,6 +181,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/health", handleHealth)
 	s.mux.HandleFunc("POST /api/auth/register", s.auth.handleRegister)
 	s.mux.HandleFunc("POST /api/auth/login", s.auth.handleLogin)
+	s.mux.HandleFunc("GET /api/auth/launch", s.auth.handleLaunch)
 	s.mux.HandleFunc("POST /api/auth/logout", s.auth.handleLogout)
 	s.mux.HandleFunc("GET /api/auth/status", s.auth.handleStatus)
 	s.handle("POST /api/auth/change-password", s.auth.handleChangePassword)

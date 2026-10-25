@@ -66,6 +66,8 @@ export interface AuthStatus {
   /** Admins manage every project and the server-wide settings. */
   admin?: boolean
   mfaEnabled?: boolean
+  /** The desktop app's server (apps/tauri): sign-in happens at launch. */
+  desktop?: boolean
 }
 
 // Mirrors service/projects (Role, Project, ShareLink) and server/projects_api.go.

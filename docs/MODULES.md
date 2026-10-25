@@ -43,6 +43,14 @@ Tài liệu này liệt kê từng module theo thư mục. Phần **Desktop / l�
 | `previewer.go` | `PreviewService`: `Start`, `ScrollOnSelectionChange`, chế độ `document`/`slide` |
 | `document.go`, `protocol/` | Bộ đệm tài liệu; kiểu LSP sinh tự động (`ts*.go`) |
 
+### `apps/tauri/` — ứng dụng desktop Tauri 2
+| Tệp | Nội dung |
+|---|---|
+| `src-tauri/src/main.rs` | Chọn cổng (nhớ qua các lần mở), tạo token khởi động, chạy `typstify-server` kèm theo (ẩn cửa sổ console, ghi nhật ký), chờ cổng mở rồi mở cửa sổ chính tới `/api/auth/launch`, một phiên bản duy nhất, Job Object dừng cả cây tiến trình khi thoát |
+| `src-tauri/tauri.conf.json` | `externalBin` (typstify-server, typst, tinymist), `resources` (`web/`, `packages/`), bộ cài NSIS |
+| `scripts/prepare.ps1` | Build server, tải typst/tinymist (kiểm SHA-256), build web, chép gói chessbook + board-n-pieces vào `src-tauri/{binaries,resources}` |
+| `splash/index.html` | Màn hình chờ trong lúc server khởi động; báo lỗi kèm đường dẫn nhật ký |
+
 ### `service/`
 | Gói / file | Nội dung |
 |---|---|
