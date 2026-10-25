@@ -44,6 +44,26 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-25 — Giai đoạn 7a: PWA
+- **Yêu cầu**: tiếp theo thứ tự đã chốt (Giai đoạn 7, PWA trước Tauri); chi tiết ở `docs/plans/plan_phase7_pwa.md`.
+- **Đã làm**:
+  1. `public/manifest.webmanifest` + icon PNG 192/512, maskable và `apple-touch-icon` (vẽ lại logo từ `favicon.svg`).
+  2. Service worker tự viết (`src/sw/sw.ts`), không thêm Workbox: plugin Vite build ra `/sw.js` và chèn danh sách tệp cần cache sẵn cùng mã phiên bản. Trang: mạng trước, mất mạng dùng bản cache; `/assets/*`: cache trước; Google Fonts và tệp gốc: dùng cache rồi cập nhật nền; `/api`, `/ws`, `/preview` không bao giờ qua cache; `.wasm` chỉ cache khi dùng lần đầu.
+  3. Bản mới không tự thay bản đang chạy: hiện "Có phiên bản mới, Tải lại"; khi tab được mở lại thì kiểm tra cập nhật.
+  4. Màn hình "Không kết nối được máy chủ" (thay vì chuyển về đăng nhập) khi máy chủ không phản hồi hoặc proxy trả 5xx, tự thử lại khi có mạng; thanh báo "Đang ngoại tuyến".
+- **Kiểm chứng**: vitest cho chọn chiến lược và danh sách cache sẵn; build kiểm tra placeholder đã được thay. Chạy thật trong Chrome: service worker kích hoạt và cache 36 tệp; tắt máy chủ rồi tải lại vẫn ra giao diện kèm màn hình mất kết nối, bật lại thì tự vào workspace; đổi `sw.js` thì hiện nút "Tải lại", bấm thì chạy bản mới. Service worker thử nghiệm đã được gỡ khỏi Chrome sau khi thử.
+- **Rà soát độc lập và đã sửa** (3 lỗi cao, 5 trung bình):
+  - máy chủ trả `index.html` (200) cho mọi đường dẫn không tồn tại, kể cả `/assets/x.js` đã bị xoá sau khi triển khai lại: service worker (và trình duyệt) lưu trang HTML dưới tên một script, hỏng vĩnh viễn. Nay đường dẫn có đuôi tệp hoặc dưới `/assets/` mà không có tệp thì trả 404 (`isMissingFile`, `server/server.go`); service worker chỉ lưu phản hồi đúng loại (HTML cho trang, không phải HTML cho tệp khác), bỏ qua 206/Range;
+  - tab khác hỏng sau khi một tab bấm "Tải lại" (cache phiên bản cũ bị xoá, nút "Tải lại" ở tab đó không làm gì): nay giữ cache của phiên bản trước, tab khác hiện "Ứng dụng đã được cập nhật ở một tab khác", nút luôn tải lại được;
+  - máy chủ sập sau Caddy (502/503) thì trả trang lỗi của proxy: nay trả giao diện đã cache;
+  - cài đặt luôn "thành công" dù thiếu tệp rồi xoá bản đầy đủ: nay cài là tất cả hoặc không gì;
+  - mọi trang 200 ghi đè giao diện cache (kể cả mở `/sw.js` trong tab, hoặc `/?join=<token>` lưu cả token): nay chỉ dùng bản `index.html` cache sẵn của đúng phiên bản;
+  - `.wasm` (30 MB) mất sau mỗi lần triển khai: nay chép sang cache của phiên bản mới;
+  - plugin build: báo lỗi nếu `sw.js` bị tách ra nhiều chunk; mã phiên bản tính trên nội dung (cả `public/`);
+  - Google Fonts tải có `crossorigin` (không còn phản hồi opaque), cache runtime giới hạn 80 mục;
+  - màn hình mất kết nối: chỉ 401/403 mới về đăng nhập, tự thử lại sau 5, 10, 20… tối đa 60 giây, hai lần thử không chạy chồng nhau.
+- **Còn mở**: mở dự án khi hoàn toàn ngoại tuyến (danh sách tệp, nội dung tệp chưa mở) vẫn cần máy chủ; Tauri desktop và mobile (7b, 7c).
+
 ### 2026-10-25 — Giai đoạn 5: template và Typst Universe
 - **Yêu cầu**: "tiếp" theo thứ tự đã chốt; chi tiết ở `docs/plans/plan_phase5_templates.md`.
 - **Đã làm**:

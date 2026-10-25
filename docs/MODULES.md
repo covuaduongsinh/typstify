@@ -129,6 +129,7 @@ Không router, không thư viện state. `App.tsx` là máy trạng thái loadin
   - Agent: `AgentChat`, `AgentSessionHistory`, `AgentRegistryPicker`, `AuthCard`.
   - Cờ vua / nhập liệu: `ChessToolbar`, `ChessBoardModal`, `PgnImportModal`, `DataImportModal`, `MarkdownImportModal`.
   - Dropbox: `DropboxSyncModal`, `DropboxImportModal`. Cài đặt: `SettingsPanel`, `PackageManager` (tìm qua chỉ mục Universe, chèn `#import`, `PackageDocs` hiển thị README). Đăng nhập: `LoginPage`, `BrandMark`.
+  - PWA: `PwaBanners` (ngoại tuyến, có bản mới). Service worker ở `src/sw/sw.ts` (tsconfig riêng `tsconfig.sw.json`), plugin trong `vite.config.ts` build ra `dist/sw.js` kèm danh sách cache sẵn; `lib/swStrategy.ts` chọn cách trả lời theo URL, `lib/pwa.ts` đăng ký và theo dõi bản mới.
   - Tải lười (lazy chunk): Editor, AgentChat, PackageManager, SettingsPanel, ChessBoardModal, các modal import, DropboxSyncModal.
 - `lib/`:
   - Mạng: `agentClient.ts` (`/ws/agent`, tự tạo message `disconnected`), `lspClient.ts` (`/ws/lsp`, nối lại 1–15 giây), `acpTypes.ts`.

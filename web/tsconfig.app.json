@@ -22,5 +22,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // The service worker has its own lib (WebWorker): tsconfig.sw.json.
+  "exclude": ["src/sw"]
 }

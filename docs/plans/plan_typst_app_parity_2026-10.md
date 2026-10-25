@@ -26,6 +26,9 @@
 - [x] Giai đoạn 6 (2026-10-25; spellcheck dùng từ điển trình duyệt vì giấy phép, chưa có vẽ tay tìm ký hiệu)
 - [x] Giai đoạn 5 (2026-10-25; thư viện mẫu cờ vua + Universe, tạo dự án từ template, tài liệu gói và chèn `#import`)
 - [ ] Giai đoạn 7 (PWA trước, Tauri sau)
+  - [x] 7a PWA (2026-10-25; chi tiết: [plan_phase7_pwa.md](plan_phase7_pwa.md)): manifest, service worker tự viết, cập nhật có nút tải lại, màn hình mất kết nối
+  - [ ] 7b Tauri 2 desktop (sidecar `typstify-server`)
+  - [ ] 7c Tauri 2 mobile
 - [ ] Giai đoạn 3b: mỗi người một project cùng lúc (tách `ServiceFacade` theo project)
 
 ### Thứ tự thực hiện (chốt 2026-10-25)

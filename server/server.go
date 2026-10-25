@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -359,9 +360,23 @@ func (s *Server) staticHandler() http.Handler {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
+		// The SPA fallback is for client routes only. A missing file (a
+		// build asset gone after a redeploy, /sw.js after a rollback) must
+		// be a 404: index.html under a script's URL would be cached as that
+		// script by the browser and the service worker.
+		if isMissingFile(r.URL.Path) {
+			http.NotFound(w, r)
+			return
+		}
 		w.Header().Set("Cache-Control", "no-cache")
 		http.ServeFile(w, r, indexFile)
 	})
+}
+
+// isMissingFile reports whether a path that matched no file names a file
+// (under /assets/, or with an extension) rather than a client route.
+func isMissingFile(urlPath string) bool {
+	return strings.HasPrefix(urlPath, "/assets/") || path.Ext(urlPath) != ""
 }
 
 func withLogging(next http.Handler) http.Handler {
