@@ -24,7 +24,7 @@
   - [x] Lịch sử phiên bản: tự chụp 5 phút, phiên bản có tên, xem khác biệt, khôi phục tệp/cả phiên bản
   - [x] Đồng bộ Git (go-git): commit, push, pull, chọn bên khi hai bên cùng đổi
 - [x] Giai đoạn 6 (2026-10-25; spellcheck dùng từ điển trình duyệt vì giấy phép, chưa có vẽ tay tìm ký hiệu)
-- [ ] Giai đoạn 5
+- [x] Giai đoạn 5 (2026-10-25; thư viện mẫu cờ vua + Universe, tạo dự án từ template, tài liệu gói và chèn `#import`)
 - [ ] Giai đoạn 7 (PWA trước, Tauri sau)
 - [ ] Giai đoạn 3b: mỗi người một project cùng lúc (tách `ServiceFacade` theo project)
 

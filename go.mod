@@ -22,6 +22,7 @@ require (
 	github.com/mustafaturan/bus/v3 v3.0.3
 	github.com/oligo/gioview v0.9.2
 	github.com/oligo/gvcode v0.8.2-0.20260801080326-94147949d81e
+	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/pkg/errors v0.9.1
 	github.com/rivo/uniseg v0.4.7
 	github.com/rogpeppe/go-internal v1.14.1
@@ -64,7 +65,6 @@ require (
 	github.com/inkeliz/go_inkwasm v0.1.23-0.20240519174017-989fbe5b10f6 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pjbgf/sha1cd v0.7.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/rdleal/intervalst v1.5.0 // indirect

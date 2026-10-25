@@ -103,10 +103,7 @@ type Packages struct {
 // Archive returns the .tar.gz of spec, downloading @preview packages
 // into the cache when no search dir has them.
 func (p *Packages) Archive(ctx context.Context, spec Spec) (Archive, error) {
-	dir, err := p.locate(spec)
-	if errors.Is(err, ErrNotFound) && spec.Namespace == "preview" && p.CacheDir != nil && p.CacheDir() != "" {
-		dir, err = p.fetchOnce(ctx, spec)
-	}
+	dir, err := p.Dir(ctx, spec)
 	if err != nil {
 		return Archive{}, err
 	}
@@ -116,6 +113,16 @@ func (p *Packages) Archive(ctx context.Context, spec Spec) (Archive, error) {
 	}
 	a.Immutable = spec.Namespace == "preview"
 	return a, nil
+}
+
+// Dir returns the directory holding spec's files (with its typst.toml),
+// downloading @preview packages into the cache when no search dir has them.
+func (p *Packages) Dir(ctx context.Context, spec Spec) (string, error) {
+	dir, err := p.locate(spec)
+	if errors.Is(err, ErrNotFound) && spec.Namespace == "preview" && p.CacheDir != nil && p.CacheDir() != "" {
+		dir, err = p.fetchOnce(ctx, spec)
+	}
+	return dir, err
 }
 
 func (p *Packages) dirs() []string {

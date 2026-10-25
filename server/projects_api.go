@@ -13,6 +13,8 @@ import (
 	"unicode"
 
 	"looz.ws/typstify/service/projects"
+	"looz.ws/typstify/service/universe"
+	"looz.ws/typstify/service/wasmassets"
 )
 
 const projectsFileName = "projects.json"
@@ -185,6 +187,25 @@ func (s *Server) handleProjectsList(w http.ResponseWriter, r *http.Request) {
 
 type createNamedProjectRequest struct {
 	Name string `json:"name"`
+	// Template starts the project from a Typst Universe template
+	// (@preview/name:version), like `typst init`.
+	Template *struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"template,omitempty"`
+	// MainContent, when no template is given, is the text of main.typ
+	// (the built-in chess templates).
+	MainContent string `json:"mainContent,omitempty"`
+}
+
+// maxMainContent bounds MainContent.
+const maxMainContent = 1 << 20
+
+// createdProject is POST /api/projects' reply: the project and the file
+// to open first.
+type createdProject struct {
+	projectView
+	Main string `json:"main"`
 }
 
 func (s *Server) handleProjectsCreate(w http.ResponseWriter, r *http.Request) {
@@ -202,33 +223,99 @@ func (s *Server) handleProjectsCreate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Tên dự án quá dài")
 		return
 	}
+	if len(req.MainContent) > maxMainContent {
+		writeError(w, http.StatusBadRequest, "Nội dung mẫu quá lớn")
+		return
+	}
+	var spec wasmassets.Spec
+	if req.Template != nil {
+		var err error
+		if spec, err = wasmassets.ParseSpec("preview", req.Template.Name, req.Template.Version); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 
 	base := s.projectsBaseDir()
 	slug := projectSlug(name)
-	dir := filepath.Join(base, slug)
-	for i := 2; ; i++ {
-		if _, err := os.Lstat(dir); errors.Is(err, os.ErrNotExist) {
-			break
-		}
-		dir = filepath.Join(base, slug+"-"+strconv.Itoa(i))
-	}
-	if err := s.checkProjectRoot(dir); err != nil {
+	if err := s.checkProjectRoot(filepath.Join(base, slug)); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(base, 0o755); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	_ = os.WriteFile(filepath.Join(dir, "main.typ"), []byte("= "+name+"\n\n"), 0o644)
+	// The folder is claimed with an exclusive Mkdir: two requests for the
+	// same name never share one, so the cleanup below only ever removes a
+	// folder this request created.
+	dir := ""
+	for i := 1; i <= 1000 && dir == ""; i++ {
+		candidate := filepath.Join(base, slug)
+		if i > 1 {
+			candidate = filepath.Join(base, slug+"-"+strconv.Itoa(i))
+		}
+		err := os.Mkdir(candidate, 0o755)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		dir = candidate
+	}
+	if dir == "" {
+		writeError(w, http.StatusConflict, "Quá nhiều dự án trùng tên")
+		return
+	}
+	main, status, err := s.seedProject(r, dir, name, req.MainContent, spec)
+	if err != nil {
+		// The folder was created by this request: leave nothing half made.
+		_ = os.RemoveAll(dir)
+		writeError(w, status, err.Error())
+		return
+	}
 
 	user, _ := s.requestUser(r)
 	p, err := s.projects.Create(name, dir, user)
 	if err != nil {
+		_ = os.RemoveAll(dir)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, viewOf(p, projects.RoleOwner))
+	writeJSON(w, http.StatusOK, createdProject{projectView: viewOf(p, projects.RoleOwner), Main: main})
+}
+
+// seedProject writes the first files of a new project in dir: a Universe
+// template (spec set), the given main.typ text, or a heading. It returns
+// the file to open and, on failure, the HTTP status to report.
+func (s *Server) seedProject(r *http.Request, dir, name, mainContent string, spec wasmassets.Spec) (string, int, error) {
+	if spec.Name != "" {
+		pkgDir, err := s.wasmPackages.Dir(r.Context(), spec)
+		if errors.Is(err, wasmassets.ErrNotFound) {
+			return "", http.StatusNotFound, err
+		}
+		if err != nil {
+			return "", http.StatusBadGateway, err
+		}
+		main, err := universe.CopyTemplate(pkgDir, dir)
+		if errors.Is(err, universe.ErrNoTemplate) {
+			return "", http.StatusBadRequest, err
+		}
+		if err != nil {
+			return "", http.StatusInternalServerError, err
+		}
+		return main, 0, nil
+	}
+	content := mainContent
+	if content == "" {
+		content = "= " + name + "\n\n"
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.typ"), []byte(content), 0o644); err != nil {
+		return "", http.StatusInternalServerError, err
+	}
+	return "main.typ", 0, nil
 }
 
 // projectForRequest loads {id} and the caller's role, writing 404 when the

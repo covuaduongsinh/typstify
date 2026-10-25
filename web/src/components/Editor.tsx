@@ -14,6 +14,7 @@ import { commentHighlights, setCommentRanges, type CommentRange } from '../lib/c
 import { vim } from '@replit/codemirror-vim'
 import { useEditorPrefs } from '../lib/editorPrefs'
 import { proseSpellcheck } from '../lib/spellcheck'
+import { importInsertion } from '../lib/universe'
 import { lspEditsToChanges, type LspTextEdit } from '../lib/lspEdits'
 import { imageMarkup, isImageFile, pastedImageName, uploadFile } from '../lib/upload'
 import { typstifyTheme } from '../lib/editorTheme'
@@ -41,6 +42,8 @@ export interface EditorHandle {
   getContent: () => string
   /** Inserts `line` at the top of the document unless `present(doc)`. */
   ensureLineAtTop: (line: string, present: (doc: string) => boolean) => void
+  /** Adds `#import "@preview/name:version": *` below the file's imports. */
+  addPackageImport: (name: string, version: string) => 'added' | 'present' | 'readonly'
   /** Auto repairs missing chess library imports and saves */
   autoFixImports: () => void
   /** Applies font size globally across the entire document */
@@ -301,6 +304,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const view = viewRef.current
       if (!view || present(view.state.doc.toString())) return
       view.dispatch({ changes: { from: 0, to: 0, insert: `${line}\n` } })
+    },
+    addPackageImport: (name: string, version: string) => {
+      const view = viewRef.current
+      if (!view || readOnly) return 'readonly'
+      const ins = importInsertion(view.state.doc.toString(), name, version)
+      if (!ins) return 'present'
+      view.dispatch({ changes: { from: ins.at, insert: ins.text } })
+      return 'added'
     },
     autoFixImports: () => {
       const view = viewRef.current

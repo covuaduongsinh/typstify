@@ -6,7 +6,7 @@ import { LoginPage } from './components/LoginPage'
 import { ProjectPicker } from './components/ProjectPicker'
 import { Workspace } from './components/Workspace'
 
-type Screen = { kind: 'loading' } | { kind: 'login' } | { kind: 'pickProject' } | { kind: 'workspace'; path: string }
+type Screen = { kind: 'loading' } | { kind: 'login' } | { kind: 'pickProject' } | { kind: 'workspace'; path: string; openFile?: string }
 
 /** takeJoinToken reads a share-link token (?join=...) once and strips it
  * from the address bar, so a reload or a copied URL doesn't leak it. */
@@ -76,9 +76,15 @@ function App() {
     case 'login':
       return <LoginPage onLoggedIn={afterLogin} />
     case 'pickProject':
-      return <ProjectPicker notice={notice} onOpened={(path) => setScreen({ kind: 'workspace', path })} />
+      return <ProjectPicker notice={notice} onOpened={(path, openFile) => setScreen({ kind: 'workspace', path, openFile })} />
     case 'workspace':
-      return <Workspace projectPath={screen.path} onCloseProject={() => setScreen({ kind: 'pickProject' })} />
+      return (
+        <Workspace
+          projectPath={screen.path}
+          initialFile={screen.openFile}
+          onCloseProject={() => setScreen({ kind: 'pickProject' })}
+        />
+      )
   }
 }
 

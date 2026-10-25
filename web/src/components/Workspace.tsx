@@ -132,8 +132,17 @@ const QUICK_BOARD_INSERT = `#teaching-diagram(
 )
 `
 
-export function Workspace({ projectPath, onCloseProject }: { projectPath: string; onCloseProject: () => void }) {
-  const [activePath, setActivePath] = useState<string | null>(null)
+export function Workspace({
+  projectPath,
+  initialFile,
+  onCloseProject,
+}: {
+  projectPath: string
+  /** Opened first (the main file of a project made from a template). */
+  initialFile?: string
+  onCloseProject: () => void
+}) {
+  const [activePath, setActivePath] = useState<string | null>(initialFile ?? null)
   const [content, setContent] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -908,7 +917,15 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                   onSelect={(line, character) => editorRef.current?.goToPosition(line, character)}
                 />
               )}
-              {sidePanel === 'packages' && <PackageManager />}
+              {sidePanel === 'packages' && (
+                <PackageManager
+                  onInsertImport={(name, version) =>
+                    editorRef.current && activePath?.endsWith('.typ')
+                      ? editorRef.current.addPackageImport(name, version)
+                      : 'no-file'
+                  }
+                />
+              )}
               {sidePanel === 'settings' && <SettingsPanel />}
             </Suspense>
           </aside>

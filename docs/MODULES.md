@@ -58,7 +58,8 @@ Tài liệu này liệt kê từng module theo thư mục. Phần **Desktop / l�
 | `history/` | Lịch sử phiên bản: kho nội dung theo hash (`objects/`), manifest mỗi phiên bản, `Take`/`Compare`/`Read`/`Restore`, dọn theo lịch (giữ 24 giờ, mỗi giờ 7 ngày, mỗi ngày sau đó; phiên bản có tên giữ mãi) |
 | `gitsync/` | Đồng bộ Git bằng go-git: cấu hình (token 0600 trên máy chủ), `Status`/`Commit`/`Push`/`Pull`, chặn IP nội bộ khi kết nối |
 | `collab/` | Cộng tác thời gian thực: `Hub`/`Room`/`Peer` chuyển tiếp và lưu update Yjs theo tệp, phân quyền theo kênh, chọn leader, nén log, phát hiện sửa ngoài (`base.txt`), `EncodeInsertText` (khởi tạo phòng từ tệp) |
-| `wasmassets/` | Font và package `.tar.gz` cho compiler trong trình duyệt: `FontIndex.Scan/Lookup`, `Packages.Archive` (tìm thư mục package, tải `@preview` vào cache, giải nén an toàn) |
+| `wasmassets/` | Font và package `.tar.gz` cho compiler trong trình duyệt: `FontIndex.Scan/Lookup`, `Packages.Archive`/`Packages.Dir` (tìm thư mục package, tải `@preview` vào cache, giải nén an toàn) |
+| `universe/` | Typst Universe: `Index` (chỉ mục `packages.typst.org`, bản mới nhất mỗi gói, cache đĩa, làm mới nền), `Thumbnails` (ảnh xem trước, cache đĩa), `CopyTemplate` (như `typst init`), `ReadReadme` |
 | `fonts/` | Quản lý thư mục font thêm (`SanitizeFilename`, giới hạn 30 MiB, đuôi `.ttf/.otf/.ttc`) |
 | `net/` | HTTP invoker tới typstify.com (đăng ký thiết bị, kiểm tra cập nhật) |
 | `tpix.go` | Cấp API key cho SDK tpix |
@@ -122,12 +123,12 @@ Không router, không thư viện state. `App.tsx` là máy trạng thái loadin
 
 - `api/`: `client.ts` (`api.get/post/put/putJson/postBinary/del`, `wsUrl`, `ApiError`, `credentials: 'include'`), `types.ts`, `dropboxTypes.ts`, `pkgTypes.ts`, `agentRegistry.ts`.
 - `components/`:
-  - Khung: `Workspace.tsx` (shell: cây file, editor, preview, panel), `FileTree`, `StatusBar`, `Resizer`, `Modal`, `PromptDialog`, `QuickActions`, `ProjectPicker`, `NewDocModal`.
+  - Khung: `Workspace.tsx` (shell: cây file, editor, preview, panel), `FileTree`, `StatusBar`, `Resizer`, `Modal`, `PromptDialog`, `QuickActions`, `ProjectPicker`, `NewDocModal`, `TemplateGallery` (dự án mới từ mẫu cờ vua hoặc Universe).
   - Lịch sử: `HistoryPanel.tsx` (thẻ Phiên bản / Git), `HistoryDiff.tsx` (`@codemirror/merge`), `GitPanel.tsx`.
   - Soạn thảo/preview: `Editor.tsx` (CodeMirror), `OutlinePanel`, `PreviewPane.tsx` (4 chế độ: wasm "Tức thì" mặc định / svg / pdf / tinymist), `WasmPreview.tsx` (renderer typst.ts, vá SVG tăng dần, click-to-source, cuộn đồng bộ, trình chiếu), `ExportButton`, `SymbolPicker.tsx` (bảng `sym.*`).
   - Agent: `AgentChat`, `AgentSessionHistory`, `AgentRegistryPicker`, `AuthCard`.
   - Cờ vua / nhập liệu: `ChessToolbar`, `ChessBoardModal`, `PgnImportModal`, `DataImportModal`, `MarkdownImportModal`.
-  - Dropbox: `DropboxSyncModal`, `DropboxImportModal`. Cài đặt: `SettingsPanel`, `PackageManager`. Đăng nhập: `LoginPage`, `BrandMark`.
+  - Dropbox: `DropboxSyncModal`, `DropboxImportModal`. Cài đặt: `SettingsPanel`, `PackageManager` (tìm qua chỉ mục Universe, chèn `#import`, `PackageDocs` hiển thị README). Đăng nhập: `LoginPage`, `BrandMark`.
   - Tải lười (lazy chunk): Editor, AgentChat, PackageManager, SettingsPanel, ChessBoardModal, các modal import, DropboxSyncModal.
 - `lib/`:
   - Mạng: `agentClient.ts` (`/ws/agent`, tự tạo message `disconnected`), `lspClient.ts` (`/ws/lsp`, nối lại 1–15 giây), `acpTypes.ts`.
@@ -137,5 +138,6 @@ Không router, không thư viện state. `App.tsx` là máy trạng thái loadin
   - Typst/cờ vua: `typst.ts` (sửa import chessbook, directive cỡ chữ/cột), `chess.ts`, `pgn.ts`.
   - Chuyển đổi: `markdownToTypst.ts`, `dataImport.ts`.
   - Giao diện: `i18n.ts`, `vi.ts`, `theme.ts`, `editorTheme.ts`, `shortcuts.ts`, `useDismiss.ts`.
+  - Mẫu và gói: `chessTemplates.ts` (8 mẫu cờ vua), `universe.ts` (kiểu dữ liệu Universe, `importInsertion`).
   - Editor: `editorPrefs.ts` (Vim, chính tả; localStorage `typstify_editor_prefs`), `lspEdits.ts` (TextEdit LSP → thay đổi CodeMirror), `upload.ts` (dán/kéo thả ảnh, `POST /api/workspace/upload`), `symbols.ts` (lọc ký hiệu), `spellcheck.ts` (đánh dấu `spellcheck` chỉ cho văn bản).
 - Kiểm thử: vitest (`*.test.ts` cạnh nguồn cho `scrollSync`, `svgHelper`, `chess`, `pgn`, `typst`, `dataImport`, `markdownToTypst`, `wasm/`).

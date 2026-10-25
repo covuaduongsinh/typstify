@@ -37,7 +37,7 @@ Vai trò: `owner` > `editor` (sửa) > `commenter` (góp ý) > `viewer` (chỉ x
 | Method | Path | Quyền | Mục đích |
 |---|---|---|---|
 | GET | `/api/projects` | đăng nhập | Project mình có quyền, kèm `role` |
-| POST | `/api/projects` | đăng nhập | `{name}`: tạo thư mục dưới `-project-root` (hoặc `<RootDir>/projects`), tạo `main.typ`, người tạo là owner |
+| POST | `/api/projects` | đăng nhập | `{name, template?: {name, version}, mainContent?}`: tạo thư mục dưới `-project-root` (hoặc `<RootDir>/projects`), người tạo là owner. `template` chép thư mục `[template]` của gói `@preview` (như `typst init`); `mainContent` (≤ 1 MiB) là nội dung `main.typ` (mẫu cờ vua); không có cả hai thì `main.typ` chỉ có tiêu đề. Lỗi thì xoá thư mục vừa tạo. Trả thêm `main`: tệp cần mở |
 | POST | `/api/projects/join` | đăng nhập | `{token}`: tham gia bằng link chia sẻ; không hạ vai trò đang có |
 | POST | `/api/projects/{id}/open` | ≥ viewer | Đặt làm project hiện hành |
 | DELETE | `/api/projects/{id}` | owner | Bỏ đăng ký (giữ nguyên file) |
@@ -130,7 +130,19 @@ Lưu trong thư mục lưu trữ của máy chủ, không ghi vào project. Máy
 
 Mọi route Git trả 409 khi đang mở một thư mục con của dự án đã đăng ký (cấu hình thuộc về cả dự án). Pull chỉ ghi hoặc xoá các tệp khác nhau giữa hai commit, không đụng tệp chưa theo dõi, và bỏ qua symlink và submodule từ kho. Kết nối tới kho bị chặn nếu địa chỉ IP là nội bộ (loopback, mạng riêng, link-local) — đặt `TYPSTIFY_GIT_ALLOW_PRIVATE=1` khi dùng Gitea/GitLab trong mạng LAN (cho phép cả `http://`).
 
+## Typst Universe (`server/universe_api.go`, `service/universe`)
+
+| Method | Path | Mục đích |
+|---|---|---|
+| GET | `/api/universe/packages?kind=template\|package&q=&category=&offset=&limit=` | Gói `@preview` ở phiên bản mới nhất, từ `packages.typst.org/preview/index.json` (cache trên đĩa ở `<storage>/universe`, làm mới nền sau 12 giờ, mất mạng thì dùng bản cũ). Trả `{packages, total}`; `limit` ≤ 200 (mặc định 48) |
+| GET | `/api/universe/thumbnail/{name}/{version}?size=small` | Ảnh xem trước template (WebP), máy chủ tải hộ và cache |
+| GET | `/api/universe/readme/{name}/{version}` | `{readme}`: README.md của gói (tải gói vào cache như preview "Tức thì") |
+
+Mọi route chỉ cần đăng nhập; tên và phiên bản được kiểm tra bằng `wasmassets.ParseSpec`.
+
 ## Package (Tpix)
+
+Bảng Gói trên web tìm qua `/api/universe/packages`; các route Tpix dưới đây vẫn dùng cho desktop và cần API key của Tpix.
 
 | Method | Path | Mục đích |
 |---|---|---|

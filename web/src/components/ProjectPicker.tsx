@@ -5,6 +5,7 @@ import { useTheme } from '../lib/theme'
 import { BrandMark } from './BrandMark'
 import { DropboxImportModal } from './DropboxImportModal'
 import { Icon } from './Icon'
+import { TemplateGallery } from './TemplateGallery'
 
 const relTime = new Intl.RelativeTimeFormat('vi', { numeric: 'auto' })
 
@@ -30,7 +31,14 @@ function extractJoinToken(input: string): string {
   }
 }
 
-export function ProjectPicker({ onOpened, notice }: { onOpened: (path: string) => void; notice?: string | null }) {
+export function ProjectPicker({
+  onOpened,
+  notice,
+}: {
+  /** openFile: the file to open first (a project made from a template). */
+  onOpened: (path: string, openFile?: string) => void
+  notice?: string | null
+}) {
   const [recent, setRecent] = useState<RecentProject[]>([])
   const [mine, setMine] = useState<ProjectInfo[]>([])
   const [newName, setNewName] = useState('')
@@ -39,6 +47,7 @@ export function ProjectPicker({ onOpened, notice }: { onOpened: (path: string) =
   const [error, setError] = useState<string | null>(notice ?? null)
   const [busy, setBusy] = useState(false)
   const [isDropboxImportOpen, setIsDropboxImportOpen] = useState(false)
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false)
   const [theme, toggleTheme] = useTheme()
 
   useEffect(() => {
@@ -151,6 +160,9 @@ export function ProjectPicker({ onOpened, notice }: { onOpened: (path: string) =
               <button type="submit" className="btn-primary" disabled={busy || !newName.trim()}>
                 <Icon name="folder-plus" size={15} /> Tạo
               </button>
+              <button type="button" onClick={() => setIsGalleryOpen(true)} disabled={busy}>
+                <Icon name="template" size={15} /> Tạo từ mẫu…
+              </button>
             </div>
           </form>
           <form
@@ -240,6 +252,9 @@ export function ProjectPicker({ onOpened, notice }: { onOpened: (path: string) =
         </section>
       </main>
 
+      {isGalleryOpen && (
+        <TemplateGallery onClose={() => setIsGalleryOpen(false)} onCreated={(path, main) => onOpened(path, main)} />
+      )}
       {isDropboxImportOpen && (
         <DropboxImportModal
           isOpen={isDropboxImportOpen}

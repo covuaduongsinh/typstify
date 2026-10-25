@@ -44,6 +44,27 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-25 — Giai đoạn 5: template và Typst Universe
+- **Yêu cầu**: "tiếp" theo thứ tự đã chốt; chi tiết ở `docs/plans/plan_phase5_templates.md`.
+- **Đã làm**:
+  1. `service/universe`: đọc chỉ mục `packages.typst.org/preview/index.json` (khoảng 5000 bản ghi, giữ bản mới nhất của mỗi gói), cache trên đĩa, làm mới nền sau 12 giờ, mất mạng thì dùng bản cũ; ảnh xem trước tải hộ và cache; chép template như `typst init` (chặn đường dẫn ra ngoài gói, bỏ qua symlink, giới hạn số tệp và dung lượng); đọc README.
+  2. Route `/api/universe/packages`, `/thumbnail/{name}/{version}`, `/readme/{name}/{version}`. `POST /api/projects` nhận thêm `template` hoặc `mainContent`, trả `main`, xoá thư mục khi tạo lỗi.
+  3. Web: "Tạo từ mẫu…" ở màn hình chọn dự án mở thư viện mẫu với hai thẻ: Cờ vua (8 mẫu có sẵn, chuyển sang `lib/chessTemplates.ts`) và Typst Universe (tìm kiếm, lọc nhóm, lưới ảnh xem trước, phân trang). Tạo xong mở thẳng tệp chính của template.
+  4. Bảng Gói: tìm qua chỉ mục Universe thay cho Tpix (Tpix đòi API key, trả 401 khi chưa cấu hình); nút "Tài liệu" (README, không hiển thị HTML thô và ảnh) và "Chèn #import" (thêm dưới các import đầu tệp, giữ import chessbook ở dòng 1, không thêm trùng).
+- **Kiểm chứng**: test Go cho chỉ mục (bản mới nhất theo số phiên bản, lọc, phân trang, dùng bản đĩa khi mất mạng, làm mới nền), chép template (chặn `..`, đường dẫn tuyệt đối, thiếu `[template]`), ảnh xem trước cache, tạo dự án từ template và dọn khi lỗi; vitest cho `importInsertion`. Chạy thật trong Chrome: thư viện Universe hiển thị 867 mẫu có ảnh, tìm "letter", tạo dự án từ `letter-pro` và preview "Tức thì" biên dịch ngay; bảng Gói tìm `cetz`, xem README, chèn `#import` hai lần (lần hai báo đã có).
+- **Rà soát độc lập và đã sửa** (0 lỗi cao, 4 trung bình, phần lớn lỗi thấp):
+  - hai yêu cầu tạo dự án cùng tên có thể dùng chung một thư mục, rồi bước dọn dẹp khi lỗi xoá mất dự án của người kia: nay giành thư mục bằng `os.Mkdir` độc quyền;
+  - "Chèn #import" chèn vào giữa một import nhiều dòng `(...)`, và coi import nằm trong comment là đã có;
+  - lần tải chỉ mục đầu tiên khi mất mạng: mỗi yêu cầu lại chờ tới 60 giây; nay nhớ lỗi trong 5 phút và tải bằng context riêng (yêu cầu bị huỷ không làm hỏng lần tải chung);
+  - chép template: kiểm tra trên đường dẫn thật (symlink ở thư mục giữa), đếm cả thư mục vào giới hạn, bỏ qua `.git`, hạ giới hạn xuống 32 MiB;
+  - ảnh xem trước: nhớ ảnh không tồn tại 1 giờ, gộp yêu cầu trùng;
+  - thư viện mẫu: đổi từ khoá thì bỏ ngay kết quả cũ (không phân trang nhầm truy vấn), bỏ trùng khi nối trang, `/open` lỗi thì bấm lại không tạo dự án thứ hai, link mã nguồn chỉ nhận `http(s)`; bảng Gói báo khi kết quả bị cắt ở 100.
+- **Còn mở**:
+  - chưa có hạn mức dung lượng/số dự án cho mỗi người dùng: người đã đăng nhập có thể tạo nhiều dự án từ template lớn (mỗi lần ≤ 32 MiB) hoặc kéo nhiều gói vào cache (như `/api/wasm/packages` sẵn có);
+  - xem README phải tải cả gói vào cache;
+  - chỉ mục chỉ có bản mới nhất của mỗi gói (chưa chọn được phiên bản cũ trong thư viện mẫu);
+  - mẫu cờ vua trong `chessbook/templates/` (import tương đối `../lib`) vẫn tách biệt với 8 mẫu của web.
+
 ### 2026-10-25 — Giai đoạn 6: hoàn thiện editor
 - **Yêu cầu**: tiếp theo thứ tự đã chốt (4 → 6 → 5 → 7 → 3b); chi tiết ở `docs/plans/plan_phase6_editor.md`.
 - **Đã làm**:

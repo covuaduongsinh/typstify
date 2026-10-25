@@ -17,6 +17,7 @@ import (
 	"looz.ws/typstify/service/history"
 	"looz.ws/typstify/service/mcp"
 	"looz.ws/typstify/service/projects"
+	"looz.ws/typstify/service/universe"
 	"looz.ws/typstify/service/wasmassets"
 )
 
@@ -80,6 +81,10 @@ type Server struct {
 	// Fonts and package archives for the in-browser compiler (wasm_api.go).
 	wasmFonts    *wasmassets.FontIndex
 	wasmPackages *wasmassets.Packages
+
+	// Typst Universe index and thumbnails (universe_api.go).
+	universe       *universe.Index
+	universeThumbs *universe.Thumbnails
 }
 
 type webActiveDocProvider struct {
@@ -137,6 +142,7 @@ func New(appSrv *service.ServiceFacade, opts Options) *Server {
 		wasmFonts:    wasmassets.NewFontIndex(),
 	}
 	s.wasmPackages = s.newWasmPackages()
+	s.universe, s.universeThumbs = newUniverse(storageDir)
 	s.collab = s.newCollabHub()
 	go s.runCollabDiskWatch(context.Background())
 	s.history = &history.Manager{Base: filepath.Join(storageDir, "history"), Quota: envMegabytes("TYPSTIFY_HISTORY_MAX_MB")}
@@ -242,6 +248,9 @@ func (s *Server) routes() {
 
 	// Fonts and package archives for the in-browser compiler. Shared by
 	// every project, so they only need a signed-in user (wasm_api.go).
+	s.handle("GET /api/universe/packages", s.handleUniverseSearch)
+	s.handle("GET /api/universe/thumbnail/{name}/{version}", s.handleUniverseThumbnail)
+	s.handle("GET /api/universe/readme/{name}/{version}", s.handleUniverseReadme)
 	s.handle("GET /api/wasm/fonts", s.handleWasmFonts)
 	s.handle("GET /api/wasm/fonts/{id}", s.handleWasmFont)
 	s.handle("GET /api/wasm/packages/{namespace}/{name}/{version}", s.handleWasmPackage)
