@@ -960,6 +960,26 @@ button.btn-danger {
   width: 100%;
 }
 
+/* In-browser (WASM) preview: typst.ts renders every page into one SVG,
+   which is patched in place on each compile (WasmPreview.tsx). */
+.wasm-preview-scroll {
+  align-items: flex-start;
+}
+
+.wasm-preview-doc {
+  max-width: 100%;
+  flex: 0 0 auto;
+  cursor: text;
+}
+
+.wasm-preview-doc svg.typst-doc {
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
 .preview-page-card {
   display: flex;
   flex-direction: column;
@@ -3482,3 +3502,64 @@ button.btn-danger {
   font-size: 11px;
 }
 
+
+/* Project sharing (ShareModal.tsx) and access badge (Workspace.tsx). */
+.share-modal section + section {
+  margin-top: 16px;
+}
+.share-modal h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.share-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.share-row,
+.share-add,
+.share-created {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.share-user {
+  flex: 1;
+  min-width: 120px;
+  font-weight: 500;
+}
+.share-role,
+.share-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.share-add input,
+.share-created input {
+  flex: 1;
+  min-width: 160px;
+}
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+/* TOTP recovery codes (SecuritySection.tsx). */
+.mfa-codes {
+  font-family: var(--font-mono);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  user-select: all;
+}

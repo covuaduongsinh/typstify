@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"looz.ws/typstify/service/projects"
 )
 
 const previewPathPrefix = "/preview/"
@@ -113,6 +115,10 @@ func (s *Server) handlePreviewRootWebSocket(w http.ResponseWriter, r *http.Reque
 	}
 	if !sameOrigin(r) {
 		writeError(w, http.StatusForbidden, "cross-origin websocket rejected")
+		return true
+	}
+	if !s.hasProjectRole(r, projects.RoleViewer) {
+		writeError(w, http.StatusForbidden, forbiddenMessage(projects.RoleViewer))
 		return true
 	}
 

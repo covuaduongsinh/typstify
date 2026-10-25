@@ -44,6 +44,79 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-25 — Giai đoạn 2: biên dịch Typst ngay trong trình duyệt
+- **Yêu cầu**: "tiếp giai đoạn 2" của kế hoạch đồng bộ typst.app (chi tiết ở `docs/plans/plan_phase2_wasm.md`).
+- **Đã làm**:
+  1. Web: chế độ preview mới **Tức thì** (mặc định). Compiler typst.ts 0.8.0-rc3 (Typst 0.15, khớp typst 0.15.1 của server) chạy trong Web Worker, biên dịch tăng dần và chỉ gửi delta; renderer vá SVG tại chỗ. Lỗi Typst hiện vị trí `file:dòng:cột`, preview giữ bản đúng gần nhất.
+  2. Click vào chữ trên preview → editor nhảy tới dòng nguồn (khớp văn bản, ưu tiên lần xuất hiện gần vị trí bấm). Cuộn đồng bộ hai chiều dùng trang heading truy vấn ngay trong WASM.
+  3. Server: `/api/wasm/fonts`, `/api/wasm/fonts/{id}`, `/api/wasm/packages/{ns}/{name}/{ver}` (`service/wasmassets`, `server/wasm_api.go`). `@preview` thiếu thì tải từ packages.typst.org vào cache, giải nén chặn path traversal và giới hạn kích thước.
+  4. Cache phía trình duyệt: font trong Cache Storage, package và file project (theo hash) trong IndexedDB. Đã tắt server vẫn gõ và biên dịch tiếp được.
+  5. Preview cũ (Trang in, PDF, Đồng bộ chính xác) giữ nguyên. WASM không khởi động được thì tự quay về "Trang in".
+- **Kiểm chứng**: `go test ./service/wasmassets/ ./server/`; web 98 test, lint, build; chạy thật trong Chrome với demo chessbook (import `@local/chessbook`, bàn cờ từ `@preview/board-n-pieces`): mỗi lần gõ biên dịch 2–8 ms, click "C. Vua" nhảy đúng dòng 69, con trỏ ở trang 3 thì preview cuộn tới trang 3, báo lỗi đúng `main.typ:79:2`.
+- **Cạm bẫy gặp phải**: xem mục WASM trong `docs/MEMORY.md` (renderer `renderToSvg` panic, thứ tự trang sau khi vá, `query` parse hai lần).
+- **Rà soát độc lập và đã sửa**:
+  - delta của file mới bị ghép nhầm lên tài liệu cũ khi lần biên dịch đầu sau reset bị lỗi; worker giữ cờ `pendingReset` tới lần thành công đầu tiên;
+  - shadow source của file/project cũ che file trên đĩa; nay `resetShadow` khi đổi file chính và khi nạp lại manifest, và không biên dịch khi nội dung chưa tải;
+  - link `javascript:` trong tài liệu chạy được trong trang của app; nay chỉ giữ http(s)/mailto/#, link web mở tab mới;
+  - cache IndexedDB có thể lưu sai byte dưới hash cũ; `/api/sync/pull` trả `X-Content-Sha256`, worker chỉ cache khi khớp;
+  - server: gộp download/đóng gói trùng nhau (`singleflight`), tối đa 2 download, nhớ lỗi tải 10 phút, cache archive giới hạn 96 MB, không trả lỗi có đường dẫn, giới hạn quét lại font 30 giây/lần.
+- **Còn mở**: IndexedDB chưa có hạn mức/dọn dẹp; package đã lưu được nạp hết vào RAM khi khởi động worker; hết phiên đăng nhập hiện như "không tìm thấy file"; font mặc định của Typst lấy từ jsdelivr (lần đầu cần Internet).
+
+### 2026-10-25 — Giai đoạn 1: đa người dùng, chia sẻ dự án, MFA
+- **Yêu cầu**: triển khai tiếp kế hoạch đồng bộ typst.app (Giai đoạn 1, chi tiết ở `docs/plans/plan_phase1_multiuser.md`).
+- **Đã làm**:
+  1. `service/projects`: sổ đăng ký project gồm owner, thành viên, vai trò editor/commenter/viewer và share link. Token chỉ lưu SHA-256, có hạn dùng, thu hồi được. Dữ liệu ở `projects.json`, ghi nguyên tử.
+  2. `server/projects_api.go`:
+     - API `/api/projects/*` và `/api/workspace/role`;
+     - `handleRole` thực thi quyền trên project hiện hành (đọc ≥ viewer, ghi ≥ editor);
+     - `handleAdmin` cho cài đặt, font, Dropbox auth, cấu hình agent và console;
+     - `POST /api/workspace/create` tự đăng ký owner;
+     - tuỳ chọn `Options.StorageDir`.
+  3. Admin: người đăng ký đầu tiên. File cũ chưa có admin thì tài khoản tạo sớm nhất thành admin.
+  4. MFA TOTP tự viết theo RFC 6238 (`server/totp.go`): chống dùng lại mã, 10 mã khôi phục argon2id dùng một lần. Login và cấp API token đều trả `mfaRequired` khi cần mã.
+  5. Web:
+     - `ProjectPicker` có các mục "Dự án của tôi", "Tạo dự án mới" và "Tham gia bằng liên kết";
+     - `?join=` tự tham gia;
+     - `ShareModal`: thành viên và liên kết;
+     - editor chỉ đọc cho viewer/commenter;
+     - login có bước mã MFA; Settings có mục Bảo mật (`SecuritySection`).
+- **Kiểm chứng**:
+  - `go test ./server/ ./service/...` có test mới cho registry, TOTP (vector RFC 6238), MFA, admin, chia sẻ và phân quyền.
+  - Web: `npm test` (88 test), `npm run lint` (không lỗi), `npm run build`.
+  - Chạy thử server tách dữ liệu (`APPDATA` tạm): đăng ký, tạo project, tạo link, join, viewer bị 403 khi ghi và khi đổi cài đặt, bật MFA, đăng nhập cần mã.
+- **Rà soát bảo mật độc lập** (agent `security-reviewer`) tìm ra 10 lỗi. Đã sửa cả 10, có test hồi quy trong `server/security_regression_test.go`:
+  1. Mở thư mục cha hoặc con để vượt quyền project. Sửa bằng `Covering`/`ContainsAny`.
+  2. Mật khẩu máy chủ thành đăng nhập admin không có MFA. Nay chỉ dùng được khi chưa có tài khoản.
+  3. Dò mã MFA bằng cách xoá bộ đếm theo IP. Thêm khoá theo tài khoản (`server/credentials.go`).
+  4. Chiếm thư mục có sẵn qua `create`.
+  5. Preview tinymist không kiểm quyền.
+  6. Argon2 chạy khi đang giữ khoá toàn cục, nguy cơ DoS.
+  7. Bật MFA không cần mật khẩu; tắt MFA không giới hạn tần suất.
+  8. Viewer sửa được nội dung preview qua LSP.
+  9. Phản hồi lộ đường dẫn máy chủ và danh sách thành viên.
+  10. Dò tên tài khoản qua thời gian phản hồi.
+- **Thay đổi hành vi cần biết**:
+  - Khi đã có tài khoản, đăng nhập bằng mật khẩu máy chủ không còn hoạt động.
+  - Tài khoản không phải admin không còn đổi được cài đặt máy chủ, font, Dropbox auth và cấu hình agent.
+- **Dang dở**:
+  - Phiên tách theo từng user và nhiều project mở đồng thời (Giai đoạn 3).
+  - Bình luận cho vai trò Góp ý (Giai đoạn 3).
+  - Mã QR cho MFA (hiện nhập khoá thủ công hoặc mở liên kết `otpauth`).
+
+### 2026-10-24 — Phân tích typst.app và khởi động lộ trình đồng bộ ba nền tảng
+- **Yêu cầu**: dùng `rea` phân tích typst.app, chọn tính năng Typstify chưa có, đưa vào Typstify, xây dựng đồng bộ web/desktop/mobile.
+- **Quyết định**:
+  - Mobile và desktop mới dùng Tauri 2 bọc React. Bản desktop Gio giữ song song trong giai đoạn chuyển tiếp.
+  - Ưu tiên bốn hướng: cộng tác realtime, compile WASM, lịch sử phiên bản, template/Universe.
+  - Chỉ tái hiện ở mức cơ chế, không chép mã của typst.app.
+- **Đã làm**:
+  1. Kế hoạch tổng `docs/plans/plan_typst_app_parity_2026-10.md` (8 giai đoạn).
+  2. Giai đoạn 0: `docs/research/typst-app-analysis.md`. Ghi nhận kiến trúc của typst.app (CodeMirror 6, Yjs qua WebSocket, GraphQL 125 thao tác, lõi Rust WASM đa phiên bản 0.10–0.15.1, pool worker, font tải lười, PWA) và bảng đối chiếu ưu tiên.
+  3. Giai đoạn 1, lát cắt đầu: mật khẩu băm argon2id dạng PHC (`server/password.go`). Hash SHA-256 cũ vẫn đăng nhập được và tự nâng cấp ở lần đăng nhập thành công. Test: `server/password_test.go`.
+- **Dang dở**:
+  - Công cụ trình duyệt của `rea` cần Chrome bật CDP (`--remote-debugging-port`) trên profile riêng.
+  - Giai đoạn 1 còn: mô hình Project/thành viên/vai trò, share link, MFA TOTP.
+
 ### 2026-10-05 — Đợt 7: Cải tiến toàn diện File Chooser & Quản lý File/Thư mục Desktop (thay thế gioview/explorer)
 - **Yêu cầu**: Xây dựng mới hoàn toàn component `ui/filechooser` thay thế cho `github.com/oligo/gioview/explorer`. Sửa lỗi ổ đĩa Windows hiển thị thành dấu `\`, thiếu Volume Label (`Local Disk (C:)`, `Data (D:)`, `Google Drive (G:)`); thêm Breadcrumbs có thể click từng cấp và ô nhập trực tiếp đường dẫn (Address Bar) hỗ trợ paste/enter; bổ sung danh mục Favorites đầy đủ (Home, Desktop, Documents, Downloads); sắp xếp danh sách file luôn gom Thư mục lên trước Files, hỗ trợ sort đa cột (Name, Date Modified, Size) kèm icon nhận diện từng loại file (.typ, .pdf, image, font, code, binary); hỗ trợ tạo New Folder inline và phím tắt (Enter, Esc, F5).
 - **Quyết định & Thực hiện**:

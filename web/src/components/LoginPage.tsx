@@ -9,6 +9,9 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [remember, setRemember] = useState(true)
+  // Set once the server says this account needs a second factor.
+  const [mfaStep, setMfaStep] = useState(false)
+  const [mfaCode, setMfaCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -40,6 +43,7 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
         await api.post('/api/auth/login', {
           username: username.trim(),
           password,
+          code: mfaStep ? mfaCode.trim() : undefined,
         })
       } else {
         await api.post('/api/auth/register', {
@@ -57,6 +61,11 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
 
       onLoggedIn()
     } catch (err) {
+      if (err instanceof ApiError && err.body?.mfaRequired && !mfaStep) {
+        setMfaStep(true)
+        setError(null)
+        return
+      }
       setError(
         err instanceof ApiError
           ? err.message
@@ -161,6 +170,24 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
             </label>
           )}
 
+          {mode === 'login' && mfaStep && (
+            <label className="entry-field">
+              <span>Mã xác thực hai bước</span>
+              <input
+                type="text"
+                name="otp"
+                id="otp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                placeholder="6 số từ ứng dụng xác thực, hoặc mã khôi phục"
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value)}
+                required
+              />
+            </label>
+          )}
+
           <div className="auth-options-row">
             <label className="checkbox-label" style={{ fontSize: 13, cursor: 'pointer' }}>
               <input
@@ -175,7 +202,7 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
           <button
             type="submit"
             className="btn-primary entry-submit"
-            disabled={busy || !password || (mode === 'register' && !username)}
+            disabled={busy || !password || (mode === 'register' && !username) || (mfaStep && !mfaCode.trim())}
           >
             {busy
               ? 'Đang xử lý…'

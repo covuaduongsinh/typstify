@@ -12,6 +12,8 @@ import (
 
 	"looz.ws/typstify/service"
 	"looz.ws/typstify/service/mcp"
+	"looz.ws/typstify/service/projects"
+	"looz.ws/typstify/service/wasmassets"
 )
 
 // Options configures a Server.
@@ -32,6 +34,10 @@ type Options struct {
 	// unrestricted -- the desktop app and bare (non-Docker) server runs
 	// have no such distinction between ephemeral and persistent storage.
 	ProjectRoot string
+	// StorageDir overrides where accounts, sessions and the project
+	// registry are stored (default: the General settings' RootDir). Tests
+	// point it at a temporary directory.
+	StorageDir string
 }
 
 // Server is the HTTP/WebSocket API described in Giai doan 1 of
@@ -44,6 +50,10 @@ type Server struct {
 	opts   Options
 	auth   *authManager
 	mux    *http.ServeMux
+	// projects maps project directories to owners, members and share
+	// links (projects_api.go).
+	projects   *projects.Registry
+	storageDir string
 	// compileSlots bounds concurrent typst compiles from /api/export and
 	// /api/preview/pdf: every request spawns a typst process.
 	compileSlots chan struct{}
@@ -55,6 +65,10 @@ type Server struct {
 
 	activeDocMu sync.RWMutex
 	activeDoc   mcp.ActiveDocument
+
+	// Fonts and package archives for the in-browser compiler (wasm_api.go).
+	wasmFonts    *wasmassets.FontIndex
+	wasmPackages *wasmassets.Packages
 }
 
 type webActiveDocProvider struct {
@@ -96,18 +110,22 @@ func (s *Server) SetActiveFile(absPath string, cursorPos int) {
 }
 
 func New(appSrv *service.ServiceFacade, opts Options) *Server {
-	var storageDir string
-	if appSrv != nil && appSrv.Settings() != nil && appSrv.Settings().General() != nil {
+	storageDir := opts.StorageDir
+	if storageDir == "" && appSrv != nil && appSrv.Settings() != nil && appSrv.Settings().General() != nil {
 		storageDir = appSrv.Settings().General().RootDir
 	}
 	s := &Server{
-		appSrv: appSrv,
-		opts:   opts,
-		auth:   newAuthManager(opts.Password, storageDir),
-		mux:    http.NewServeMux(),
+		appSrv:     appSrv,
+		opts:       opts,
+		auth:       newAuthManager(opts.Password, storageDir),
+		projects:   openProjectRegistry(storageDir),
+		storageDir: storageDir,
+		mux:        http.NewServeMux(),
 
 		compileSlots: make(chan struct{}, maxConcurrentCompiles),
+		wasmFonts:    wasmassets.NewFontIndex(),
 	}
+	s.wasmPackages = s.newWasmPackages()
 	if s.appSrv != nil {
 		s.appSrv.SetViewManager(nil, nil, nil, func() any {
 			return &webActiveDocProvider{server: s}
@@ -135,32 +153,52 @@ func (s *Server) routes() {
 	s.handle("DELETE /api/auth/tokens/{hash}", s.auth.handleRevokeToken)
 	s.mux.HandleFunc("POST /api/i18n", s.handleI18n)
 
-	// Workspace / project / file management.
+	// MFA (TOTP) management for the logged-in account.
+	s.handle("POST /api/auth/mfa/setup", s.auth.handleMFASetup)
+	s.handle("POST /api/auth/mfa/enable", s.auth.handleMFAEnable)
+	s.handle("POST /api/auth/mfa/disable", s.auth.handleMFADisable)
+
+	// Project registry: ownership, members, share links (projects_api.go).
+	s.handle("GET /api/projects", s.handleProjectsList)
+	s.handle("POST /api/projects", s.handleProjectsCreate)
+	s.handle("POST /api/projects/join", s.handleProjectJoin)
+	s.handle("POST /api/projects/{id}/open", s.handleProjectOpen)
+	s.handle("DELETE /api/projects/{id}", s.handleProjectDelete)
+	s.handle("GET /api/projects/{id}/members", s.handleProjectMembers)
+	s.handle("PUT /api/projects/{id}/members/{user}", s.handleProjectSetMember)
+	s.handle("DELETE /api/projects/{id}/members/{user}", s.handleProjectRemoveMember)
+	s.handle("GET /api/projects/{id}/shares", s.handleProjectShares)
+	s.handle("POST /api/projects/{id}/shares", s.handleProjectCreateShare)
+	s.handle("DELETE /api/projects/{id}/shares/{shareId}", s.handleProjectRevokeShare)
+
+	// Workspace / project / file management. Reads need at least viewer and
+	// writes at least editor on the open project, when it is registered.
 	s.handle("GET /api/workspace/current", s.handleCurrentProject)
+	s.handle("GET /api/workspace/role", s.handleWorkspaceRole)
 	s.handle("GET /api/workspace/recent", s.handleRecentProjects)
 	s.handle("POST /api/workspace/open", s.handleOpenProject)
 	s.handle("POST /api/workspace/create", s.handleCreateProject)
-	s.handle("GET /api/workspace/tree", s.handleTree)
-	s.handle("GET /api/workspace/file", s.handleFileGet)
-	s.handle("PUT /api/workspace/file", s.handleFilePut)
-	s.handle("POST /api/workspace/file", s.handleFileCreate)
-	s.handle("DELETE /api/workspace/file", s.handleFileDelete)
-	s.handle("POST /api/workspace/rename", s.handleFileRename)
+	s.handleRole("GET /api/workspace/tree", projects.RoleViewer, s.handleTree)
+	s.handleRole("GET /api/workspace/file", projects.RoleViewer, s.handleFileGet)
+	s.handleRole("PUT /api/workspace/file", projects.RoleEditor, s.handleFilePut)
+	s.handleRole("POST /api/workspace/file", projects.RoleEditor, s.handleFileCreate)
+	s.handleRole("DELETE /api/workspace/file", projects.RoleEditor, s.handleFileDelete)
+	s.handleRole("POST /api/workspace/rename", projects.RoleEditor, s.handleFileRename)
 
 	// Export (PDF/PNG/SVG download).
-	s.handle("GET /api/export", s.handleExport)
+	s.handleRole("GET /api/export", projects.RoleViewer, s.handleExport)
 	// Static-PDF preview, served inline for an <iframe>/<embed> -- see
 	// handlePreviewPdf's doc comment for why this exists alongside the
 	// WebSocket-based /preview/ proxy below.
-	s.handle("GET /api/preview/pdf", s.handlePreviewPdf)
-	s.handle("POST /api/preview/render", s.handlePreviewRender)
-	s.handle("POST /api/preview/anchors", s.handlePreviewAnchors)
+	s.handleRole("GET /api/preview/pdf", projects.RoleViewer, s.handlePreviewPdf)
+	s.handleRole("POST /api/preview/render", projects.RoleViewer, s.handlePreviewRender)
+	s.handleRole("POST /api/preview/anchors", projects.RoleViewer, s.handlePreviewAnchors)
 
 	// VPS sync: desktop pushes project files here (see sync_handler.go).
-	s.handle("GET /api/sync/manifest", s.handleSyncManifest)
-	s.handle("GET /api/sync/pull", s.handleSyncPull)
-	s.handle("POST /api/sync/push", s.handleSyncPush)
-	s.handle("POST /api/sync/delete", s.handleSyncDelete)
+	s.handleRole("GET /api/sync/manifest", projects.RoleViewer, s.handleSyncManifest)
+	s.handleRole("GET /api/sync/pull", projects.RoleViewer, s.handleSyncPull)
+	s.handleRole("POST /api/sync/push", projects.RoleEditor, s.handleSyncPush)
+	s.handleRole("POST /api/sync/delete", projects.RoleEditor, s.handleSyncDelete)
 
 	// Typst package manager (Tpix).
 	s.handle("GET /api/packages/search", s.handlePkgSearch)
@@ -169,21 +207,29 @@ func (s *Server) routes() {
 	s.handle("POST /api/packages/download", s.handlePkgDownload)
 	s.handle("POST /api/packages/pull-deps", s.handlePkgPullDeps)
 
+	// Fonts and package archives for the in-browser compiler. Shared by
+	// every project, so they only need a signed-in user (wasm_api.go).
+	s.handle("GET /api/wasm/fonts", s.handleWasmFonts)
+	s.handle("GET /api/wasm/fonts/{id}", s.handleWasmFont)
+	s.handle("GET /api/wasm/packages/{namespace}/{name}/{version}", s.handleWasmPackage)
+
 	// Settings.
 	s.handle("GET /api/settings/general", settingsGetHandler(s.appSrv.Settings().General))
-	s.handle("PUT /api/settings/general", settingsPutHandler(s.appSrv.Settings().General))
+	// Settings are server-wide (and include executable paths), so changing
+	// them is admin-only.
+	s.handleAdmin("PUT /api/settings/general", settingsPutHandler(s.appSrv.Settings().General))
 	s.handle("GET /api/settings/editor", settingsGetHandler(s.appSrv.Settings().Editor))
-	s.handle("PUT /api/settings/editor", settingsPutHandler(s.appSrv.Settings().Editor))
+	s.handleAdmin("PUT /api/settings/editor", settingsPutHandler(s.appSrv.Settings().Editor))
 	s.handle("GET /api/settings/typst", settingsGetHandler(s.appSrv.Settings().Typst))
-	s.handle("PUT /api/settings/typst", settingsPutHandler(s.appSrv.Settings().Typst))
+	s.handleAdmin("PUT /api/settings/typst", settingsPutHandler(s.appSrv.Settings().Typst))
 	s.handle("GET /api/settings/lsp", settingsGetHandler(s.appSrv.Settings().Lsp))
-	s.handle("PUT /api/settings/lsp", settingsPutHandler(s.appSrv.Settings().Lsp))
+	s.handleAdmin("PUT /api/settings/lsp", settingsPutHandler(s.appSrv.Settings().Lsp))
 	s.handle("GET /api/settings/agent", settingsGetHandler(s.appSrv.Settings().AcpAgent))
-	s.handle("PUT /api/settings/agent", settingsPutHandler(s.appSrv.Settings().AcpAgent))
+	s.handleAdmin("PUT /api/settings/agent", settingsPutHandler(s.appSrv.Settings().AcpAgent))
 	s.handle("GET /api/settings/meta", s.handleSettingsMeta)
 	s.handle("GET /api/settings/fonts", s.handleFontsList)
-	s.handle("POST /api/settings/fonts", s.handleFontUpload)
-	s.handle("DELETE /api/settings/fonts/{name}", s.handleFontDelete)
+	s.handleAdmin("POST /api/settings/fonts", s.handleFontUpload)
+	s.handleAdmin("DELETE /api/settings/fonts/{name}", s.handleFontDelete)
 	// No /api/settings/tpix: it holds the package-registry API key, which
 	// the web UI never uses, so it is not exposed to the browser at all.
 	// No /api/settings/agent in settings-sync scope: AcpAgentSettings is
@@ -193,32 +239,34 @@ func (s *Server) routes() {
 
 	// Dropbox sync & integration.
 	s.handle("GET /api/dropbox/status", s.handleDropboxStatus)
-	s.handle("POST /api/dropbox/auth/url", s.handleDropboxAuthURL)
-	s.handle("POST /api/dropbox/auth/callback", s.handleDropboxAuthCallback)
-	s.handle("POST /api/dropbox/auth/token", s.handleDropboxSaveToken)
-	s.handle("POST /api/dropbox/auth/disconnect", s.handleDropboxDisconnect)
-	s.handle("POST /api/dropbox/sync", s.handleDropboxSync)
+	s.handleAdmin("POST /api/dropbox/auth/url", s.handleDropboxAuthURL)
+	s.handleAdmin("POST /api/dropbox/auth/callback", s.handleDropboxAuthCallback)
+	s.handleAdmin("POST /api/dropbox/auth/token", s.handleDropboxSaveToken)
+	s.handleAdmin("POST /api/dropbox/auth/disconnect", s.handleDropboxDisconnect)
+	s.handleRole("POST /api/dropbox/sync", projects.RoleEditor, s.handleDropboxSync)
 	s.handle("GET /api/dropbox/projects", s.handleDropboxListProjects)
 	s.handle("POST /api/dropbox/import", s.handleDropboxImport)
 
-	// AI agent registry / selection / auth.
+	// AI agent registry / selection / auth. The agent can edit files and
+	// run commands, so using it needs editor rights; configuring it is
+	// admin-only.
 	s.handle("GET /api/agent/registry", s.handleAgentRegistry)
-	s.handle("POST /api/agent/select", s.handleAgentSelect)
-	s.handle("POST /api/agent/auth/callback", s.handleAgentAuthCallback)
-	s.handle("POST /api/agent/auth/{methodId}", s.handleAgentAuth)
-	s.handle("POST /api/agent/preferred-config", s.handleSavePreferredConfig)
+	s.handleAdmin("POST /api/agent/select", s.handleAgentSelect)
+	s.handleAdmin("POST /api/agent/auth/callback", s.handleAgentAuthCallback)
+	s.handleAdmin("POST /api/agent/auth/{methodId}", s.handleAgentAuth)
+	s.handleAdmin("POST /api/agent/preferred-config", s.handleSavePreferredConfig)
 	s.handle("GET /api/agent/sessions", s.handleAgentSessions)
-	s.handle("GET /api/console", s.handleConsole)
+	s.handleAdmin("GET /api/console", s.handleConsole)
 
 	// LSP + AI agent, over WebSocket.
-	s.handle("GET /ws/lsp", s.handleLspWS)
-	s.handle("GET /ws/agent", s.handleAgentWS)
+	s.handleRole("GET /ws/lsp", projects.RoleViewer, s.handleLspWS)
+	s.handleRole("GET /ws/agent", projects.RoleEditor, s.handleAgentWS)
 
 	// Preview: reverse-proxied to tinymist's own preview server.
 	s.handle("GET /api/preview/status", s.handlePreviewStatus)
-	s.handle("POST /api/preview/restart", s.handlePreviewRestart)
-	s.handle("POST /api/preview/cursor", s.handlePreviewCursor)
-	s.mux.Handle(previewPathPrefix, s.auth.require(s.handlePreviewProxy))
+	s.handleRole("POST /api/preview/restart", projects.RoleViewer, s.handlePreviewRestart)
+	s.handleRole("POST /api/preview/cursor", projects.RoleViewer, s.handlePreviewCursor)
+	s.mux.Handle(previewPathPrefix, s.auth.require(s.roleGate(projects.RoleViewer, s.handlePreviewProxy)))
 
 	if s.opts.StaticDir != "" {
 		s.mux.Handle("/", s.staticHandler())

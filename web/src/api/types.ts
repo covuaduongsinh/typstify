@@ -63,6 +63,51 @@ export interface AuthStatus {
   username?: string
   displayName?: string
   hasUsers?: boolean
+  /** Admins manage every project and the server-wide settings. */
+  admin?: boolean
+  mfaEnabled?: boolean
+}
+
+// Mirrors service/projects (Role, Project, ShareLink) and server/projects_api.go.
+export type ProjectRole = 'owner' | 'editor' | 'commenter' | 'viewer'
+
+export const ROLE_LABELS: Record<ProjectRole, string> = {
+  owner: 'Chủ sở hữu',
+  editor: 'Chỉnh sửa',
+  commenter: 'Góp ý',
+  viewer: 'Chỉ xem',
+}
+
+// The server's trimmed projectView: no server path, no member list (those
+// come from the owner-only /members endpoint).
+export interface ProjectInfo {
+  id: string
+  name: string
+  owner: string
+  createdAt: string
+  updatedAt: string
+  role: ProjectRole
+}
+
+export interface ProjectMember {
+  username: string
+  role: ProjectRole
+}
+
+export interface ShareLinkInfo {
+  id: string
+  projectId: string
+  role: ProjectRole
+  createdBy: string
+  createdAt: string
+  expiresAt?: string
+  uses: number
+}
+
+export interface WorkspaceRole {
+  registered: boolean
+  role: ProjectRole
+  project?: ProjectInfo
 }
 
 export interface User {

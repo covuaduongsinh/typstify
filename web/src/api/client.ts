@@ -5,9 +5,12 @@
 
 export class ApiError extends Error {
   status: number
-  constructor(status: number, message: string) {
+  /** Parsed JSON error body, when the server sent one (e.g. {mfaRequired: true}). */
+  body?: Record<string, unknown>
+  constructor(status: number, message: string, body?: Record<string, unknown>) {
     super(message)
     this.status = status
+    this.body = body
   }
 }
 
@@ -20,13 +23,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     let message = res.statusText
+    let body: Record<string, unknown> | undefined
     try {
-      const body = await res.json()
-      if (body?.error) message = body.error
+      body = await res.json()
+      if (typeof body?.error === 'string') message = body.error
     } catch {
       // ignore non-JSON error bodies
     }
-    throw new ApiError(res.status, message)
+    throw new ApiError(res.status, message, body)
   }
 
   const contentType = res.headers.get('Content-Type') ?? ''

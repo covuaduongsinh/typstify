@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildPageLineMap,
   calculateLineRatio,
@@ -11,10 +11,29 @@ import {
   type PageLayoutInfo,
 } from '../lib/scrollSync'
 import { extractSvgDimensions, scopeSvgIds } from '../lib/svgHelper'
+import { wasmSupported } from '../lib/wasm/client'
 import { Icon } from './Icon'
+import type { WasmPreviewStatus } from './WasmPreview'
+
+// The renderer WASM and typst.ts load only once the instant mode is used.
+const WasmPreview = lazy(() => import('./WasmPreview').then((m) => ({ default: m.WasmPreview })))
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
-type ViewMode = 'svg' | 'pdf' | 'tinymist'
+// 'wasm' compiles in the browser (WasmPreview); the others ask the server.
+type ViewMode = 'wasm' | 'svg' | 'pdf' | 'tinymist'
+
+const VIEW_MODE_KEY = 'typstify.previewMode'
+
+function initialViewMode(): ViewMode {
+  let saved: string | null = null
+  try {
+    saved = localStorage.getItem(VIEW_MODE_KEY)
+  } catch {
+    // storage blocked: use the default
+  }
+  if (saved === 'svg' || saved === 'pdf' || saved === 'tinymist') return saved
+  return wasmSupported() ? 'wasm' : 'svg'
+}
 
 interface PreviewPaneProps {
   path: string | null
@@ -26,12 +45,16 @@ interface PreviewPaneProps {
   // built from an empty string.
   content?: string | null
   liveContent?: string | null
+  /** Like liveContent with a much shorter debounce, for the in-browser compiler. */
+  draftContent?: string | null
   cursor?: { line: number; col: number; totalLines: number } | null
   /** Called (debounced) when the user manually scrolls the SVG preview, with
    * the corresponding 1-based source line -- the preview->editor half of
    * scroll sync. Not called for programmatic scrolls the editor->preview
    * direction itself triggers (see isUserScrollingRef). */
   onScrollToLine?: (line: number) => void
+  /** Clicking text in the in-browser preview jumps the editor to its line. */
+  onJumpToLine?: (line: number) => void
 }
 
 interface PageCardProps {
@@ -122,7 +145,16 @@ function PreviewPageCard({
   )
 }
 
-export function PreviewPane({ path, version, content, liveContent, cursor, onScrollToLine }: PreviewPaneProps) {
+export function PreviewPane({
+  path,
+  version,
+  content,
+  liveContent,
+  draftContent,
+  cursor,
+  onScrollToLine,
+  onJumpToLine,
+}: PreviewPaneProps) {
   // The best known source text at any given moment: live unsaved edits, or
   // else the file as loaded from disk. Never the empty string liveContent
   // defaults to before the user's first edit.
@@ -131,7 +163,9 @@ export function PreviewPane({ path, version, content, liveContent, cursor, onScr
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pages, setPages] = useState<string[]>([])
   const [pageCount, setPageCount] = useState<number>(0)
-  const [viewMode, setViewMode] = useState<ViewMode>('svg')
+  const [viewMode, setViewModeState] = useState<ViewMode>(initialViewMode)
+  const [wasmStatus, setWasmStatus] = useState<WasmPreviewStatus | null>(null)
+  const [wasmUnavailable, setWasmUnavailable] = useState<string | null>(null)
   const [syncScroll, setSyncScroll] = useState<boolean>(true)
   const [zoom, setZoom] = useState<number>(100)
   const [fitWidth, setFitWidth] = useState<boolean>(false)
@@ -162,6 +196,23 @@ export function PreviewPane({ path, version, content, liveContent, cursor, onScr
   const anchorsDebounceTimerRef = useRef<number | undefined>(undefined)
 
   const isTyp = !!path && path.endsWith('.typ')
+
+  const setViewMode = (mode: ViewMode) => {
+    setViewModeState(mode)
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, mode)
+    } catch {
+      // not persisted; the choice still applies to this session
+    }
+  }
+
+  // The browser compiler could not start (blocked worker, missing assets):
+  // show the server rendering instead, without remembering it, so the
+  // next visit tries the browser compiler again.
+  const handleWasmUnavailable = useCallback((reason: string) => {
+    setWasmUnavailable(reason)
+    setViewModeState('svg')
+  }, [])
 
   // Build accurate page→line map from source content and page count. Uses the
   // content that was actually compiled to produce pageCount (lastRenderedContentRef),
@@ -195,7 +246,7 @@ export function PreviewPane({ path, version, content, liveContent, cursor, onScr
   // it's driven entirely by the /preview/ iframe + /api/preview/restart (see
   // Workspace.tsx), so status just tracks readiness there instead.
   useEffect(() => {
-    if (!path || !path.endsWith('.typ') || viewMode === 'tinymist') return
+    if (!path || !path.endsWith('.typ') || viewMode === 'tinymist' || viewMode === 'wasm') return
     const ctrl = new AbortController()
 
     void (async () => {
@@ -520,7 +571,26 @@ export function PreviewPane({ path, version, content, liveContent, cursor, onScr
     <div className="preview-pane">
       <div className="preview-toolbar">
         {/* Status indicator */}
-        {viewMode === 'tinymist' ? (
+        {viewMode === 'wasm' ? (
+          <span className={`preview-status preview-status-${wasmStatus?.status ?? 'loading'}`}>
+            {(!wasmStatus || wasmStatus.status === 'loading') && (
+              <>
+                <span className="spinner" /> Đang nạp trình biên dịch…
+              </>
+            )}
+            {wasmStatus?.status === 'ready' && (
+              <>
+                <Icon name="check" size={13} /> Tức thì ({wasmStatus.pageCount} trang
+                {wasmStatus.ms !== undefined ? ` · ${wasmStatus.ms} ms` : ''})
+              </>
+            )}
+            {wasmStatus?.status === 'error' && (
+              <>
+                <Icon name="error" size={13} /> Lỗi biên dịch
+              </>
+            )}
+          </span>
+        ) : viewMode === 'tinymist' ? (
           <span className={`preview-status preview-status-${tinymistReady ? 'ready' : 'loading'}`}>
             {tinymistReady ? (
               <>
@@ -555,7 +625,7 @@ export function PreviewPane({ path, version, content, liveContent, cursor, onScr
         <span className="preview-toolbar-spacer" />
 
         {/* Scroll Sync Toggle */}
-        {(viewMode === 'svg' || viewMode === 'tinymist') && (
+        {viewMode !== 'pdf' && (
           <button
             className={`btn-ghost preview-tool preview-tool-btn${syncScroll ? ' active' : ''}`}
             title={syncScroll ? 'Đang bật đồng bộ cuộn theo con trỏ (Bấm để tắt)' : 'Đang tắt đồng bộ cuộn (Bấm để bật)'}
@@ -573,7 +643,7 @@ export function PreviewPane({ path, version, content, liveContent, cursor, onScr
             own zoom/page/print toolbar (verified live: Chrome's embedded
             PDF.js UI), so a second zoom control here would just be a
             redundant, out-of-sync duplicate. */}
-        {(viewMode === 'svg' || viewMode === 'tinymist') && (
+        {viewMode !== 'pdf' && (
           <div className="preview-zoom-group">
             <button
               className="btn-ghost preview-tool"
@@ -589,7 +659,7 @@ export function PreviewPane({ path, version, content, liveContent, cursor, onScr
               aria-label="Cỡ chuẩn 100%"
               onClick={handleZoomReset}
             >
-              {fitWidth && viewMode === 'svg' ? 'Vừa khung' : `${zoom}%`}
+              {fitWidth && (viewMode === 'svg' || viewMode === 'wasm') ? 'Vừa khung' : `${zoom}%`}
             </button>
             <button
               className="btn-ghost preview-tool"
@@ -599,7 +669,7 @@ export function PreviewPane({ path, version, content, liveContent, cursor, onScr
             >
               <Icon name="zoom-in" size={14} />
             </button>
-            {viewMode === 'svg' && (
+            {(viewMode === 'svg' || viewMode === 'wasm') && (
               <button
                 className={`btn-ghost preview-tool${fitWidth ? ' active' : ''}`}
                 title="Vừa chiều rộng khung nhìn"
@@ -614,9 +684,25 @@ export function PreviewPane({ path, version, content, liveContent, cursor, onScr
 
         {/* View mode toggle (SVG Paper vs PDF Embed) */}
         <div className="preview-mode-group">
+          {wasmSupported() && (
+            <button
+              className={`btn-ghost preview-tool preview-mode-btn${viewMode === 'wasm' ? ' active' : ''}`}
+              title={
+                wasmUnavailable
+                  ? `Không chạy được trình biên dịch trong trình duyệt: ${wasmUnavailable}`
+                  : 'Biên dịch ngay trong trình duyệt: cập nhật khi đang gõ, bấm vào chữ để nhảy tới dòng nguồn'
+              }
+              onClick={() => {
+                setWasmUnavailable(null)
+                setViewMode('wasm')
+              }}
+            >
+              Tức thì
+            </button>
+          )}
           <button
             className={`btn-ghost preview-tool preview-mode-btn${viewMode === 'svg' ? ' active' : ''}`}
-            title="Chế độ trang SVG (Cập nhật tức thì, mượt mà)"
+            title="Máy chủ biên dịch và gửi về từng trang SVG"
             onClick={() => setViewMode('svg')}
           >
             Trang in
@@ -664,6 +750,25 @@ export function PreviewPane({ path, version, content, liveContent, cursor, onScr
       </div>
 
       <div className="preview-body">
+        {viewMode === 'wasm' && path && (
+          <Suspense fallback={null}>
+            <WasmPreview
+              path={path}
+              source={draftContent ?? effectiveContent}
+              version={version}
+              nonce={nonce}
+              cursor={cursor}
+              syncScroll={syncScroll}
+              zoom={zoom}
+              fitWidth={fitWidth}
+              onStatus={setWasmStatus}
+              onUnavailable={handleWasmUnavailable}
+              onScrollToLine={onScrollToLine}
+              onJumpToLine={onJumpToLine}
+            />
+          </Suspense>
+        )}
+
         {/* SVG Paper View Mode */}
         {viewMode === 'svg' && (
           <div
@@ -743,7 +848,16 @@ export function PreviewPane({ path, version, content, liveContent, cursor, onScr
 
         {/* Error notification banner / popup (not applicable to tinymist mode,
             which surfaces its own compile errors inside its iframe) */}
-        {errorMessage && viewMode !== 'tinymist' && (
+        {viewMode === 'wasm' && wasmStatus?.status === 'error' && wasmStatus.message && (
+          <div className="preview-error-banner" role="alert">
+            <div className="preview-error-header">
+              <Icon name="error" size={15} />
+              <span>Lỗi cú pháp Typst</span>
+            </div>
+            <pre className="preview-error-message">{wasmStatus.message}</pre>
+          </div>
+        )}
+        {errorMessage && viewMode !== 'tinymist' && viewMode !== 'wasm' && (
           <div className="preview-error-banner" role="alert">
             <div className="preview-error-header">
               <Icon name="error" size={15} />

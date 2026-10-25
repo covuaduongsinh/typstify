@@ -4,6 +4,7 @@ import type { AgentSettings, FontFileInfo, GeneralSettings, LspSettings, TypstSe
 import { describeCombo, effectiveKey, keyComboFromEvent, SHORTCUT_ACTIONS, useShortcuts } from '../lib/shortcuts'
 import { AgentRegistryPicker } from './AgentRegistryPicker'
 import { Icon } from './Icon'
+import { SecuritySection } from './SecuritySection'
 
 interface Field<T> {
   key: keyof T
@@ -136,6 +137,8 @@ export function SettingsPanel() {
       </p>
 
       <AccountSettingsSection />
+
+      <SecuritySection />
 
       <Section<TypstSettings>
         title="Typst & font"

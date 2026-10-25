@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"looz.ws/typstify/service/projects"
 )
 
 // checkProjectRoot rejects abs when the server was started with a
@@ -323,6 +326,14 @@ func (s *Server) handleOpenProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "not a directory")
 		return
 	}
+	p, registered, err := s.checkDirAccess(r, abs, projects.RoleViewer)
+	if err != nil {
+		writeError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	if registered {
+		s.projects.Touch(p.ID)
+	}
 
 	s.appSrv.SetProjectDir(abs)
 	writeJSON(w, http.StatusOK, map[string]string{"path": abs})
@@ -348,9 +359,25 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	_, registered, err := s.checkDirAccess(r, abs, projects.RoleEditor)
+	if err != nil {
+		writeError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	_, statErr := os.Stat(abs)
+	existed := statErr == nil
 	if err := os.MkdirAll(abs, 0755); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	// A project created through the server belongs to whoever created it.
+	// Only a folder this request actually created is registered: claiming
+	// an existing (shared, legacy) folder would lock its other users out.
+	if !registered && !existed {
+		user, _ := s.requestUser(r)
+		if _, err := s.projects.Create("", abs, user); err != nil {
+			log.Printf("projects: register %s: %v", abs, err)
+		}
 	}
 
 	mainFile := filepath.Join(abs, "main.typ")

@@ -73,6 +73,8 @@ interface EditorProps {
   onDocChange?: (content: string) => void
   /** Error/warning counts of the latest LSP diagnostics for this file. */
   onDiagnosticsChange?: (counts: { errors: number; warnings: number }) => void
+  /** Viewer/commenter role on a shared project: the document can't be edited. */
+  readOnly?: boolean
 }
 
 // LSP snippets allow bare $1/$0 tabstops (e.g. "${1:name}(${2:args})$0");
@@ -163,7 +165,18 @@ const HOVER_MARKDOWN_COMPONENTS = { a: HoverLink }
  * completion/hover/diagnostics sourced from the tinymist LSP over
  * /ws/lsp (see server/lsp_ws.go and lib/lspClient.ts). */
 export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
-  { path, initialContent, lsp, onDirtyChange, onSave, onSaveError, onCursorChange, onDocChange, onDiagnosticsChange },
+  {
+    path,
+    initialContent,
+    lsp,
+    onDirtyChange,
+    onSave,
+    onSaveError,
+    onCursorChange,
+    onDocChange,
+    onDiagnosticsChange,
+    readOnly = false,
+  },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -426,6 +439,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         }
         if (update.docChanged || update.selectionSet) reportCursor(update.state)
       }),
+      EditorState.readOnly.of(readOnly),
+      EditorView.editable.of(!readOnly),
     ]
 
     const state = EditorState.create({ doc: initialContent, extensions })
@@ -461,7 +476,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     }
     // Re-create the whole CodeMirror session when the open file changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, lsp])
+  }, [path, lsp, readOnly])
 
   return <div className="editor-host" ref={hostRef} />
 })

@@ -56,14 +56,14 @@ Không có Justfile/Makefile. Bản desktop phát hành cần `gogio` và CGO. C
 - Giao tiếp và tài liệu bằng **tiếng Việt**; code, đường dẫn, định danh giữ tiếng Anh.
 - Commit message theo kiểu `feat(scope): ...` / `fix(scope): ...` (tiếng Anh), kết thúc bằng dòng `Co-Authored-By` khi có yêu cầu.
 - Logic dùng chung đặt ở `service/`, `agent/`, `lsp/`, `typst/`; `server/` chỉ làm transport. Không kéo phụ thuộc Gio vào `service/`.
-- Server: mọi đường dẫn file phải qua `resolveInRoot` (`server/paths.go`); không lộ secret (`/api/settings/tpix` cố ý không expose).
+- Server: mọi đường dẫn file phải qua `resolveInRoot` (`server/paths.go`); không lộ secret (`/api/settings/tpix` cố ý không expose). Route đụng file project đăng ký bằng `handleRole` (đọc ≥ viewer, ghi ≥ editor), route đổi cấu hình máy chủ bằng `handleAdmin` (`server/projects_api.go`).
 - Settings mới: thêm `Model` (`Save/Load/Validate`), và `RemoteApplier` nếu cần đồng bộ desktop↔web. Section `agent` là máy cục bộ, không sync.
 - Thay đổi hành vi thì cập nhật `docs/` tương ứng và thêm mục vào `docs/HISTORY.md`.
 - `.gitignore` đang loại `.claude/`, `demo/`, `scratch/`, `*.exe`, `.env` — đừng giả định các thư mục này được theo dõi.
 
 ## 5. Cạm bẫy đã biết (tóm tắt — chi tiết ở `docs/MEMORY.md`)
 
-- Preview SVG trên web **chưa có** click-to-source; chỉ desktop và iframe tinymist có.
+- Preview web mặc định là chế độ **Tức thì** (typst.ts trong worker, `web/src/lib/wasm`). Click-to-source ở chế độ này khớp theo văn bản; chế độ "Trang in" của server vẫn chưa có. Đừng dùng `renderToSvg` của renderer (xem `docs/MEMORY.md`).
 - Scroll sync bằng vị trí heading thật chỉ có ở web (`typst.QueryHeadingPages`).
 - `tinymist.doKillPreview` phải truyền id `"default_preview"`.
 - Callback LSP chạy trên goroutine riêng: đụng UI Gio phải gọi `RefreshWindow()`.

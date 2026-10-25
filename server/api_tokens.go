@@ -2,14 +2,12 @@ package server
 
 import (
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -167,6 +165,7 @@ type issueTokenRequest struct {
 	Username string `json:"username,omitempty"`
 	Password string `json:"password"`
 	Label    string `json:"label,omitempty"`
+	Code     string `json:"code,omitempty"` // TOTP/recovery code when MFA is on
 }
 
 // handleIssueToken authenticates with the same credentials as handleLogin
@@ -192,36 +191,19 @@ func (a *authManager) handleIssueToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	username := strings.ToLower(strings.TrimSpace(req.Username))
-	var loggedInUser string
-	authenticated := false
-
-	a.mu.Lock()
-	if username != "" {
-		if u, ok := a.users[username]; ok && verifyPassword(req.Password, u.Salt, u.PasswordHash) {
-			authenticated = true
-			loggedInUser = u.Username
-		}
-	} else {
-		if a.password != "" && subtle.ConstantTimeCompare([]byte(req.Password), []byte(a.password)) == 1 {
-			authenticated = true
-			loggedInUser = "admin"
-		} else if len(a.users) == 1 {
-			for _, u := range a.users {
-				if verifyPassword(req.Password, u.Salt, u.PasswordHash) {
-					authenticated = true
-					loggedInUser = u.Username
-					break
-				}
-			}
-		}
-	}
-	a.mu.Unlock()
-
+	loggedInUser, _, authenticated := a.authenticatePassword(req.Username, req.Password)
 	if !authenticated {
 		a.limiter.recordFailure(ip)
 		time.Sleep(failedLoginDelay)
 		writeError(w, http.StatusUnauthorized, "Tên đăng nhập hoặc mật khẩu không đúng")
+		return
+	}
+	if ok, locked := a.checkSecondFactor(loggedInUser, req.Code); !ok {
+		if req.Code != "" {
+			a.limiter.recordFailure(ip)
+			time.Sleep(failedLoginDelay)
+		}
+		writeMFARequired(w, req.Code != "", locked)
 		return
 	}
 	a.limiter.recordSuccess(ip)

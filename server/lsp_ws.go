@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"looz.ws/typstify/lsp"
+	"looz.ws/typstify/service/projects"
 )
 
 // lspClientMessage is the wire format for browser -> server messages on
@@ -106,6 +108,13 @@ func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
 		if err := wsjson.Read(sessCtx, conn, &msg); err != nil {
 			return
 		}
+		// Re-checked per message so removing a member also cuts off an
+		// already open socket.
+		if !s.hasProjectRole(r, projects.RoleViewer) {
+			_ = conn.Close(websocket.StatusPolicyViolation, "access revoked")
+			return
+		}
+		canEdit := s.hasProjectRole(r, projects.RoleEditor)
 
 		switch msg.Type {
 		case "didOpen", "didChange":
@@ -113,11 +122,24 @@ func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				continue
 			}
+			content := msg.Content
+			if !canEdit {
+				// tinymist's in-memory document drives the shared preview, so
+				// a read-only member may only load what is on disk.
+				if msg.Type == "didChange" {
+					continue
+				}
+				data, err := os.ReadFile(p)
+				if err != nil {
+					continue
+				}
+				content = string(data)
+			}
 			if strings.HasSuffix(p, ".typ") {
 				s.SetActiveFile(p, 0)
 			}
 			watched.add(msg.Path)
-			client.OnEditorUpdated(p, strings.NewReader(msg.Content))
+			client.OnEditorUpdated(p, strings.NewReader(content))
 
 		case "didClose":
 			p, err := resolveInRoot(root, msg.Path)
@@ -128,6 +150,9 @@ func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
 			client.OnEditorClosed(p)
 
 		case "didSave":
+			if !canEdit {
+				continue
+			}
 			p, err := resolveInRoot(root, msg.Path)
 			if err != nil {
 				continue

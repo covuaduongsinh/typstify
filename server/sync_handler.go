@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -53,6 +55,10 @@ func (s *Server) handleSyncPull(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// The hash of exactly these bytes (same as the manifest's): a client
+	// caching by hash can tell a file that changed since its manifest.
+	sum := sha256.Sum256(data)
+	w.Header().Set("X-Content-Sha256", hex.EncodeToString(sum[:]))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	_, _ = w.Write(data)
 }

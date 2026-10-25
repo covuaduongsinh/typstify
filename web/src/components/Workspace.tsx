@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { TreeEntry } from '../api/types'
+import { ROLE_LABELS, type TreeEntry, type WorkspaceRole } from '../api/types'
 import { useTranslations } from '../lib/i18n'
 import { LspClient } from '../lib/lspClient'
 import { useTheme } from '../lib/theme'
@@ -30,6 +30,7 @@ const PgnImportModal = lazy(() => import('./PgnImportModal').then((m) => ({ defa
 const DataImportModal = lazy(() => import('./DataImportModal').then((m) => ({ default: m.DataImportModal })))
 const MarkdownImportModal = lazy(() => import('./MarkdownImportModal').then((m) => ({ default: m.MarkdownImportModal })))
 const DropboxSyncModal = lazy(() => import('./DropboxSyncModal').then((m) => ({ default: m.DropboxSyncModal })))
+const ShareModal = lazy(() => import('./ShareModal').then((m) => ({ default: m.ShareModal })))
 
 function PanelLoading() {
   return (
@@ -140,6 +141,11 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const [cursor, setCursor] = useState<{ line: number; col: number; totalLines: number } | null>(null)
   const [liveContent, setLiveContent] = useState<string | null>(null)
   const liveDebounceRef = useRef<number | undefined>(undefined)
+  // The in-browser preview compiles on almost every keystroke, so it reads
+  // a draft with a much shorter debounce than liveContent (which the
+  // server-rendered previews use).
+  const [draftContent, setDraftContent] = useState<string | null>(null)
+  const draftDebounceRef = useRef<number | undefined>(undefined)
   const [diagnostics, setDiagnostics] = useState<DiagnosticCounts>({ errors: 0, warnings: 0 })
   const [sidePanel, setSidePanel] = useState<SidePanel>('agent')
   const [previewVersion, setPreviewVersion] = useState(0)
@@ -210,6 +216,19 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const editorRef = useRef<EditorHandle>(null)
   const t = useTranslations(I18N_KEYS)
   const [theme, toggleTheme] = useTheme()
+
+  // The caller's role on this project (server/projects_api.go). Projects
+  // that aren't in the registry behave as before: fully editable.
+  const [access, setAccess] = useState<WorkspaceRole | null>(null)
+  const [isShareOpen, setIsShareOpen] = useState(false)
+  useEffect(() => {
+    api
+      .get<WorkspaceRole>('/api/workspace/role')
+      .then(setAccess)
+      .catch(() => setAccess(null))
+  }, [projectPath])
+  const readOnly = !!access?.registered && access.role !== 'owner' && access.role !== 'editor'
+  const canShare = !!access?.registered && access.role === 'owner' && !!access.project
   const { overrides: shortcuts } = useShortcuts()
 
   // One /ws/lsp connection for the whole workspace session, shared across
@@ -292,6 +311,8 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     setContent(null)
     setLiveContent(null)
     window.clearTimeout(liveDebounceRef.current)
+    setDraftContent(null)
+    window.clearTimeout(draftDebounceRef.current)
     setLoadError(null)
     setSaveError(null)
     if (!activePath) return
@@ -365,6 +386,10 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     liveDebounceRef.current = window.setTimeout(() => {
       setLiveContent(newDoc)
     }, 300)
+    window.clearTimeout(draftDebounceRef.current)
+    draftDebounceRef.current = window.setTimeout(() => {
+      setDraftContent(newDoc)
+    }, 40)
   }
 
   const saveActiveFile = async (newContent: string) => {
@@ -373,6 +398,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     setLastSaved(new Date())
     setSaveError(null)
     setLiveContent(newContent)
+    setDraftContent(newContent)
 
     if (activePath.endsWith('.typ')) {
       await api.post('/api/preview/restart', { entryFile: activePath })
@@ -389,6 +415,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     if (doc) {
       window.clearTimeout(liveDebounceRef.current)
       setLiveContent(doc)
+      setDraftContent(doc)
     }
   }
 
@@ -453,21 +480,34 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 ))}
                 {dirty && <span className="dirty-dot" title="Có thay đổi chưa lưu" />}
               </nav>
-              <button
-                className={`hdr-btn save-btn${dirty ? ' btn-accent' : ' btn-ghost'}`}
-                title="Lưu (Ctrl+S)"
-                disabled={!dirty}
-                onClick={() => editorRef.current?.save()}
-              >
-                <Icon name={dirty ? 'save' : 'check'} />
-                <span className="hdr-label">{dirty ? 'Lưu' : 'Đã lưu'}</span>
-              </button>
+              {readOnly ? (
+                <span className="role-badge" title="Bạn chỉ có quyền xem dự án này">
+                  <Icon name="eye" size={14} /> {ROLE_LABELS[access!.role]}
+                </span>
+              ) : (
+                <button
+                  className={`hdr-btn save-btn${dirty ? ' btn-accent' : ' btn-ghost'}`}
+                  title="Lưu (Ctrl+S)"
+                  disabled={!dirty}
+                  onClick={() => editorRef.current?.save()}
+                >
+                  <Icon name={dirty ? 'save' : 'check'} />
+                  <span className="hdr-label">{dirty ? 'Lưu' : 'Đã lưu'}</span>
+                </button>
+              )}
             </>
           )}
         </div>
 
         <div className="hdr-group hdr-right">
           {activePath?.endsWith('.typ') && <ExportButton path={activePath} />}
+
+          {canShare && (
+            <button className="hdr-btn" onClick={() => setIsShareOpen(true)} title="Chia sẻ dự án" aria-label="Chia sẻ dự án">
+              <Icon name="link" />
+              <span className="hdr-label">Chia sẻ</span>
+            </button>
+          )}
 
           <button
             className="hdr-btn"
@@ -624,6 +664,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     onSaveError={setSaveError}
                     onCursorChange={setCursor}
                     onDiagnosticsChange={setDiagnostics}
+                    readOnly={readOnly}
                   />
                 </Suspense>
               </div>
@@ -712,8 +753,10 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 version={previewVersion}
                 content={content}
                 liveContent={liveContent}
+                draftContent={draftContent}
                 cursor={cursor}
                 onScrollToLine={(line) => editorRef.current?.scrollToLine(line)}
+                onJumpToLine={(line) => editorRef.current?.goToPosition(line - 1, 0)}
               />
             </section>
           )}
@@ -791,6 +834,13 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
             isOpen={isDropboxOpen}
             onClose={() => setIsDropboxOpen(false)}
             onSyncCompleted={() => setTreeVersion((v) => v + 1)}
+          />
+        )}
+        {isShareOpen && access?.project && (
+          <ShareModal
+            projectId={access.project.id}
+            projectName={access.project.name}
+            onClose={() => setIsShareOpen(false)}
           />
         )}
       </Suspense>

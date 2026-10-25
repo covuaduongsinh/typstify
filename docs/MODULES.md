@@ -55,6 +55,7 @@ Tài liệu này liệt kê từng module theo thư mục. Phần **Desktop / l�
 | `dropbox/` | `Syncer.SyncProject`, `restartAutoSync`, `isIgnored` |
 | `remote/` | Client REST tới server tự host (`Login`, `GetSettingsMeta`, `GetSettings`, `PutSettings`, `ListAgentSessions`, thao tác file) |
 | `projectstore/` | `ProjectStore`: `LocalStore`, `RemoteStore` |
+| `wasmassets/` | Font và package `.tar.gz` cho compiler trong trình duyệt: `FontIndex.Scan/Lookup`, `Packages.Archive` (tìm thư mục package, tải `@preview` vào cache, giải nén an toàn) |
 | `fonts/` | Quản lý thư mục font thêm (`SanitizeFilename`, giới hạn 30 MiB, đuôi `.ttf/.otf/.ttc`) |
 | `net/` | HTTP invoker tới typstify.com (đăng ký thiết bị, kiểm tra cập nhật) |
 | `tpix.go` | Cấp API key cho SDK tpix |
@@ -96,7 +97,7 @@ Chỉ làm transport, ủy quyền cho `ServiceFacade`. Bảng route đầy đ�
 | File | Vai trò |
 |---|---|
 | `server.go` | `Server`, `routes()`, `compileSlots`, static handler + SPA fallback |
-| `auth.go`, `api_tokens.go` | Người dùng, phiên cookie, Bearer token (băm SHA-256) |
+| `auth.go`, `api_tokens.go`, `password.go` | Người dùng (mật khẩu argon2id, tự nâng cấp hash SHA-256 cũ), phiên cookie, Bearer token (băm SHA-256) |
 | `security.go` | `loginLimiter`, `withBodyLimit`, `sameOrigin`, `trustedPeer` |
 | `paths.go`, `files_api.go` | `resolveInRoot` (chặn symlink), `isProtectedPath`, CRUD file/workspace |
 | `export_api.go` | `/api/export`, `acquireCompile` (2 slot, 90 giây) |
@@ -104,6 +105,7 @@ Chỉ làm transport, ủy quyền cho `ServiceFacade`. Bảng route đầy đ�
 | `preview_anchors.go` | Số trang thật của heading (`typst.QueryHeadingPages`) |
 | `preview_proxy.go` | Reverse proxy tới preview của tinymist |
 | `pkg_api.go`, `fonts_api.go`, `settings_api.go` | Package Tpix, font, settings + `meta` |
+| `wasm_api.go` | Font và package cho compiler trong trình duyệt (`/api/wasm/*`) |
 | `dropbox_api.go` | Auth/sync/import Dropbox |
 | `agent_api.go`, `agent_auth_callback.go`, `agent_ws.go`, `console_api.go` | Registry, đăng nhập, WebSocket agent, console |
 | `lsp_ws.go` | Cầu nối LSP qua WebSocket |
@@ -116,7 +118,7 @@ Không router, không thư viện state. `App.tsx` là máy trạng thái loadin
 - `api/`: `client.ts` (`api.get/post/put/putJson/postBinary/del`, `wsUrl`, `ApiError`, `credentials: 'include'`), `types.ts`, `dropboxTypes.ts`, `pkgTypes.ts`, `agentRegistry.ts`.
 - `components/`:
   - Khung: `Workspace.tsx` (shell: cây file, editor, preview, panel), `FileTree`, `StatusBar`, `Resizer`, `Modal`, `PromptDialog`, `QuickActions`, `ProjectPicker`, `NewDocModal`.
-  - Soạn thảo/preview: `Editor.tsx` (CodeMirror), `OutlinePanel`, `PreviewPane.tsx` (3 chế độ svg / pdf / tinymist), `ExportButton`.
+  - Soạn thảo/preview: `Editor.tsx` (CodeMirror), `OutlinePanel`, `PreviewPane.tsx` (4 chế độ: wasm "Tức thì" mặc định / svg / pdf / tinymist), `WasmPreview.tsx` (renderer typst.ts, vá SVG tăng dần, click-to-source, cuộn đồng bộ), `ExportButton`.
   - Agent: `AgentChat`, `AgentSessionHistory`, `AgentRegistryPicker`, `AuthCard`.
   - Cờ vua / nhập liệu: `ChessToolbar`, `ChessBoardModal`, `PgnImportModal`, `DataImportModal`, `MarkdownImportModal`.
   - Dropbox: `DropboxSyncModal`, `DropboxImportModal`. Cài đặt: `SettingsPanel`, `PackageManager`. Đăng nhập: `LoginPage`, `BrandMark`.
@@ -124,7 +126,8 @@ Không router, không thư viện state. `App.tsx` là máy trạng thái loadin
 - `lib/`:
   - Mạng: `agentClient.ts` (`/ws/agent`, tự tạo message `disconnected`), `lspClient.ts` (`/ws/lsp`, nối lại 1–15 giây), `acpTypes.ts`.
   - Preview: `scrollSync.ts`, `svgHelper.ts` (`scopeSvgIds`, `extractSvgDimensions`).
+  - `wasm/`: compiler Typst trong Web Worker. `compiler.worker.ts` (typst.ts, IncrementalServer, truy vấn trang heading), `client.ts` (`WasmCompilerClient` singleton, font mặc định), `accessModel.ts` (file project đọc lười, cache theo hash), `packageRegistry.ts`, `idb.ts` (IndexedDB), `diagnostics.ts`, `sourceMap.ts` (`findSourceLine`).
   - Typst/cờ vua: `typst.ts` (sửa import chessbook, directive cỡ chữ/cột), `chess.ts`, `pgn.ts`.
   - Chuyển đổi: `markdownToTypst.ts`, `dataImport.ts`.
   - Giao diện: `i18n.ts`, `vi.ts`, `theme.ts`, `editorTheme.ts`, `shortcuts.ts`, `useDismiss.ts`.
-- Kiểm thử: vitest (`*.test.ts` cạnh nguồn cho `scrollSync`, `svgHelper`, `chess`, `pgn`, `typst`, `dataImport`, `markdownToTypst`).
+- Kiểm thử: vitest (`*.test.ts` cạnh nguồn cho `scrollSync`, `svgHelper`, `chess`, `pgn`, `typst`, `dataImport`, `markdownToTypst`, `wasm/`).

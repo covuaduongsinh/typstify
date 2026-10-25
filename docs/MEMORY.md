@@ -26,11 +26,19 @@ File này gom những điều không suy ra được từ đọc mã một lần
 - Autosave không ghi đè nếu file trên đĩa đã đổi so với `originalHash` (báo "edited elsewhere").
 
 **Server / web**
+- Preview "Tức thì" (WASM, typst.ts 0.8.0-rc3 = Typst 0.15): **không dùng `renderToSvg`** của renderer. Nó gọi `window.typstProcessSvg` rồi `unwrap()` (panic khi hàm không tồn tại, làm hỏng cả module WASM) và bỏ qua vẽ lại khi bề rộng không đổi (`data-applied-width`). Dùng `renderSvgDiff` + `patchRoot` như typst-preview (`WasmPreview.tsx`).
+- Sau `patchRoot`, thứ tự `.typst-page` trong DOM **không** theo thứ tự trang; tính vị trí trang phải sắp theo toạ độ.
+- `compiler.query()` của typst.ts parse JSON hai lần (lỗi với kết quả object); dùng `runWithWorld` + `world.query`. Range của diagnostics đánh số từ 0.
+- Mỗi lần reset tài liệu (đổi file, nạp lại, mount lại) phải dùng session renderer mới và đổ toàn bộ SVG; diff chỉ hợp lệ với DOM do chính session đó vẽ.
 - Cookie phiên `Secure` phụ thuộc `X-Forwarded-Proto` từ peer tin cậy (loopback/private).
 - Đường dẫn file phải qua `resolveInRoot` (chặn `..` và symlink); `.git`, `.typstify` được bảo vệ.
 - Lỗi compile preview trả HTTP 200 với `ok:false`.
 - WebSocket agent đọc tối đa 20 MiB (ảnh dán); `/ws/lsp` từng thiếu `SetReadLimit` (xem plan rà soát, đối chiếu lại trước khi tin).
 - Rò tiến trình con: không để `TYPSTIFY_SERVER_PASSWORD` lọt vào env agent/terminal.
+- Server chỉ có **một project hiện hành toàn cục**; phân quyền (`handleRole`) kiểm user của request với project đó. Route mới đụng file project phải đăng ký bằng `handleRole` (đọc ≥ viewer, ghi ≥ editor); route đổi cấu hình máy chủ dùng `handleAdmin`.
+- Test trong `server/` phải dùng `testService()` (dùng chung một `ServiceFacade`): mỗi `service.NewService` mở cùng file bbolt thật, lần mở thứ hai trong cùng tiến trình hết thời gian chờ và `log.Fatal("timeout")` làm chết cả gói test mà không có `--- FAIL`. Truyền `Options.StorageDir` là thư mục tạm để không ghi vào tài khoản thật.
+- Mở project trong test khởi động tinymist và file watcher, giữ thư mục trên Windows; dùng `os.MkdirTemp` + `RemoveAll` bỏ qua lỗi thay cho `t.TempDir()`.
+- Chạy thử server mà không đụng dữ liệu thật: đặt `APPDATA` sang thư mục tạm (settings và tài khoản nằm dưới `os.UserConfigDir()`). Gửi JSON tiếng Việt từ Git Bash bằng `--data-binary @file`, vì tham số dòng lệnh bị đổi codepage.
 
 **Typst / chessbook** (AI hay mắc)
 - Không tự khai báo `#let` mock cho hàm chessbook; `#import "@local/chessbook:0.1.0": *` phải ở **dòng 1**.
