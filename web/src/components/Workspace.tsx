@@ -35,6 +35,7 @@ const DataImportModal = lazy(() => import('./DataImportModal').then((m) => ({ de
 const MarkdownImportModal = lazy(() => import('./MarkdownImportModal').then((m) => ({ default: m.MarkdownImportModal })))
 const DropboxSyncModal = lazy(() => import('./DropboxSyncModal').then((m) => ({ default: m.DropboxSyncModal })))
 const ShareModal = lazy(() => import('./ShareModal').then((m) => ({ default: m.ShareModal })))
+const HistoryPanel = lazy(() => import('./HistoryPanel').then((m) => ({ default: m.HistoryPanel })))
 
 function PanelLoading() {
   return (
@@ -46,7 +47,7 @@ function PanelLoading() {
 
 const I18N_KEYS = ['AI Assistant', 'Settings', 'Export']
 
-type SidePanel = 'agent' | 'comments' | 'outline' | 'packages' | 'settings' | null
+type SidePanel = 'agent' | 'comments' | 'history' | 'outline' | 'packages' | 'settings' | null
 
 const FILETREE_DEFAULT = 230
 const FILETREE_MIN = 160
@@ -490,6 +491,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const panelToggles: Array<{ id: Exclude<SidePanel, null>; icon: IconName; label: string }> = [
     { id: 'agent', icon: 'sparkles', label: t('AI Assistant') },
     { id: 'comments', icon: 'message', label: 'Bình luận' },
+    { id: 'history', icon: 'clock', label: 'Lịch sử' },
     { id: 'outline', icon: 'outline', label: 'Dàn ý' },
     { id: 'packages', icon: 'package', label: 'Gói Typst' },
     { id: 'settings', icon: 'sliders', label: t('Settings') },
@@ -845,6 +847,21 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
           <aside className="workspace-side-panel" style={{ width: sidePanelWidth }}>
             <Suspense fallback={<PanelLoading />}>
               {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
+              {sidePanel === 'history' && (
+                <HistoryPanel
+                  canEdit={!readOnly}
+                  onRestored={(paths) => {
+                    setTreeVersion((v) => v + 1)
+                    setPreviewVersion((v) => v + 1)
+                    // A co-edited file picks the restore up through its room
+                    // (an outside edit); a plain one is reloaded.
+                    // (An empty list means any file may have changed: a Git pull.)
+                    if (activePath && !collabProvider && (paths.length === 0 || paths.includes(activePath))) {
+                      setLoadAttempt((n) => n + 1)
+                    }
+                  }}
+                />
+              )}
               {sidePanel === 'comments' && (
                 <CommentsPanel
                   provider={collabProvider}

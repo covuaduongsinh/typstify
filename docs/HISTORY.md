@@ -44,6 +44,51 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-25 — Giai đoạn 4: lịch sử phiên bản và Git
+- **Yêu cầu**: "Chạy theo thứ tự tối ưu" → thứ tự chốt 4 → 6 → 5 → 7 → 3b (lý do trong `docs/plans/plan_typst_app_parity_2026-10.md`); chi tiết ở `docs/plans/plan_phase4_history.md`.
+- **Đã làm**:
+  1. `service/history` + `/api/history*`:
+     - phiên bản tự động mỗi 5 phút khi có thay đổi;
+     - phiên bản có tên;
+     - xem khác biệt từng tệp so với hiện tại;
+     - khôi phục một tệp hoặc cả phiên bản, luôn chụp bản "Trước khi khôi phục" trước.
+     - Nội dung lưu theo hash, nên tệp không đổi không tốn thêm chỗ. Có dọn dẹp theo lịch và hạn mức dung lượng `TYPSTIFY_HISTORY_MAX_MB` (mặc định 2 GiB mỗi dự án).
+  2. `service/gitsync` (go-git, không cần lệnh `git`) + `/api/git*`:
+     - commit, push, pull;
+     - khi kho và máy chủ cùng có commit mới thì không tự gộp, người dùng chọn bên giữ lại; pull luôn lưu một phiên bản lịch sử trước;
+     - token chỉ lưu trên máy chủ;
+     - kết nối tới IP nội bộ bị chặn (chống SSRF).
+  3. Web: bảng **Lịch sử** với hai thẻ:
+     - Phiên bản: danh sách, xem khác biệt hai cột bằng `@codemirror/merge`, khôi phục;
+     - Git: cấu hình kho, commit, đẩy lên, lấy về.
+- **Kiểm chứng**:
+  - Go:
+    - lịch sử: loại trùng, dọn dẹp, hạn mức, khôi phục, chặn id lạ;
+    - Git với kho bare: fast-forward, hai bên cùng đổi, ghi đè, tệp chưa theo dõi, symlink, `.gitignore`;
+    - API: phân quyền, token không lộ, thư mục con.
+  - Chạy thật trong Chrome:
+    - lưu phiên bản, xem khác biệt, khôi phục tệp đang được cộng tác (editor tự cập nhật, không có xung đột giả);
+    - Git: từ chối địa chỉ `http://127.0.0.1`, commit đầu tiên tạo kho.
+- **Lỗi tìm ra khi chạy thật và đã sửa**:
+  - không commit được lần đầu khi chưa có kho;
+  - trang trắng sau khi commit (danh sách thay đổi `null`);
+  - go-git commit cả `.typstify/` vì bỏ qua `.gitignore` và `info/exclude`.
+- **Rà soát độc lập và đã sửa** (2 lỗi mức cao, 6 lỗi mức trung bình):
+  - pull dùng hard reset nên xoá mọi tệp chưa theo dõi hoặc bị ignore; nay chỉ ghi hoặc xoá các tệp khác nhau giữa hai commit, bỏ qua symlink và submodule từ kho;
+  - mở thư mục con dùng chung lịch sử và cấu hình Git của gốc; nay lịch sử tách theo thư mục con, Git từ chối khi không mở thư mục gốc;
+  - token đi theo khi đổi kho sang host khác (nay bị xoá);
+  - crash giữa lúc prune có thể chặn dọn dẹp vĩnh viễn (nay ghi index trước, bỏ qua manifest đã mất);
+  - một lần `fetch` khoá Git của mọi dự án (nay khoá theo dự án, và chỉ editor được fetch);
+  - người chỉ xem làm `Compare` ghi object (nay `Compare` không ghi gì);
+  - dung lượng tăng không giới hạn (nay có hạn mức);
+  - các sửa nhỏ: kiểm tra định dạng `id` phiên bản, tên nhánh, dải CGNAT/NAT64, chặn `.git` không phân biệt hoa thường, khoá Git theo chữ thường trên Windows.
+- **Sửa thêm khi chạy bộ test**:
+  - go-git 5.19.3 đòi Go 1.26 trong khi Docker dùng `golang:1.25`; đã dùng go-git 5.18.0 và giữ `go 1.25.5`;
+  - lộ ra một panic có sẵn từ trước ở `lsp/client.go`: goroutine `Wait()` đọc `c.jsonConn` đã bị gán nil khi kết nối tinymist thất bại.
+- **Còn mở**:
+  - chỉ hỗ trợ kho qua HTTPS kèm token, chưa có SSH;
+  - không gộp tự động khi hai bên cùng đổi.
+
 ### 2026-10-25 — Giai đoạn 3: cộng tác thời gian thực
 - **Yêu cầu**: "commit Giai đoạn 1 và 2 trước, rồi làm tiếp giai đoạn 3" (chi tiết ở `docs/plans/plan_phase3_collab.md`). Giai đoạn 1–2 đã commit ở nhánh `feat/typst-app-parity` (`2a1295a`).
 - **Đã làm**:

@@ -20,8 +20,23 @@
   - [x] Yjs + relay Go, presence, undo riêng, leader ghi đĩa
   - [x] Bình luận theo luồng, vai trò Góp ý có hiệu lực
   - [x] Ngoại tuyến (IndexedDB), gộp ba chiều sửa từ bên ngoài
+- [x] Giai đoạn 4 (chi tiết: [plan_phase4_history.md](plan_phase4_history.md))
+  - [x] Lịch sử phiên bản: tự chụp 5 phút, phiên bản có tên, xem khác biệt, khôi phục tệp/cả phiên bản
+  - [x] Đồng bộ Git (go-git): commit, push, pull, chọn bên khi hai bên cùng đổi
+- [ ] Giai đoạn 6
+- [ ] Giai đoạn 5
+- [ ] Giai đoạn 7 (PWA trước, Tauri sau)
 - [ ] Giai đoạn 3b: mỗi người một project cùng lúc (tách `ServiceFacade` theo project)
-- [ ] Giai đoạn 4 → 7
+
+### Thứ tự thực hiện (chốt 2026-10-25)
+
+Chủ dự án yêu cầu "chạy theo thứ tự tối ưu". Thứ tự đã chọn: **4 → 6 → 5 → 7 → 3b**.
+
+1. **Giai đoạn 4 (lịch sử phiên bản) trước.** Từ khi có cộng tác, nhiều người và cả agent AI cùng ghi vào tệp. Lịch sử là lưới an toàn để xem lại và khôi phục. Nó cũng dựa trực tiếp trên luồng lưu của Giai đoạn 3.
+2. **Giai đoạn 6 (hoàn thiện editor) tiếp theo.** Đây là phần dùng hằng ngày, rủi ro thấp, thấy lợi ích ngay.
+3. **Giai đoạn 5 (template, Universe).** Giá trị vừa phải và độc lập với các phần khác.
+4. **Giai đoạn 7 (đa nền tảng).** PWA rẻ nên làm trước; Tauri làm sau, khi web đã ổn định.
+5. **Giai đoạn 3b cuối cùng.** Phải tách `ServiceFacade`, tinymist và file watcher theo từng project, là thay đổi kiến trúc lớn và rủi ro nhất. Cách dùng hiện tại (một máy chủ, một nhóm) chưa cần ngay.
 
 ## Bối cảnh
 

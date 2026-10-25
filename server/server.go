@@ -13,6 +13,8 @@ import (
 
 	"looz.ws/typstify/service"
 	"looz.ws/typstify/service/collab"
+	"looz.ws/typstify/service/gitsync"
+	"looz.ws/typstify/service/history"
 	"looz.ws/typstify/service/mcp"
 	"looz.ws/typstify/service/projects"
 	"looz.ws/typstify/service/wasmassets"
@@ -70,6 +72,10 @@ type Server struct {
 
 	// Real-time co-editing rooms (collab_ws.go).
 	collab *collab.Hub
+	// Version history of projects (history_api.go).
+	history *history.Manager
+	// Git sync of projects (git_api.go).
+	git *gitsync.Service
 
 	// Fonts and package archives for the in-browser compiler (wasm_api.go).
 	wasmFonts    *wasmassets.FontIndex
@@ -133,6 +139,9 @@ func New(appSrv *service.ServiceFacade, opts Options) *Server {
 	s.wasmPackages = s.newWasmPackages()
 	s.collab = s.newCollabHub()
 	go s.runCollabDiskWatch(context.Background())
+	s.history = &history.Manager{Base: filepath.Join(storageDir, "history"), Quota: envMegabytes("TYPSTIFY_HISTORY_MAX_MB")}
+	go s.runHistoryAuto(context.Background())
+	s.git = s.newGitSync()
 	if s.appSrv != nil {
 		s.appSrv.SetViewManager(nil, nil, nil, func() any {
 			return &webActiveDocProvider{server: s}
@@ -202,6 +211,21 @@ func (s *Server) routes() {
 	s.handleRole("POST /api/preview/anchors", projects.RoleViewer, s.handlePreviewAnchors)
 
 	// VPS sync: desktop pushes project files here (see sync_handler.go).
+	// Version history of the open project (history_api.go).
+	s.handleRole("GET /api/history", projects.RoleViewer, s.handleHistoryList)
+	s.handleRole("POST /api/history", projects.RoleEditor, s.handleHistoryCreate)
+	s.handleRole("GET /api/history/{id}", projects.RoleViewer, s.handleHistoryGet)
+	s.handleRole("GET /api/history/{id}/file", projects.RoleViewer, s.handleHistoryFile)
+	s.handleRole("POST /api/history/{id}/restore", projects.RoleEditor, s.handleHistoryRestore)
+
+	// Git sync of the open project (git_api.go). The config route also
+	// checks for the owner inside.
+	s.handleRole("GET /api/git", projects.RoleViewer, s.handleGitStatus)
+	s.handleRole("PUT /api/git/config", projects.RoleViewer, s.handleGitConfig)
+	s.handleRole("POST /api/git/commit", projects.RoleEditor, s.handleGitCommit)
+	s.handleRole("POST /api/git/push", projects.RoleEditor, s.handleGitPush)
+	s.handleRole("POST /api/git/pull", projects.RoleEditor, s.handleGitPull)
+
 	s.handleRole("GET /api/sync/manifest", projects.RoleViewer, s.handleSyncManifest)
 	s.handleRole("GET /api/sync/pull", projects.RoleViewer, s.handleSyncPull)
 	s.handleRole("POST /api/sync/push", projects.RoleEditor, s.handleSyncPush)

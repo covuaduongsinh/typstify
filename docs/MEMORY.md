@@ -28,6 +28,13 @@ File này gom những điều không suy ra được từ đọc mã một lần
 **Server / web**
 - Preview "Tức thì" (WASM, typst.ts 0.8.0-rc3 = Typst 0.15): **không dùng `renderToSvg`** của renderer. Nó gọi `window.typstProcessSvg` rồi `unwrap()` (panic khi hàm không tồn tại, làm hỏng cả module WASM) và bỏ qua vẽ lại khi bề rộng không đổi (`data-applied-width`). Dùng `renderSvgDiff` + `patchRoot` như typst-preview (`WasmPreview.tsx`).
 - `renderSvgDiff` không kèm stylesheet: lớp chữ để bôi đen (`.tsel`) phải được CSS của app làm trong suốt, nếu không nó vẽ chồng lên chữ thật (`App.css`, `.wasm-preview-doc .tsel`).
+- Phiên bản Go: Docker build dùng `golang:1.25`, `go.mod` giữ `go 1.25.5`. Khi thêm hoặc nâng thư viện, kiểm tra dòng `go` trong `.mod` của nó (`go-git` 5.19+ và `x/crypto` 0.56+ đòi 1.26). `go get` tự nâng `go.mod` mà không báo.
+- go-git (`service/gitsync`):
+  - **Không dùng `HardReset` cho pull:** nó xoá mọi tệp chưa theo dõi, kể cả tệp bị ignore. Thay vào đó áp `DiffTree` của hai commit (hàm `applyTree`) rồi `MixedReset` để cập nhật index.
+  - `AddOptions{All: true}` chỉ dùng `Worktree.Excludes`, **không** đọc `.gitignore` lẫn `.git/info/exclude`. Phải nạp mẫu vào `Excludes` (hàm `worktree()`), nếu không `.typstify/` bị commit.
+  - Push bị từ chối trả `fmt.Errorf("non-fast-forward update: …")` không bọc lỗi gốc, nên chỉ nhận ra được theo chuỗi.
+  - Slice Go rỗng (`nil`) thành `null` trong JSON và làm vỡ giao diện (`.length`); trả `[]` cho mọi danh sách.
+  - Transport https được cài toàn cục (`client.InstallProtocol`); bộ chặn IP nội bộ nằm ở `Dialer.Control` nên DNS rebinding không vượt qua được.
 - Cộng tác (`service/collab`, `lib/collab`):
   - **Không bao giờ ép văn bản chung về nội dung trên đĩa.** Sửa từ bên ngoài được gửi dạng `{base, text}` và client chỉ áp phần `base → text` (`rebaseChange`); chồng lấn thì hỏi người dùng. Cách "ép theo đĩa" cũ đã xoá mất sửa đổi ngoại tuyến.
   - Mọi lần leader lưu (kể cả khi đĩa đã trùng) phải cập nhật `base.txt`/`DiskHash`, nếu không lần khởi động lại sau sẽ báo nhầm "sửa ngoài".

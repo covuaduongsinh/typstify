@@ -130,3 +130,26 @@ export interface ChangePasswordRequest {
   currentPassword: string
   newPassword: string
 }
+
+// Mirrors service/history (Snapshot, Change).
+export type HistoryKind = 'auto' | 'manual' | 'restore'
+
+export interface HistorySnapshot {
+  id: string
+  at: string
+  author: string
+  label?: string
+  kind: HistoryKind
+  files: number
+  added: number
+  modified: number
+  deleted: number
+}
+
+export type HistoryStatus = 'unchanged' | 'modified' | 'deleted' | 'added'
+
+export interface HistoryChange {
+  path: string
+  status: HistoryStatus
+  size: number
+}

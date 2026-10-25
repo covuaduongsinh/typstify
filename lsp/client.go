@@ -201,13 +201,16 @@ func (c *Client) connectServer(ctx context.Context, initOpts map[string]any) err
 	c.jsonConn = jsonConn
 	c.connReady.Store(true)
 
-	go func() {
-		c.jsonConn.Wait()
+	// Wait on this connection, not on c.jsonConn: a failed initialize
+	// below or a concurrent reconnect can reset the field to nil before
+	// this goroutine runs (seen as a nil-pointer panic in Wait).
+	go func(conn *jsonrpc2.Connection) {
+		conn.Wait()
 		if c.connReady.CompareAndSwap(true, false) {
 			c.closeConn()
 		}
 		c.logger.Info("- LSP server connection stopped")
-	}()
+	}(jsonConn)
 
 	trace := protocol.Messages
 	// Send the LSP initialize request.

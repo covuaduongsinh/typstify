@@ -104,6 +104,30 @@ Cần đăng nhập, không phụ thuộc project. Logic ở `service/wasmassets
 
 Worker còn đọc file project qua `/api/sync/manifest` và `/api/sync/pull` (vai trò viewer). `/api/sync/pull` trả kèm header `X-Content-Sha256` (cùng thuật toán với manifest) để client chỉ cache khi nội dung khớp.
 
+## Lịch sử phiên bản (`server/history_api.go`, `service/history`)
+
+Lưu trong thư mục lưu trữ của máy chủ, không ghi vào project. Máy chủ tự chụp mỗi 5 phút khi project có thay đổi. Hạn mức nội dung mỗi dự án: `TYPSTIFY_HISTORY_MAX_MB` (mặc định 2048); vượt quá thì các phiên bản tự động cũ nhất bị bỏ, phiên bản có tên được giữ.
+
+| Method | Path | Quyền | Mục đích |
+|---|---|---|---|
+| GET | `/api/history` | viewer | Danh sách phiên bản, mới nhất trước: `{id, at, author, label, kind: auto\|manual\|restore, files, added, modified, deleted}` |
+| POST | `/api/history` | editor | Lưu phiên bản có tên `{label}` (1–120 ký tự) |
+| GET | `/api/history/{id}` | viewer | `{snapshot, changes: [{path, status: unchanged\|modified\|deleted\|added, size}]}` so với hiện tại |
+| GET | `/api/history/{id}/file?path=` | viewer | Nội dung một tệp ở phiên bản đó |
+| POST | `/api/history/{id}/restore` | editor | `{paths?: [], deleteNewer?: bool}`. Luôn chụp bản `restore` trước; trả `{ok, backup}` |
+
+## Git (`server/git_api.go`, `service/gitsync`)
+
+| Method | Path | Quyền | Mục đích |
+|---|---|---|---|
+| GET | `/api/git[?fetch=1]` | viewer | `{status, canConfigure, config}`; `fetch=1` (chỉ có tác dụng với editor) hỏi kho trước. Không bao giờ trả token (`status.hasToken`) |
+| PUT | `/api/git/config` | chủ project (admin nếu chưa đăng ký) | `{remote, branch, username, token?, clearToken?, authorName, authorEmail}`; token rỗng giữ token cũ nếu cùng host (đổi host thì token bị xoá); chỉ nhận `https://` không kèm mật khẩu |
+| POST | `/api/git/commit` | editor | `{message}`; lần đầu tạo kho Git trong project |
+| POST | `/api/git/push` | editor (`force` chỉ chủ project) | `{force?}` |
+| POST | `/api/git/pull` | editor | `{takeRemote?}`; chụp phiên bản "Trước khi kéo từ Git" trước. 409 `{code: "diverged"\|"dirty"}` khi hai bên cùng có commit / còn thay đổi chưa commit |
+
+Mọi route Git trả 409 khi đang mở một thư mục con của dự án đã đăng ký (cấu hình thuộc về cả dự án). Pull chỉ ghi hoặc xoá các tệp khác nhau giữa hai commit, không đụng tệp chưa theo dõi, và bỏ qua symlink và submodule từ kho. Kết nối tới kho bị chặn nếu địa chỉ IP là nội bộ (loopback, mạng riêng, link-local) — đặt `TYPSTIFY_GIT_ALLOW_PRIVATE=1` khi dùng Gitea/GitLab trong mạng LAN (cho phép cả `http://`).
+
 ## Package (Tpix)
 
 | Method | Path | Mục đích |

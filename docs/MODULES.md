@@ -55,6 +55,8 @@ Tài liệu này liệt kê từng module theo thư mục. Phần **Desktop / l�
 | `dropbox/` | `Syncer.SyncProject`, `restartAutoSync`, `isIgnored` |
 | `remote/` | Client REST tới server tự host (`Login`, `GetSettingsMeta`, `GetSettings`, `PutSettings`, `ListAgentSessions`, thao tác file) |
 | `projectstore/` | `ProjectStore`: `LocalStore`, `RemoteStore` |
+| `history/` | Lịch sử phiên bản: kho nội dung theo hash (`objects/`), manifest mỗi phiên bản, `Take`/`Compare`/`Read`/`Restore`, dọn theo lịch (giữ 24 giờ, mỗi giờ 7 ngày, mỗi ngày sau đó; phiên bản có tên giữ mãi) |
+| `gitsync/` | Đồng bộ Git bằng go-git: cấu hình (token 0600 trên máy chủ), `Status`/`Commit`/`Push`/`Pull`, chặn IP nội bộ khi kết nối |
 | `collab/` | Cộng tác thời gian thực: `Hub`/`Room`/`Peer` chuyển tiếp và lưu update Yjs theo tệp, phân quyền theo kênh, chọn leader, nén log, phát hiện sửa ngoài (`base.txt`), `EncodeInsertText` (khởi tạo phòng từ tệp) |
 | `wasmassets/` | Font và package `.tar.gz` cho compiler trong trình duyệt: `FontIndex.Scan/Lookup`, `Packages.Archive` (tìm thư mục package, tải `@preview` vào cache, giải nén an toàn) |
 | `fonts/` | Quản lý thư mục font thêm (`SanitizeFilename`, giới hạn 30 MiB, đuôi `.ttf/.otf/.ttc`) |
@@ -106,6 +108,7 @@ Chỉ làm transport, ủy quyền cho `ServiceFacade`. Bảng route đầy đ�
 | `preview_anchors.go` | Số trang thật của heading (`typst.QueryHeadingPages`) |
 | `preview_proxy.go` | Reverse proxy tới preview của tinymist |
 | `pkg_api.go`, `fonts_api.go`, `settings_api.go` | Package Tpix, font, settings + `meta` |
+| `history_api.go`, `git_api.go` | `/api/history*` (tự chụp mỗi 5 phút), `/api/git*` |
 | `collab_ws.go` | WebSocket `/ws/collab` cho `service/collab`; kiểm tra tệp trên đĩa mỗi 2 giây |
 | `wasm_api.go` | Font và package cho compiler trong trình duyệt (`/api/wasm/*`) |
 | `dropbox_api.go` | Auth/sync/import Dropbox |
@@ -120,6 +123,7 @@ Không router, không thư viện state. `App.tsx` là máy trạng thái loadin
 - `api/`: `client.ts` (`api.get/post/put/putJson/postBinary/del`, `wsUrl`, `ApiError`, `credentials: 'include'`), `types.ts`, `dropboxTypes.ts`, `pkgTypes.ts`, `agentRegistry.ts`.
 - `components/`:
   - Khung: `Workspace.tsx` (shell: cây file, editor, preview, panel), `FileTree`, `StatusBar`, `Resizer`, `Modal`, `PromptDialog`, `QuickActions`, `ProjectPicker`, `NewDocModal`.
+  - Lịch sử: `HistoryPanel.tsx` (thẻ Phiên bản / Git), `HistoryDiff.tsx` (`@codemirror/merge`), `GitPanel.tsx`.
   - Soạn thảo/preview: `Editor.tsx` (CodeMirror), `OutlinePanel`, `PreviewPane.tsx` (4 chế độ: wasm "Tức thì" mặc định / svg / pdf / tinymist), `WasmPreview.tsx` (renderer typst.ts, vá SVG tăng dần, click-to-source, cuộn đồng bộ), `ExportButton`.
   - Agent: `AgentChat`, `AgentSessionHistory`, `AgentRegistryPicker`, `AuthCard`.
   - Cờ vua / nhập liệu: `ChessToolbar`, `ChessBoardModal`, `PgnImportModal`, `DataImportModal`, `MarkdownImportModal`.

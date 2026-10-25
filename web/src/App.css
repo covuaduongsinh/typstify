@@ -3736,3 +3736,192 @@ button.btn-danger {
 .collab-conflict span {
   flex: 1 1 240px;
 }
+
+/* ---- Version history (HistoryPanel) ---- */
+.history-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow-y: auto;
+  height: 100%;
+}
+.history-save {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.history-save input {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+.history-notice {
+  color: var(--success);
+  font-size: 13px;
+}
+.history-list,
+.history-changes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.history-item {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.history-item.kind-manual {
+  border-left-color: var(--accent);
+}
+.history-item.kind-restore {
+  border-left-color: var(--warning);
+}
+.history-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.history-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.history-detail h4 {
+  margin: 0;
+}
+.history-change {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.history-change-path {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-change-path:disabled {
+  color: var(--text);
+  cursor: default;
+}
+.history-status {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.status-modified .history-status {
+  color: var(--warning);
+}
+.status-deleted .history-status {
+  color: var(--error);
+}
+.status-added .history-status {
+  color: var(--success);
+}
+.history-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
+}
+.history-diff-modal {
+  width: min(1100px, 95vw);
+}
+.history-diff {
+  max-height: 65vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+}
+.history-tabs-host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.history-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.history-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.history-tabs button.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.git-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow-y: auto;
+}
+.git-config {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.git-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  word-break: break-word;
+}
+.git-diverged {
+  color: var(--warning);
+  font-weight: 600;
+}
+.git-heading {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.git-changes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.git-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}

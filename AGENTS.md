@@ -65,6 +65,7 @@ Không có Justfile/Makefile. Bản desktop phát hành cần `gogio` và CGO. C
 
 - Preview web mặc định là chế độ **Tức thì** (typst.ts trong worker, `web/src/lib/wasm`). Click-to-source ở chế độ này khớp theo văn bản; chế độ "Trang in" của server vẫn chưa có. Đừng dùng `renderToSvg` của renderer (xem `docs/MEMORY.md`).
 - Tệp `.typ` trên web được **cộng tác** (`/ws/collab`, `service/collab`, `web/src/lib/collab`): văn bản chung là Y.Text, leader của phòng ghi xuống đĩa. Đừng ghi đè văn bản chung bằng nội dung đĩa; sửa từ ngoài phải đi qua gộp ba chiều (`rebaseChange`).
+- `go.mod` giữ `go 1.25.5` vì Docker build dùng `golang:1.25`. `go get` có thể tự nâng dòng này (ví dụ go-git 5.19+, x/crypto 0.56+ đòi 1.26): kiểm tra rồi chọn phiên bản cũ hơn.
 - Scroll sync bằng vị trí heading thật chỉ có ở web (`typst.QueryHeadingPages`).
 - `tinymist.doKillPreview` phải truyền id `"default_preview"`.
 - Callback LSP chạy trên goroutine riêng: đụng UI Gio phải gọi `RefreshWindow()`.
