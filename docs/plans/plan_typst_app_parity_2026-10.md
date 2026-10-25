@@ -16,7 +16,12 @@
   - [x] Font và package qua server (`/api/wasm/*`), cache IndexedDB/Cache Storage
   - [x] Click-to-source (khớp văn bản) và cuộn đồng bộ bằng trang heading
   - Để Giai đoạn 7 (PWA): service worker cho offline hoàn toàn
-- [ ] Giai đoạn 3 → 7
+- [x] Giai đoạn 3a (chi tiết: [plan_phase3_collab.md](plan_phase3_collab.md))
+  - [x] Yjs + relay Go, presence, undo riêng, leader ghi đĩa
+  - [x] Bình luận theo luồng, vai trò Góp ý có hiệu lực
+  - [x] Ngoại tuyến (IndexedDB), gộp ba chiều sửa từ bên ngoài
+- [ ] Giai đoạn 3b: mỗi người một project cùng lúc (tách `ServiceFacade` theo project)
+- [ ] Giai đoạn 4 → 7
 
 ## Bối cảnh
 

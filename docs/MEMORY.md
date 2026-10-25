@@ -27,6 +27,14 @@ File này gom những điều không suy ra được từ đọc mã một lần
 
 **Server / web**
 - Preview "Tức thì" (WASM, typst.ts 0.8.0-rc3 = Typst 0.15): **không dùng `renderToSvg`** của renderer. Nó gọi `window.typstProcessSvg` rồi `unwrap()` (panic khi hàm không tồn tại, làm hỏng cả module WASM) và bỏ qua vẽ lại khi bề rộng không đổi (`data-applied-width`). Dùng `renderSvgDiff` + `patchRoot` như typst-preview (`WasmPreview.tsx`).
+- `renderSvgDiff` không kèm stylesheet: lớp chữ để bôi đen (`.tsel`) phải được CSS của app làm trong suốt, nếu không nó vẽ chồng lên chữ thật (`App.css`, `.wasm-preview-doc .tsel`).
+- Cộng tác (`service/collab`, `lib/collab`):
+  - **Không bao giờ ép văn bản chung về nội dung trên đĩa.** Sửa từ bên ngoài được gửi dạng `{base, text}` và client chỉ áp phần `base → text` (`rebaseChange`); chồng lấn thì hỏi người dùng. Cách "ép theo đĩa" cũ đã xoá mất sửa đổi ngoại tuyến.
+  - Mọi lần leader lưu (kể cả khi đĩa đã trùng) phải cập nhật `base.txt`/`DiskHash`, nếu không lần khởi động lại sau sẽ báo nhầm "sửa ngoài".
+  - Lần lưu nào cũng kèm hash của bản đĩa mà leader đã gộp. Máy chủ chỉ ghi khi tệp vẫn là bản đó (hoặc bản đã đồng bộ), nên autosave đến trước lần kiểm tra đĩa 2 giây không thể đè sửa đổi bên ngoài. Khi đang có xung đột thì client không lưu.
+  - Phòng gắn với project hiện hành của máy chủ; client gửi `project` và bị từ chối nếu máy chủ đã đổi project (cùng đường dẫn tương đối có thể là tệp khác).
+  - Bản IndexedDB được đặt tên theo epoch; đổi epoch thì dùng cơ sở dữ liệu mới thay vì xoá rồi mở lại trùng tên (`clearData` là bất đồng bộ).
+  - Kiểm thử hai tài khoản trong cùng Chrome: dùng `127.0.0.1` và `localhost` (cookie tách biệt).
 - Sau `patchRoot`, thứ tự `.typst-page` trong DOM **không** theo thứ tự trang; tính vị trí trang phải sắp theo toạ độ.
 - `compiler.query()` của typst.ts parse JSON hai lần (lỗi với kết quả object); dùng `runWithWorld` + `world.query`. Range của diagnostics đánh số từ 0.
 - Mỗi lần reset tài liệu (đổi file, nạp lại, mount lại) phải dùng session renderer mới và đổ toàn bộ SVG; diff chỉ hợp lệ với DOM do chính session đó vẽ.

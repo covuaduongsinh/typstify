@@ -30,6 +30,9 @@ export default defineConfig({
           if (/node_modules\/(react-markdown|remark-|rehype-|mdast-|micromark|unist-|hast-|vfile)/.test(id)) {
             return 'markdown-vendor'
           }
+          if (/node_modules\/(yjs|y-protocols|y-indexeddb|y-codemirror\.next|lib0)\//.test(id)) {
+            return 'collab-vendor'
+          }
         },
       },
     },

@@ -264,6 +264,20 @@ func (a *authManager) validRequest(r *http.Request) bool {
 	return false
 }
 
+// displayNameOf returns the name shown to collaborators: the display name
+// when set, else the username.
+func (a *authManager) displayNameOf(user string) string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if u, ok := a.users[user]; ok && u.DisplayName != "" {
+		return u.DisplayName
+	}
+	if user == "" {
+		return "Khách"
+	}
+	return user
+}
+
 func (a *authManager) authenticatedUser(r *http.Request) (string, bool) {
 	if sess, ok := a.getSession(r); ok && sess.Username != "" {
 		return sess.Username, true

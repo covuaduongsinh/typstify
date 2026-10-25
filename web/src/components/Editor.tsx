@@ -1,12 +1,16 @@
 import { autocompletion, snippetCompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
 import { linter, lintGutter, setDiagnostics, type Diagnostic as CmDiagnostic } from '@codemirror/lint'
-import { EditorState, type Extension, type Text } from '@codemirror/state'
-import { EditorView, hoverTooltip } from '@codemirror/view'
+import { EditorState, Prec, type Extension, type Text } from '@codemirror/state'
+import { EditorView, hoverTooltip, keymap } from '@codemirror/view'
 import { basicSetup } from 'codemirror'
 import { typst_lezer } from 'codemirror-lang-typst/lezer'
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import ReactMarkdown from 'react-markdown'
+import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next'
+import * as Y from 'yjs'
+import type { Awareness } from 'y-protocols/awareness'
+import { commentHighlights, setCommentRanges, type CommentRange } from '../lib/collab/commentHighlight'
 import { typstifyTheme } from '../lib/editorTheme'
 import { LspClient, type LspDiagnostic, type LspDocumentSymbol } from '../lib/lspClient'
 import {
@@ -46,6 +50,10 @@ export interface EditorHandle {
   getOutline: () => Promise<LspDocumentSymbol[]>
   /** Moves the caret to a 0-based line/character, scrolling it into view. */
   goToPosition: (line: number, character: number) => void
+  /** The main selection, for anchoring a comment. */
+  getSelection: () => { from: number; to: number; text: string }
+  /** Selects a range and scrolls it into view (jump to a comment). */
+  selectRange: (from: number, to: number) => void
   /** Scrolls a 1-based line into view WITHOUT moving the caret or stealing
    * focus -- used by preview->editor scroll sync, which must not fight the
    * editor->preview direction (that one is driven by caret/selection
@@ -75,6 +83,11 @@ interface EditorProps {
   onDiagnosticsChange?: (counts: { errors: number; warnings: number }) => void
   /** Viewer/commenter role on a shared project: the document can't be edited. */
   readOnly?: boolean
+  /** Co-editing (lib/collab): the document is this shared text, other
+   * people's cursors are shown, and the leader saves it (no dirty state). */
+  collab?: { ytext: Y.Text; awareness: Awareness } | null
+  /** Open comment threads to underline (collab only). */
+  commentRanges?: CommentRange[]
 }
 
 // LSP snippets allow bare $1/$0 tabstops (e.g. "${1:name}(${2:args})$0");
@@ -176,6 +189,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     onDocChange,
     onDiagnosticsChange,
     readOnly = false,
+    collab = null,
+    commentRanges,
   },
   ref,
 ) {
@@ -342,6 +357,23 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) })
       view.focus()
     },
+    getSelection: () => {
+      const view = viewRef.current
+      if (!view) return { from: 0, to: 0, text: '' }
+      const { from, to } = view.state.selection.main
+      return { from, to, text: view.state.sliceDoc(from, to) }
+    },
+    selectRange: (from: number, to: number) => {
+      const view = viewRef.current
+      if (!view) return
+      const len = view.state.doc.length
+      const anchor = Math.min(from, len)
+      view.dispatch({
+        selection: { anchor, head: Math.min(to, len) },
+        effects: EditorView.scrollIntoView(anchor, { y: 'center' }),
+      })
+      view.focus()
+    },
     scrollToLine: (line: number) => {
       const view = viewRef.current
       if (!view) return
@@ -357,7 +389,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       window.clearTimeout(changeTimerRef.current)
       changeTimerRef.current = window.setTimeout(() => {
         lsp.didChange(path, content)
-        onDirtyChange?.(true)
+        // A co-edited file is saved by the room's leader, never "dirty".
+        if (!collab) onDirtyChange?.(true)
       }, 250)
     }
 
@@ -442,14 +475,24 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       EditorState.readOnly.of(readOnly),
       EditorView.editable.of(!readOnly),
     ]
+    if (collab) {
+      // Undo only reverts this user's own edits; it must win over the
+      // local history basicSetup installs.
+      extensions.push(
+        yCollab(collab.ytext, collab.awareness, { undoManager: new Y.UndoManager(collab.ytext) }),
+        Prec.highest(keymap.of(yUndoManagerKeymap)),
+        commentHighlights(),
+      )
+    }
 
-    const state = EditorState.create({ doc: initialContent, extensions })
+    const docText = collab ? collab.ytext.toString() : initialContent
+    const state = EditorState.create({ doc: docText, extensions })
     const view = new EditorView({ state, parent: hostRef.current! })
     viewRef.current = view
     reportCursor(state)
     onDiagnosticsChange?.({ errors: 0, warnings: 0 })
 
-    lsp.didOpen(path, initialContent)
+    lsp.didOpen(path, docText)
     // After a dropped /ws/lsp reconnects, the server-side session is new:
     // open the document again with what the user currently has.
     const unsubscribeReconnect = lsp.onReconnect(() => lsp.didOpen(path, view.state.doc.toString()))
@@ -476,7 +519,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     }
     // Re-create the whole CodeMirror session when the open file changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, lsp, readOnly])
+  }, [path, lsp, readOnly, collab])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (view && collab) view.dispatch({ effects: setCommentRanges.of(commentRanges ?? []) })
+  }, [commentRanges, collab, path, lsp, readOnly])
 
   return <div className="editor-host" ref={hostRef} />
 })

@@ -64,6 +64,7 @@ Không có Justfile/Makefile. Bản desktop phát hành cần `gogio` và CGO. C
 ## 5. Cạm bẫy đã biết (tóm tắt — chi tiết ở `docs/MEMORY.md`)
 
 - Preview web mặc định là chế độ **Tức thì** (typst.ts trong worker, `web/src/lib/wasm`). Click-to-source ở chế độ này khớp theo văn bản; chế độ "Trang in" của server vẫn chưa có. Đừng dùng `renderToSvg` của renderer (xem `docs/MEMORY.md`).
+- Tệp `.typ` trên web được **cộng tác** (`/ws/collab`, `service/collab`, `web/src/lib/collab`): văn bản chung là Y.Text, leader của phòng ghi xuống đĩa. Đừng ghi đè văn bản chung bằng nội dung đĩa; sửa từ ngoài phải đi qua gộp ba chiều (`rebaseChange`).
 - Scroll sync bằng vị trí heading thật chỉ có ở web (`typst.QueryHeadingPages`).
 - `tinymist.doKillPreview` phải truyền id `"default_preview"`.
 - Callback LSP chạy trên goroutine riêng: đụng UI Gio phải gọi `RefreshWindow()`.

@@ -26,6 +26,20 @@ func testService() *service.ServiceFacade {
 	return testServiceInst
 }
 
+// tempStorage is a server storage dir removed best-effort: background
+// writers (session/project files written via temp file + rename) can still
+// be finishing when the test returns, which makes t.TempDir's strict
+// cleanup fail on Windows.
+func tempStorage(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "typstify-storage-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
 type apiClient struct {
 	t      *testing.T
 	h      http.Handler
@@ -70,7 +84,7 @@ func TestProjectSharingAndRoleEnforcement(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(root) })
-	s := New(testService(), Options{ProjectRoot: root, StorageDir: t.TempDir()})
+	s := New(testService(), Options{ProjectRoot: root, StorageDir: tempStorage(t)})
 	h := s.Handler()
 
 	owner := &apiClient{t: t, h: h}

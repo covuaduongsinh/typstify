@@ -159,6 +159,20 @@ Giới hạn đọc 20 MiB (ảnh dán). Không có `sessionId` → phiên mới
 - Server → client: `ready{sessionId}`, `configOptions`, `userMessage`, `agentMessage`, `agentThought`, `toolCall`, `toolCallUpdate`, `plan`, `permission` (tối đa một yêu cầu treo mỗi kết nối), `turnEnd`, `error`, `authRequired{agentName, authMethods}`.
 - Payload `data` là kiểu ACP thô (`web/src/lib/acpTypes.ts`).
 
+### `/ws/collab?path=&project=`
+Cộng tác thời gian thực trên một tệp (`server/collab_ws.go`, `service/collab`). Cần vai trò viewer. `project` phải trùng project hiện hành của máy chủ, nếu không thì trả 409. Tin nhắn nhị phân `[loại][kênh][payload]`:
+
+| Loại | Hướng | Nội dung |
+|---|---|---|
+| 0 update | hai chiều | Update Yjs. Kênh 0 là văn bản (cần editor), kênh 1 là bình luận (cần commenter) |
+| 1 awareness | hai chiều | Con trỏ, tên. Chỉ chuyển tiếp |
+| 2 control | server → client | JSON `hello` / `peers` / `leader` / `compact` / `external {base, text}` / `error` |
+| 3 synced | server → client | Đã phát lại hết log |
+| 4 compact | leader → server | Trạng thái đầy đủ thay cho log |
+| 5 save | leader → server | 64 ký tự hash của bản đĩa leader đã thấy, rồi văn bản (cùng quy tắc với `PUT /api/workspace/file`). Máy chủ không ghi nếu tệp đã đổi sau bản đó, mà báo `external` |
+
+Vai trò được kiểm tra lại ở mỗi tin nhắn; người bị thu hồi quyền bị ngắt kết nối (mã 1008, không nối lại). Mã 4000 là ngắt tạm thời (client chậm), client tự nối lại. Phần phát lại log khi vào phòng được ghi thẳng ra socket, không qua hàng đợi. Trong lúc tệp có phòng mở, `PUT /api/workspace/file` cho tệp đó trả 409.
+
 ### `/ws/lsp`
 Cầu nối LSP tới tinymist (giới hạn đọc 20 MiB, `server/lsp_ws.go`). Client `web/src/lib/lspClient.ts` tự nối lại với backoff 1–15 giây.
 

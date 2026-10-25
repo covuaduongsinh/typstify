@@ -1,6 +1,8 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
-import { ROLE_LABELS, type TreeEntry, type WorkspaceRole } from '../api/types'
+import { ROLE_LABELS, type AuthStatus, type TreeEntry, type WorkspaceRole } from '../api/types'
+import { userColor, type CollabUser } from '../lib/collab/provider'
+import { useCollab, useThreads } from '../lib/collab/useCollab'
 import { useTranslations } from '../lib/i18n'
 import { LspClient } from '../lib/lspClient'
 import { useTheme } from '../lib/theme'
@@ -8,6 +10,8 @@ import { effectiveKey, matchesCombo, SHORTCUT_ACTIONS, useShortcuts } from '../l
 import { CHESSBOOK_IMPORT } from '../lib/typst'
 import { BrandMark } from './BrandMark'
 import { ChessToolbar } from './ChessToolbar'
+import { CollabPresence } from './CollabPresence'
+import { CommentsPanel } from './CommentsPanel'
 import type { EditorHandle } from './Editor'
 import { ExportButton } from './ExportButton'
 import { FileTree } from './FileTree'
@@ -42,7 +46,7 @@ function PanelLoading() {
 
 const I18N_KEYS = ['AI Assistant', 'Settings', 'Export']
 
-type SidePanel = 'agent' | 'outline' | 'packages' | 'settings' | null
+type SidePanel = 'agent' | 'comments' | 'outline' | 'packages' | 'settings' | null
 
 const FILETREE_DEFAULT = 230
 const FILETREE_MIN = 160
@@ -228,6 +232,39 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
       .catch(() => setAccess(null))
   }, [projectPath])
   const readOnly = !!access?.registered && access.role !== 'owner' && access.role !== 'editor'
+
+  // Who this browser is to collaborators (name and cursor color).
+  const [me, setMe] = useState<CollabUser | null>(null)
+  useEffect(() => {
+    api
+      .get<AuthStatus>('/api/auth/status')
+      .then((st) => {
+        const user = st.username ?? ''
+        setMe({ user, name: st.displayName || user || 'Khách', ...userColor(user || 'khach') })
+      })
+      .catch(() => setMe(null))
+  }, [])
+
+  // .typ files are co-edited (lib/collab): every open copy shares one
+  // document, and the room's leader writes it to disk. Other files keep
+  // the plain load/edit/save flow.
+  const collabPath = activePath?.endsWith('.typ') ? activePath : null
+  const collab = useCollab(projectPath, collabPath, me)
+  const collabProvider = collab.mode === 'live' || collab.mode === 'offline' ? collab.provider : null
+  const collabBinding = useMemo(
+    () => (collabProvider ? { ytext: collabProvider.ytext, awareness: collabProvider.awareness } : null),
+    [collabProvider],
+  )
+  const threads = useThreads(collabProvider)
+  const commentRanges = useMemo(
+    () =>
+      threads
+        .filter((t) => !t.resolved && t.from !== null && t.to !== null)
+        .map((t) => ({ id: t.id, from: t.from!, to: t.to! })),
+    [threads],
+  )
+  const collabRole = collab.status.role
+  const canComment = collabRole === 'owner' || collabRole === 'editor' || collabRole === 'commenter'
   const canShare = !!access?.registered && access.role === 'owner' && !!access.project
   const { overrides: shortcuts } = useShortcuts()
 
@@ -394,7 +431,13 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
 
   const saveActiveFile = async (newContent: string) => {
     if (!activePath) return
-    await api.put(`/api/workspace/file?path=${encodeURIComponent(activePath)}`, newContent)
+    if (collabProvider) {
+      // The room's leader writes the shared text: only the leader's own
+      // Ctrl+S saves anything (and nothing while a conflict is open).
+      if (!collabProvider.flush()) return
+    } else {
+      await api.put(`/api/workspace/file?path=${encodeURIComponent(activePath)}`, newContent)
+    }
     setLastSaved(new Date())
     setSaveError(null)
     setLiveContent(newContent)
@@ -446,6 +489,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
 
   const panelToggles: Array<{ id: Exclude<SidePanel, null>; icon: IconName; label: string }> = [
     { id: 'agent', icon: 'sparkles', label: t('AI Assistant') },
+    { id: 'comments', icon: 'message', label: 'Bình luận' },
     { id: 'outline', icon: 'outline', label: 'Dàn ý' },
     { id: 'packages', icon: 'package', label: 'Gói Typst' },
     { id: 'settings', icon: 'sliders', label: t('Settings') },
@@ -480,7 +524,9 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 ))}
                 {dirty && <span className="dirty-dot" title="Có thay đổi chưa lưu" />}
               </nav>
-              {readOnly ? (
+              {collabProvider ? (
+                <CollabPresence status={collab.status} self={me?.user ?? null} />
+              ) : readOnly ? (
                 <span className="role-badge" title="Bạn chỉ có quyền xem dự án này">
                   <Icon name="eye" size={14} /> {ROLE_LABELS[access!.role]}
                 </span>
@@ -636,8 +682,24 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                   </div>
                 )}
               </div>
-            ) : activePath && content !== null && lspClient ? (
+            ) : activePath && content !== null && lspClient && !(collabPath && collab.mode === null) ? (
               <div className="editor-container-with-toolbar">
+                {collabProvider && collab.status.conflict && (
+                  <div className="collab-conflict" role="alert">
+                    <Icon name="alert" size={16} />
+                    <span>
+                      {collab.status.conflict.kind === 'external'
+                        ? 'Tệp vừa bị sửa ở nơi khác (trợ lý AI, Dropbox, bản desktop…) đúng chỗ đang được sửa ở đây.'
+                        : 'Có nội dung sửa lúc ngoại tuyến chưa gộp được vào bản chung.'}
+                    </span>
+                    <button className="btn-primary" onClick={() => collabProvider.resolveConflict(true)}>
+                      {collab.status.conflict.kind === 'external' ? 'Dùng bản trên đĩa' : 'Khôi phục bản ngoại tuyến'}
+                    </button>
+                    <button className="btn-ghost" onClick={() => collabProvider.resolveConflict(false)}>
+                      Giữ bản đang sửa
+                    </button>
+                  </div>
+                )}
                 {activePath.endsWith('.typ') && (
                   <ChessToolbar
                     onInsertText={handleInsertText}
@@ -653,7 +715,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 )}
                 <Suspense fallback={<PanelLoading />}>
                   <Editor
-                    key={activePath}
+                    key={`${activePath}:${collabProvider ? 'collab' : 'local'}`}
                     ref={editorRef}
                     path={activePath}
                     initialContent={content}
@@ -664,7 +726,9 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     onSaveError={setSaveError}
                     onCursorChange={setCursor}
                     onDiagnosticsChange={setDiagnostics}
-                    readOnly={readOnly}
+                    readOnly={readOnly || (!!collabProvider && collab.status.mode === 'unavailable')}
+                    collab={collabBinding}
+                    commentRanges={commentRanges}
                   />
                 </Suspense>
               </div>
@@ -682,7 +746,8 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                   </div>
                 ) : (
                   <>
-                    <span className="spinner spinner-lg" /> Đang mở {activePath}…
+                    <span className="spinner spinner-lg" />{' '}
+                    {content !== null && collabPath ? 'Đang kết nối cộng tác' : 'Đang mở'} {activePath}…
                   </>
                 )}
               </div>
@@ -780,6 +845,16 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
           <aside className="workspace-side-panel" style={{ width: sidePanelWidth }}>
             <Suspense fallback={<PanelLoading />}>
               {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
+              {sidePanel === 'comments' && (
+                <CommentsPanel
+                  provider={collabProvider}
+                  me={me}
+                  canComment={canComment}
+                  canModerate={collabRole === 'owner' || collabRole === 'editor'}
+                  getSelection={() => editorRef.current?.getSelection() ?? null}
+                  onJump={(from, to) => editorRef.current?.selectRange(from, to)}
+                />
+              )}
               {sidePanel === 'outline' && (
                 <OutlinePanel
                   path={activePath?.endsWith('.typ') ? activePath : null}

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"looz.ws/typstify/service"
+	"looz.ws/typstify/service/collab"
 	"looz.ws/typstify/service/mcp"
 	"looz.ws/typstify/service/projects"
 	"looz.ws/typstify/service/wasmassets"
@@ -65,6 +67,9 @@ type Server struct {
 
 	activeDocMu sync.RWMutex
 	activeDoc   mcp.ActiveDocument
+
+	// Real-time co-editing rooms (collab_ws.go).
+	collab *collab.Hub
 
 	// Fonts and package archives for the in-browser compiler (wasm_api.go).
 	wasmFonts    *wasmassets.FontIndex
@@ -126,6 +131,8 @@ func New(appSrv *service.ServiceFacade, opts Options) *Server {
 		wasmFonts:    wasmassets.NewFontIndex(),
 	}
 	s.wasmPackages = s.newWasmPackages()
+	s.collab = s.newCollabHub()
+	go s.runCollabDiskWatch(context.Background())
 	if s.appSrv != nil {
 		s.appSrv.SetViewManager(nil, nil, nil, func() any {
 			return &webActiveDocProvider{server: s}
@@ -261,6 +268,9 @@ func (s *Server) routes() {
 	// LSP + AI agent, over WebSocket.
 	s.handleRole("GET /ws/lsp", projects.RoleViewer, s.handleLspWS)
 	s.handleRole("GET /ws/agent", projects.RoleEditor, s.handleAgentWS)
+	// Co-editing: viewers join to watch; each message is checked against
+	// the sender's role (editor: text, commenter: comments).
+	s.handleRole("GET /ws/collab", projects.RoleViewer, s.handleCollabWS)
 
 	// Preview: reverse-proxied to tinymist's own preview server.
 	s.handle("GET /api/preview/status", s.handlePreviewStatus)

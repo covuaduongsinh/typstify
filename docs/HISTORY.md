@@ -44,6 +44,59 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-25 — Giai đoạn 3: cộng tác thời gian thực
+- **Yêu cầu**: "commit Giai đoạn 1 và 2 trước, rồi làm tiếp giai đoạn 3" (chi tiết ở `docs/plans/plan_phase3_collab.md`). Giai đoạn 1–2 đã commit ở nhánh `feat/typst-app-parity` (`2a1295a`).
+- **Đã làm**:
+  1. Server `service/collab` + `/ws/collab`:
+     - chuyển tiếp và lưu update Yjs theo tệp;
+     - kênh văn bản (editor) và kênh bình luận (commenter) tách riêng để phân quyền thật;
+     - leader ghi tệp xuống đĩa và nén log;
+     - khởi tạo phòng từ tệp bằng update Yjs tự mã hoá, khớp từng byte với Yjs.
+  2. Web: tệp `.typ` mở ở chế độ cộng tác (Yjs + `y-codemirror.next`):
+     - hiện con trỏ và tên người khác;
+     - undo riêng từng người;
+     - avatar người đang mở;
+     - trạng thái đồng bộ thay cho nút Lưu.
+  3. Bình luận theo luồng, neo vào văn bản bằng `Y.RelativePosition`:
+     - trả lời, đánh dấu xong, xoá, nhắc `@tên`;
+     - tô sáng đoạn được bình luận trong editor;
+     - bảng **Bình luận** ở panel phải.
+  4. Ngoại tuyến: bản sao IndexedDB; khi nối lại chỉ gửi phần máy chủ chưa có.
+  5. Sửa từ bên ngoài (agent AI, Dropbox, desktop) được gộp ba chiều vào văn bản chung; nếu trùng chỗ thì hiện lựa chọn cho người dùng.
+  6. Sửa lỗi Giai đoạn 2: lớp chữ ẩn của preview "Tức thì" bị vẽ chồng lên chữ thật.
+- **Kiểm chứng**:
+  - Go:
+    - `service/collab` (chạy cả `-race`);
+    - `server` qua WebSocket thật: vai trò, thu hồi quyền, sai project.
+  - Web: 112 test dùng Yjs thật (diff, gộp ba chiều, bình luận neo đúng chỗ).
+  - Chạy thật hai tài khoản trong Chrome:
+    - gõ ở tab chủ thì tab khách thấy trong 1 giây, kèm con trỏ có tên;
+    - khách (Góp ý) không sửa được nhưng bình luận được; bình luận hiện và được tô sáng ở tab chủ;
+    - sửa tệp trên đĩa thì cả hai editor cập nhật;
+    - tắt máy chủ, gõ, bật lại thì nội dung lên đĩa và sang tab khách.
+- **Lỗi tìm ra khi chạy thật và đã sửa**:
+  - Sửa ngoại tuyến bị xoá sau khi máy chủ khởi động lại. Nguyên nhân: `DiskHash` không được cập nhật khi lần lưu trùng nội dung đĩa, cộng với cách "ép văn bản theo đĩa". Đã chuyển sang gộp ba chiều và có test hồi quy.
+  - Sau khi máy chủ đổi project, client có thể vào nhầm phòng của tệp cùng tên ở project khác. Đã kiểm tra tham số `project`.
+- **Rà soát độc lập và đã sửa** (2 lỗi mức cao, 6 lỗi mức trung bình):
+  - **Ghi đè sửa đổi bên ngoài:** autosave của leader có thể ghi đè sửa đổi bên ngoài trong khoảng 2 giây trước lần kiểm tra đĩa, và vẫn chạy cả khi đang có xung đột. Nay mỗi lần lưu kèm hash bản đĩa đã thấy; máy chủ từ chối ghi đè bản chưa thấy, và client không lưu khi đang có xung đột. Đã chạy thật: sửa ngoại tuyến cùng dòng với agent thì hiện xung đột, file trên đĩa được giữ nguyên.
+  - **Ngắt tạm thời bị coi như từ chối vĩnh viễn:** client chậm bị ngắt cũng dùng mã 1008, nên client bỏ hẳn phiên. Nay dùng mã 4000 và client tự nối lại.
+  - **Phòng có log dài làm người mới vào bị ngắt:** phần phát lại log bị đẩy vào hàng đợi giới hạn và làm tràn nó. Nay phát lại được ghi thẳng ra socket. Log bình luận cũng nén được khi phòng chỉ có người Góp ý.
+  - **Log bị rách:** bản ghi rách (do mất điện giữa chừng) nay được cắt bỏ khi mở, và file thay thế được `fsync` trước khi rename.
+  - **Leader bị hạ quyền:** người này nay rời vai trò leader và phòng tự bầu leader mới.
+  - **`PUT` đè văn bản chung:** `PUT` của bản cũ có thể ghi đè văn bản chung; nay bị chặn khi tệp đang có phòng mở.
+  - **Mất sửa ngoại tuyến khi lịch sử phòng bị thay:** nay bản cục bộ cũ được đọc lại và đề xuất khôi phục.
+  - **Các sửa nhỏ:**
+    - bản cục bộ tách theo người dùng;
+    - khoá phòng không phân biệt hoa thường trên Windows;
+    - bắt buộc tham số `project`;
+    - giới hạn kích thước awareness;
+    - nút Lưu không còn báo "đã lưu" khi không ghi gì.
+  - **Sửa lỗi chập chờn của test server trên Windows:** thư mục lưu trữ trong test nay được dọn theo kiểu best-effort.
+- **Còn mở**:
+  - tác giả bình luận do client tự khai, và quyền xoá bình luận chỉ được kiểm ở giao diện (giới hạn của CRDT phía client);
+  - mỗi người mở một project riêng cùng lúc (3b);
+  - đổi tên hoặc xoá tệp làm mất lịch sử cộng tác và bình luận của tệp đó.
+
 ### 2026-10-25 — Giai đoạn 2: biên dịch Typst ngay trong trình duyệt
 - **Yêu cầu**: "tiếp giai đoạn 2" của kế hoạch đồng bộ typst.app (chi tiết ở `docs/plans/plan_phase2_wasm.md`).
 - **Đã làm**:

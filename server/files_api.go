@@ -155,6 +155,12 @@ func (s *Server) handleFilePut(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// A co-edited file is written by its room's leader (collab_ws.go); a
+	// plain PUT would replace everyone's newer text with this client's copy.
+	if rel, err := filepath.Rel(root, p); err == nil && s.collab.IsOpen(root, filepath.ToSlash(rel)) {
+		writeError(w, http.StatusConflict, "Tệp đang được cộng tác: thay đổi được lưu qua phiên cộng tác")
+		return
+	}
 	// For .typ files, strip any AI-generated mock #let definitions that
 	// shadow the real chessbook library functions before persisting.
 	if strings.HasSuffix(p, ".typ") {

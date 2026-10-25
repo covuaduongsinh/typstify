@@ -972,6 +972,21 @@ button.btn-danger {
   cursor: text;
 }
 
+/* The selectable text layer (.tsel) sits on top of the glyphs. typst.ts'
+   diff output carries no stylesheet, so make it invisible here, or it is
+   drawn over the real text as a second, mismatched copy. */
+.wasm-preview-doc .tsel,
+.wasm-preview-doc .tsel span {
+  color: transparent;
+  white-space: pre;
+  line-height: 1;
+}
+.wasm-preview-doc .tsel::selection,
+.wasm-preview-doc .tsel span::selection {
+  color: transparent;
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
 .wasm-preview-doc svg.typst-doc {
   width: 100% !important;
   height: auto !important;
@@ -3562,4 +3577,162 @@ button.btn-danger {
   background: var(--surface-2);
   border: 1px solid var(--border);
   user-select: all;
+}
+
+/* ---- Co-editing (lib/collab): presence, comments ---- */
+.collab-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+}
+
+.collab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+.collab-live {
+  background: var(--success);
+}
+.collab-connecting {
+  background: var(--warning);
+}
+.collab-offline,
+.collab-unavailable {
+  background: var(--error);
+}
+
+.collab-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  border: 2px solid var(--surface);
+  margin-left: -6px;
+}
+.collab-avatar:first-of-type {
+  margin-left: 0;
+}
+.collab-avatar.me {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.cm-comment-range {
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  border-bottom: 2px solid var(--warning);
+}
+
+.comments-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.comment-new {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.comment-new textarea,
+.comment-reply input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+}
+
+.comment-filter {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.comment-threads {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comment-thread {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius);
+  padding: 8px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.comment-thread.resolved {
+  border-left-color: var(--success);
+  opacity: 0.75;
+}
+.comment-thread.orphan {
+  border-left-color: var(--text-dim);
+}
+
+.comment-quote {
+  text-align: left;
+  font-style: italic;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comment-quote:disabled {
+  cursor: default;
+  text-decoration: line-through;
+}
+
+.comment-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.comment-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.comment-mention {
+  color: var(--accent);
+  font-weight: 600;
+}
+.comment-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.collab-conflict {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--warning) 14%, var(--surface));
+  border-bottom: 1px solid var(--warning);
+  font-size: 13px;
+}
+.collab-conflict span {
+  flex: 1 1 240px;
 }

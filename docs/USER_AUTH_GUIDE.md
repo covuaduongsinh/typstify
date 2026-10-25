@@ -75,7 +75,7 @@ Khi đã đăng nhập vào hệ thống, bạn có thể đổi mật khẩu b�
 
 - Mỗi dự án có **chủ sở hữu** và các thành viên với một trong ba vai trò:
   - **Chỉnh sửa**: đọc và sửa tệp, dùng trợ lý AI.
-  - **Góp ý**: hiện tại chỉ xem; phần bình luận sẽ có khi bổ sung cộng tác thời gian thực.
+  - **Góp ý**: xem và bình luận (bôi đen đoạn văn, mở bảng **Bình luận**), không sửa nội dung.
   - **Chỉ xem**: đọc, xem trước và xuất PDF; editor ở chế độ chỉ đọc.
 - **Quản trị viên** (tài khoản đăng ký đầu tiên) xem và quản lý mọi dự án, và là người duy nhất đổi được cài đặt máy chủ, font, Dropbox và trợ lý AI.
 - **Tạo dự án:** ở màn hình chọn dự án, nhập tên vào mục **Tạo dự án mới**.

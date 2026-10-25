@@ -60,7 +60,7 @@ func TestNonMemberCannotReachProjectThroughParentOrChildFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(root) })
-	s := New(testService(), Options{ProjectRoot: root, StorageDir: t.TempDir()})
+	s := New(testService(), Options{ProjectRoot: root, StorageDir: tempStorage(t)})
 	h := s.Handler()
 
 	owner := &apiClient{t: t, h: h}

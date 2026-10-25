@@ -23,7 +23,7 @@ func TestWasmAssetsRequireLoginAndValidate(t *testing.T) {
 	t.Setenv("TYPSTIFY_WASM_FONT_DIRS", fontDir)
 	t.Setenv("TYPSTIFY_WASM_SYSTEM_FONTS", "no-such-font-*")
 
-	s := New(testService(), Options{StorageDir: t.TempDir()})
+	s := New(testService(), Options{StorageDir: tempStorage(t)})
 	s.wasmPackages.SearchDirs = func() []string { return []string{pkgRoot} }
 	s.wasmPackages.CacheDir = func() string { return "" }
 	h := s.Handler()
