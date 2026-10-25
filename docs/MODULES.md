@@ -124,7 +124,7 @@ Không router, không thư viện state. `App.tsx` là máy trạng thái loadin
 - `components/`:
   - Khung: `Workspace.tsx` (shell: cây file, editor, preview, panel), `FileTree`, `StatusBar`, `Resizer`, `Modal`, `PromptDialog`, `QuickActions`, `ProjectPicker`, `NewDocModal`.
   - Lịch sử: `HistoryPanel.tsx` (thẻ Phiên bản / Git), `HistoryDiff.tsx` (`@codemirror/merge`), `GitPanel.tsx`.
-  - Soạn thảo/preview: `Editor.tsx` (CodeMirror), `OutlinePanel`, `PreviewPane.tsx` (4 chế độ: wasm "Tức thì" mặc định / svg / pdf / tinymist), `WasmPreview.tsx` (renderer typst.ts, vá SVG tăng dần, click-to-source, cuộn đồng bộ), `ExportButton`.
+  - Soạn thảo/preview: `Editor.tsx` (CodeMirror), `OutlinePanel`, `PreviewPane.tsx` (4 chế độ: wasm "Tức thì" mặc định / svg / pdf / tinymist), `WasmPreview.tsx` (renderer typst.ts, vá SVG tăng dần, click-to-source, cuộn đồng bộ, trình chiếu), `ExportButton`, `SymbolPicker.tsx` (bảng `sym.*`).
   - Agent: `AgentChat`, `AgentSessionHistory`, `AgentRegistryPicker`, `AuthCard`.
   - Cờ vua / nhập liệu: `ChessToolbar`, `ChessBoardModal`, `PgnImportModal`, `DataImportModal`, `MarkdownImportModal`.
   - Dropbox: `DropboxSyncModal`, `DropboxImportModal`. Cài đặt: `SettingsPanel`, `PackageManager`. Đăng nhập: `LoginPage`, `BrandMark`.
@@ -137,4 +137,5 @@ Không router, không thư viện state. `App.tsx` là máy trạng thái loadin
   - Typst/cờ vua: `typst.ts` (sửa import chessbook, directive cỡ chữ/cột), `chess.ts`, `pgn.ts`.
   - Chuyển đổi: `markdownToTypst.ts`, `dataImport.ts`.
   - Giao diện: `i18n.ts`, `vi.ts`, `theme.ts`, `editorTheme.ts`, `shortcuts.ts`, `useDismiss.ts`.
+  - Editor: `editorPrefs.ts` (Vim, chính tả; localStorage `typstify_editor_prefs`), `lspEdits.ts` (TextEdit LSP → thay đổi CodeMirror), `upload.ts` (dán/kéo thả ảnh, `POST /api/workspace/upload`), `symbols.ts` (lọc ký hiệu), `spellcheck.ts` (đánh dấu `spellcheck` chỉ cho văn bản).
 - Kiểm thử: vitest (`*.test.ts` cạnh nguồn cho `scrollSync`, `svgHelper`, `chess`, `pgn`, `typst`, `dataImport`, `markdownToTypst`, `wasm/`).

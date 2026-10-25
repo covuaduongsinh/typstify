@@ -5,6 +5,7 @@ import { describeCombo, effectiveKey, keyComboFromEvent, SHORTCUT_ACTIONS, useSh
 import { AgentRegistryPicker } from './AgentRegistryPicker'
 import { Icon } from './Icon'
 import { SecuritySection } from './SecuritySection'
+import { setEditorPref, useEditorPrefs } from '../lib/editorPrefs'
 
 interface Field<T> {
   key: keyof T
@@ -125,6 +126,37 @@ function Section<T extends object>({
   )
 }
 
+/** Per-browser editor preferences (lib/editorPrefs.ts). */
+function EditorPrefsSection() {
+  const prefs = useEditorPrefs()
+  return (
+    <details className="settings-section">
+      <summary>
+        <Icon name="chevron-right" size={14} className="settings-caret" />
+        Trình soạn thảo
+      </summary>
+      <div className="settings-section-body">
+        <label className="settings-check">
+          <input type="checkbox" checked={prefs.vim} onChange={(e) => setEditorPref('vim', e.target.checked)} /> Phím
+          tắt kiểu Vim
+        </label>
+        <label className="settings-check">
+          <input
+            type="checkbox"
+            checked={prefs.spellcheck}
+            onChange={(e) => setEditorPref('spellcheck', e.target.checked)}
+          />{' '}
+          Kiểm tra chính tả tiếng Việt (bỏ qua mã, công thức và chuỗi)
+        </label>
+        <p className="settings-hint">
+          Lưu trên trình duyệt này, áp dụng cho mọi dự án. Chính tả dùng từ điển của trình duyệt: cần thêm tiếng Việt
+          trong cài đặt ngôn ngữ của trình duyệt.
+        </p>
+      </div>
+    </details>
+  )
+}
+
 export function SettingsPanel() {
   const [agentSettingsVersion, setAgentSettingsVersion] = useState(0)
 
@@ -154,6 +186,8 @@ export function SettingsPanel() {
       <FontsSection />
 
       <ShortcutsSection />
+
+      <EditorPrefsSection />
 
       <details className="settings-section" open>
         <summary>

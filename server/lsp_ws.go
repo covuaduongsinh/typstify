@@ -12,6 +12,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"looz.ws/typstify/lsp"
+	"looz.ws/typstify/lsp/protocol"
 	"looz.ws/typstify/service/projects"
 )
 
@@ -34,6 +35,7 @@ type lspServerMessage struct {
 	Items       any    `json:"items,omitempty"`
 	Hover       any    `json:"hover,omitempty"`
 	Symbols     any    `json:"symbols,omitempty"`
+	Edits       any    `json:"edits,omitempty"`
 	Diagnostics any    `json:"diagnostics,omitempty"`
 	Message     string `json:"message,omitempty"`
 }
@@ -194,6 +196,27 @@ func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			_ = wsjson.Write(sessCtx, conn, lspServerMessage{Type: "documentSymbolsResult", ID: msg.ID, Symbols: symbols})
+
+		case "format":
+			// Formatting rewrites the document: editors only.
+			if !canEdit {
+				_ = wsjson.Write(sessCtx, conn, lspServerMessage{Type: "error", ID: msg.ID, Message: "read-only"})
+				continue
+			}
+			p, err := resolveInRoot(root, msg.Path)
+			if err != nil {
+				_ = wsjson.Write(sessCtx, conn, lspServerMessage{Type: "error", ID: msg.ID, Message: err.Error()})
+				continue
+			}
+			edits, err := client.Formatting(sessCtx, p, msg.Content)
+			if err != nil {
+				_ = wsjson.Write(sessCtx, conn, lspServerMessage{Type: "error", ID: msg.ID, Message: err.Error()})
+				continue
+			}
+			if edits == nil {
+				edits = []protocol.TextEdit{}
+			}
+			_ = wsjson.Write(sessCtx, conn, lspServerMessage{Type: "formatResult", ID: msg.ID, Edits: edits})
 
 		default:
 			log.Printf("lsp_ws: unknown message type %q", msg.Type)

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { RenderSession, TypstRenderer } from '@myriaddreamin/typst.ts/renderer'
 import { createTypstRenderer } from '@myriaddreamin/typst.ts/renderer'
 import { patchRoot } from '@myriaddreamin/typst.ts/render/svg/patch'
@@ -44,6 +44,9 @@ interface WasmPreviewProps {
   onUnavailable: (reason: string) => void
   onScrollToLine?: (line: number) => void
   onJumpToLine?: (line: number) => void
+  /** Presentation mode: one page at a time, scaled to the screen. */
+  presenting?: boolean
+  onExitPresent?: () => void
 }
 
 let rendererPromise: Promise<TypstRenderer> | null = null
@@ -93,6 +96,34 @@ function paint(session: RenderSession, host: HTMLElement, fresh: boolean) {
   tmp.innerHTML = svg
   const next = tmp.firstElementChild
   if (next instanceof SVGElement) patchRoot(prev, next)
+}
+
+/** Every page's box in viewport pixels, in page order. A page group's own
+ * bounding box only covers its ink, so the size comes from the page's
+ * data-page-* attributes and the offset from its transform. patchRoot
+ * reuses page nodes in place, so DOM order is not page order either. */
+function pageBoxes(doc: HTMLElement): { top: number; width: number; height: number }[] {
+  const svg = doc.querySelector('svg.typst-doc')
+  const docWidth = Number(svg?.getAttribute('data-width'))
+  if (!svg || !docWidth) return []
+  const r = svg.getBoundingClientRect()
+  const scale = r.width / docWidth
+  return [...svg.querySelectorAll('.typst-page')]
+    .map((el) => {
+      const m = /translate\(\s*[-\d.]+[\s,]+([-\d.]+)/.exec(el.getAttribute('transform') ?? '')
+      if (!m) {
+        // Unknown renderer output: the ink box is better than nothing.
+        const b = el.getBoundingClientRect()
+        return { top: b.top, width: b.width, height: b.height }
+      }
+      const y = Number(m[1])
+      return {
+        top: r.top + y * scale,
+        width: Number(el.getAttribute('data-page-width')) * scale,
+        height: Number(el.getAttribute('data-page-height')) * scale,
+      }
+    })
+    .sort((a, b) => a.top - b.top)
 }
 
 const SAFE_LINK = /^(https?:|mailto:|#)/i
@@ -155,11 +186,16 @@ export function WasmPreview({
   onUnavailable,
   onScrollToLine,
   onJumpToLine,
+  presenting = false,
+  onExitPresent,
 }: WasmPreviewProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const docRef = useRef<HTMLDivElement | null>(null)
   const [pageCount, setPageCount] = useState(0)
   const [docWidthPt, setDocWidthPt] = useState(0)
+  // aspects: each page's height / width, so every slide fits the screen.
+  const [present, setPresent] = useState<{ slide: number; aspects: number[]; w: number; h: number } | null>(null)
+  const restoreSlideRef = useRef<number | null>(null)
   // The source the rendered document was compiled from (it lags the
   // editor while a compile is running).
   const [compiled, setCompiled] = useState('')
@@ -179,11 +215,13 @@ export function WasmPreview({
   const timers = useRef<Record<string, number | undefined>>({})
   const statusRef = useRef(onStatus)
   const unavailableRef = useRef(onUnavailable)
+  const exitRef = useRef(onExitPresent)
   // Declared before the effects below, so they always see current values.
   useEffect(() => {
     latestRef.current = { path, source }
     statusRef.current = onStatus
     unavailableRef.current = onUnavailable
+    exitRef.current = onExitPresent
   })
 
   const setTimer = (name: string, ms: number, fn: () => void) => {
@@ -201,14 +239,7 @@ export function WasmPreview({
     const doc = docRef.current
     if (!scroller || !doc) return []
     const base = scroller.getBoundingClientRect().top - scroller.scrollTop
-    // patchRoot reuses page nodes in place, so DOM order is not page order;
-    // each page is positioned by its own transform.
-    return [...doc.querySelectorAll('.typst-page')]
-      .map((el) => {
-        const r = el.getBoundingClientRect()
-        return { top: r.top - base, height: r.height }
-      })
-      .sort((a, b) => a.top - b.top)
+    return pageBoxes(doc).map((p) => ({ top: p.top - base, height: p.height }))
   }, [])
 
   const run = useCallback(async () => {
@@ -328,7 +359,7 @@ export function WasmPreview({
 
   // Editor -> preview: follow the caret once it rests.
   useEffect(() => {
-    if (!syncScroll || !cursor || !pageCount) return
+    if (!syncScroll || !cursor || !pageCount || present) return
     setTimer('cursor', 600, () => {
       const scroller = scrollRef.current
       if (!scroller || userScrollRef.current) return
@@ -346,10 +377,102 @@ export function WasmPreview({
         scroller.scrollTo({ top: target, behavior: 'smooth' })
       }
     })
-  }, [cursor, syncScroll, pageCount, lineRatio, pageLayouts])
+  }, [cursor, syncScroll, pageCount, lineRatio, pageLayouts, present])
+
+  // Presentation (PreviewPane covers the screen with the preview): every
+  // page is scaled to fit the screen and the keyboard (or a click) moves
+  // between pages.
+  const pageAspects = useCallback(
+    () => (docRef.current ? pageBoxes(docRef.current) : []).map((b) => (b.width ? b.height / b.width : Math.SQRT2)),
+    [],
+  )
+
+  useEffect(() => {
+    if (!presenting) {
+      // Back in the normal view, return to the page that was shown.
+      setPresent((p) => {
+        if (p) restoreSlideRef.current = p.slide
+        return null
+      })
+      return
+    }
+    const scroller = scrollRef.current
+    const layouts = pageLayouts()
+    // Start from the page the reader was looking at.
+    const mid = scroller ? scroller.scrollTop + scroller.clientHeight / 2 : 0
+    const slide = Math.max(
+      0,
+      layouts.findLastIndex((l) => l.top <= mid),
+    )
+    setPresent({ slide, aspects: pageAspects(), w: window.innerWidth, h: window.innerHeight })
+    const resize = () => setPresent((p) => p && { ...p, w: window.innerWidth, h: window.innerHeight })
+    window.addEventListener('resize', resize)
+    return () => window.removeEventListener('resize', resize)
+  }, [presenting, pageLayouts, pageAspects])
+
+  // A recompile while presenting (a collaborator's edit) can change the
+  // pages: refresh their shapes and keep the slide in range.
+  useEffect(() => {
+    setPresent((p) => p && { ...p, aspects: pageAspects(), slide: Math.min(p.slide, Math.max(0, pageCount - 1)) })
+  }, [pageCount, compiled, pageAspects])
+
+  const goTo = useCallback(
+    (delta: number | 'first' | 'last') =>
+      setPresent((p) => {
+        if (!p) return p
+        const last = Math.max(0, pageCount - 1)
+        const slide = delta === 'first' ? 0 : delta === 'last' ? last : Math.min(last, Math.max(0, p.slide + delta))
+        return slide === p.slide ? p : { ...p, slide }
+      }),
+    [pageCount],
+  )
+
+  useEffect(() => {
+    if (!present) return
+    const onKey = (e: KeyboardEvent) => {
+      const step: Record<string, number | 'first' | 'last'> = {
+        ArrowRight: 1,
+        ArrowDown: 1,
+        PageDown: 1,
+        ' ': 1,
+        Enter: 1,
+        ArrowLeft: -1,
+        ArrowUp: -1,
+        PageUp: -1,
+        Backspace: -1,
+        Home: 'first',
+        End: 'last',
+      }
+      if (e.key === 'Escape') return exitRef.current?.()
+      const d = step[e.key]
+      if (d === undefined) return
+      e.preventDefault()
+      goTo(d)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [present, goTo])
+
+  // Centre the current page; runs after the new width is laid out.
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current
+    if (!present || !scroller) return
+    const page = pageLayouts()[present.slide]
+    if (page) scroller.scrollTo({ top: page.top - (scroller.clientHeight - page.height) / 2, behavior: 'instant' })
+  }, [present, pageCount, pageLayouts])
+
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current
+    const slide = restoreSlideRef.current
+    if (present || slide === null || !scroller) return
+    restoreSlideRef.current = null
+    const page = pageLayouts()[slide]
+    if (page) scroller.scrollTo({ top: page.top - 16, behavior: 'instant' })
+  }, [present, pageLayouts])
 
   // Preview -> editor: scroll the editor to what the reader is looking at.
   const handleScroll = () => {
+    if (present) return
     userScrollRef.current = true
     setTimer('user', 1200, () => {
       userScrollRef.current = false
@@ -367,6 +490,7 @@ export function WasmPreview({
   }
 
   const handleClick = (e: React.MouseEvent) => {
+    if (present) return goTo(e.clientX < window.innerWidth / 3 ? -1 : 1)
     if (!onJumpToLine || !docRef.current) return
     const text = textAt(docRef.current, e.clientX, e.clientY)
     if (!text) return
@@ -386,17 +510,31 @@ export function WasmPreview({
   }
 
   // Typst sizes are in points; 1pt = 4/3 CSS px at 100%.
-  const width = fitWidth || !docWidthPt ? '100%' : `${Math.round(docWidthPt * (4 / 3) * (zoom / 100))}px`
+  const aspect = present ? (present.aspects[present.slide] ?? present.aspects[0] ?? Math.SQRT2) : 0
+  const width = present
+    ? `${Math.floor(Math.min(present.w, present.h / aspect))}px`
+    : fitWidth || !docWidthPt
+      ? '100%'
+      : `${Math.round(docWidthPt * (4 / 3) * (zoom / 100))}px`
 
   return (
-    <div className="preview-scroll-container wasm-preview-scroll" ref={scrollRef} onScroll={handleScroll}>
+    <div
+      className={`preview-scroll-container wasm-preview-scroll${presenting ? ' presenting' : ''}`}
+      ref={scrollRef}
+      onScroll={handleScroll}
+    >
       <div
         className="wasm-preview-doc"
         ref={docRef}
         style={{ width }}
         onClick={handleClick}
-        title={onJumpToLine ? 'Bấm vào chữ để nhảy tới dòng nguồn' : undefined}
+        title={present ? undefined : onJumpToLine ? 'Bấm vào chữ để nhảy tới dòng nguồn' : undefined}
       />
+      {present && (
+        <div className="present-counter" aria-live="polite">
+          {present.slide + 1} / {pageCount}
+        </div>
+      )}
     </div>
   )
 }

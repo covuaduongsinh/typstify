@@ -65,7 +65,10 @@ async function fetchFont(url: string): Promise<Uint8Array | null> {
     cache = null
   }
   try {
-    const res = await fetch(url, { credentials: 'include' })
+    // Same-origin credentials only: the server's fonts need the session
+    // cookie, while the CDN answers with "Access-Control-Allow-Origin: *",
+    // which browsers refuse for credentialed requests.
+    const res = await fetch(url, { credentials: 'same-origin' })
     if (!res.ok) return null
     if (cache) void cache.put(url, res.clone()).catch(() => undefined)
     return new Uint8Array(await res.arrayBuffer())
@@ -101,7 +104,13 @@ async function init(fontUrls: string[]) {
  * are dropped: a saved file is now read from the server, and a buffer
  * from another file or project must not hide what is on disk. */
 async function setManifest(entries: ManifestEntry[]) {
-  files.setManifest(entries)
+  // The compiler remembers that a path was missing and never asks again:
+  // when files come or go (an uploaded image), drop its caches and start
+  // the next document afresh.
+  if (files.setManifest(entries) && compiler) {
+    await compiler.reset()
+    incr = null
+  }
   compiler?.resetShadow()
   await Promise.all(
     entries.map(async (e) => {

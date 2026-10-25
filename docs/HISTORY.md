@@ -44,6 +44,35 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-25 — Giai đoạn 6: hoàn thiện editor
+- **Yêu cầu**: tiếp theo thứ tự đã chốt (4 → 6 → 5 → 7 → 3b); chi tiết ở `docs/plans/plan_phase6_editor.md`.
+- **Đã làm**:
+  1. Định dạng mã bằng typstyle qua tinymist (`formatterMode: typstyle`, `textDocument/formatting`): nút "Định dạng" và phím `Ctrl+Shift+F`. Kết quả bị bỏ nếu tài liệu đổi trong lúc chờ.
+  2. Dán hoặc kéo thả ảnh vào editor: ảnh lưu vào `assets/` (tên `anh-YYYYMMDD-HHMMSS.ext`), chèn `#image(...)` trên dòng riêng. Kéo thả tệp vào cây thư mục, nút tải tệp lên. Route mới `POST /api/workspace/upload` (editor, tối đa 25 MiB, tên trùng thì đánh số).
+  3. Chế độ Vim (`@replit/codemirror-vim`), bật/tắt tại chỗ trong Cài đặt → Trình soạn thảo.
+  4. Bảng ký hiệu Typst (`GET /api/symbols`, lấy từ `tinymist.getResources("/symbols")`): tìm theo tên hoặc dán ký tự; bấm chèn `#sym.tên`, Shift+bấm chèn thẳng ký tự.
+  5. Kiểm tra chính tả bằng từ điển của trình duyệt, chỉ bật cho phần văn bản (nút `Text` của cây cú pháp), bỏ qua mã, công thức, raw, nhãn, tham chiếu.
+  6. Trình chiếu từ preview "Tức thì": mỗi trang vừa màn hình, chuyển bằng phím mũi tên/PgUp/PgDn/Space/Home/End hoặc bấm chuột, Esc để thoát. Dùng toàn màn hình thật khi trình duyệt cho phép, nếu không thì phủ kín cửa sổ (iPhone Safari không có fullscreen cho phần tử thường).
+- **Quyết định**: không đóng gói từ điển `dictionary-vi` vì giấy phép GPL (Typstify là Apache 2.0); dùng spellcheck của trình duyệt, người dùng cần thêm tiếng Việt trong cài đặt ngôn ngữ của trình duyệt.
+- **Sửa lỗi có sẵn phát hiện trong lúc làm**:
+  - `POST /api/settings/fonts` bị giới hạn body 2 MiB mặc định trong khi handler cho phép 30 MiB, nên hầu hết font thật bị từ chối;
+  - preview "Tức thì" đo vị trí trang bằng `getBoundingClientRect()` của nhóm `.typst-page`, vốn chỉ bao phần có mực. Đồng bộ cuộn và bấm-để-nhảy-dòng vì thế lệch, nhất là trang ít chữ. Nay tính từ `data-page-width/height` và `transform` của trang;
+  - preview "Tức thì" không tải được font mặc định nào từ CDN (kể cả font toán NewCMMath, nên mọi công thức báo `no font could be found`): worker gửi `credentials: 'include'`, mà CDN trả `Access-Control-Allow-Origin: *`. Nay dùng `same-origin`;
+  - preview "Tức thì" không thấy ảnh hay tệp của dự án (`failed to load file (is a directory)`): lần biên dịch đầu chạy trước khi có danh sách tệp, và typst.ts nhớ luôn câu trả lời "không có tệp". Nay chờ danh sách tệp đầu tiên và `reset()` compiler khi có tệp thêm/bớt.
+- **Rà soát độc lập và đã sửa** (2 lỗi cao, 5 trung bình, phần lớn lỗi thấp):
+  - trình chiếu dự phòng không có đường thoát trên màn hình cảm ứng (thêm nút ×); trình chiếu kẹt khi rời preview "Tức thì"; số trang giảm khi đang trình chiếu; thoát trình chiếu thì mất vị trí đọc; trang khác khổ bị cắt (nay mỗi trang có tỉ lệ riêng);
+  - ảnh vừa dán không hiện trong preview tới lần lưu kế tiếp (nay tải lại danh sách tệp sau mỗi lần tải lên);
+  - hai lần tải lên cùng tên cùng lúc đè nhau, và vòng chọn tên có thể lặp vô hạn (nay tạo tệp độc quyền `O_EXCL`, tối đa 1000 lần thử);
+  - dán chữ từ Word/trình duyệt (clipboard có cả chữ lẫn ảnh) bị biến thành tải ảnh lên;
+  - định dạng khi cộng tác có thể áp thay đổi tính trên văn bản của người khác: nay client gửi kèm văn bản, server định dạng đúng văn bản đó và từ chối nếu tài liệu bị cập nhật trong lúc chờ;
+  - `isProtectedPath` phân biệt hoa/thường nên `.GIT`, `.Typstify` lọt qua trên Windows/macOS (nay `EqualFold`, áp dụng mọi route);
+  - tên tệp NFD (macOS/Safari) mất dấu tiếng Việt (nay chuẩn hoá NFC); `/api/symbols` nay cần quyền viewer; ảnh tải xong không chèn vào tệp khác nếu người dùng đã chuyển tệp; chỉ dán ảnh trong tệp `.typ`.
+- **Sửa thêm**: test `service/collab` chập chờn trên Windows vì `t.TempDir()` dọn thư mục thất bại (dùng thư mục tạm dọn kiểu best-effort như `gitsync`).
+- **Kiểm chứng**: test Go (upload, symbols, giới hạn body font), vitest (lspEdits, upload, symbols, spellcheck, manifest). Chạy thật trong Chrome: định dạng, dán ảnh (lưu xuống đĩa, hiện ngay trong preview không cần lưu), dán chữ kèm ảnh, Vim `dd`/`u`, bảng ký hiệu, thuộc tính chính tả, công thức toán, trình chiếu (phím, End, nút ×, trở về đúng trang).
+- **Còn mở**:
+  - trong môi trường Chrome tự động hoá, chính trình duyệt cắt mọi WebSocket sau khoảng 15 giây (thử với một server WebSocket tối giản cũng vậy); client tự nối lại nên không mất dữ liệu, nhưng thao tác định dạng đúng lúc đang nối lại sẽ không có kết quả;
+  - chưa có "vẽ tay để tìm ký hiệu" như typst.app.
+
 ### 2026-10-25 — Giai đoạn 4: lịch sử phiên bản và Git
 - **Yêu cầu**: "Chạy theo thứ tự tối ưu" → thứ tự chốt 4 → 6 → 5 → 7 → 3b (lý do trong `docs/plans/plan_typst_app_parity_2026-10.md`); chi tiết ở `docs/plans/plan_phase4_history.md`.
 - **Đã làm**:

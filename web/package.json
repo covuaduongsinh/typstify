@@ -24,6 +24,7 @@
     "@myriaddreamin/typst-ts-renderer": "0.8.0-rc3",
     "@myriaddreamin/typst-ts-web-compiler": "0.8.0-rc3",
     "@myriaddreamin/typst.ts": "0.8.0-rc3",
+    "@replit/codemirror-vim": "6.4.0",
     "codemirror": "^6.0.2",
     "codemirror-lang-typst": "^0.6.0",
     "lib0": "0.2.119",

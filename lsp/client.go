@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -175,6 +176,9 @@ func (c *Client) buildInitOptions(setting *settings.Settings) map[string]any {
 		"systemFonts":    typstSettings.IgnoreSystemFonts == 0,
 		"syntaxOnly":     syntaxOnly,
 		"typstExtraArgs": typstExtraArgs,
+		// textDocument/formatting is off in tinymist unless a formatter
+		// is chosen; typstyle is the one typst.app uses.
+		"formatterMode": "typstyle",
 	}
 
 	return opts
@@ -760,6 +764,47 @@ func (c *Client) DocumentSymbols(ctx context.Context, filePath string) ([]protoc
 	}
 
 	return symbols, nil
+}
+
+// ErrDocumentChanged is returned by Formatting when another editor session
+// updated the document while it was being formatted.
+var ErrDocumentChanged = errors.New("document changed while formatting")
+
+// Formatting returns typstyle's edits for content, the editor's text of the
+// document. The document is shared by every editor session on the file
+// (collaborative editing), so the edits are only returned when nobody else
+// updated it in between; they would not apply to content otherwise.
+func (c *Client) Formatting(ctx context.Context, filePath, content string) ([]protocol.TextEdit, error) {
+	if !c.IsReady() {
+		return nil, errors.New("LSP is not ready")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, CommunicationTimeout)
+	defer cancel()
+
+	c.docCache.Update(filePath, strings.NewReader(content))
+	doc, err := c.docCache.Get(filePath)
+	if err != nil {
+		return nil, err
+	}
+	version := doc.version()
+	if err := c.notifyDidOpenOrChange(ctx, filePath); err != nil {
+		return nil, err
+	}
+
+	var edits []protocol.TextEdit
+	err = c.jsonConn.Call(ctx, protocol.RPCMethodFormatting,
+		protocol.DocumentFormattingParams{
+			TextDocument: protocol.TextDocumentIdentifier{URI: protocol.URIFromPath(filePath)},
+			Options:      protocol.FormattingOptions{TabSize: 2, InsertSpaces: true},
+		}).Await(ctx, &edits)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to format document")
+	}
+	if doc.version() != version {
+		return nil, ErrDocumentChanged
+	}
+	return edits, nil
 }
 
 func (c *Client) SetServreLogStreamer(dest io.Writer) {

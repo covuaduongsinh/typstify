@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, api } from '../api/client'
+import { uploadFile } from '../lib/upload'
 import type { TreeEntry } from '../api/types'
 import { Icon, type IconName } from './Icon'
 import { Modal } from './Modal'
@@ -33,11 +34,14 @@ interface NodeProps {
   activePath: string
   onOpenFile: (path: string) => void
   onMenu: (m: MenuState) => void
+  /** Uploads dropped files into a folder; null when uploads are not allowed. */
+  onDropFiles: ((dir: string, files: File[]) => Promise<void>) | null
 }
 
-function Node({ entry, depth, activePath, onOpenFile, onMenu }: NodeProps) {
+function Node({ entry, depth, activePath, onOpenFile, onMenu, onDropFiles }: NodeProps) {
   const [expanded, setExpanded] = useState(false)
   const [children, setChildren] = useState<TreeEntry[] | null>(null)
+  const [dropping, setDropping] = useState(false)
 
   const loadChildren = async () => {
     const list = await api.get<TreeEntry[]>(`/api/workspace/tree?path=${encodeURIComponent(entry.path)}`)
@@ -75,9 +79,30 @@ function Node({ entry, depth, activePath, onOpenFile, onMenu }: NodeProps) {
   return (
     <div>
       <div
-        className={`file-tree-row${isActive ? ' active' : ''}`}
+        className={`file-tree-row${isActive ? ' active' : ''}${dropping ? ' drop-target' : ''}`}
         style={{ paddingLeft: 6 + depth * 14 }}
         onClick={toggle}
+        onDragOver={(e) => {
+          if (!onDropFiles || !e.dataTransfer.types.includes('Files')) return
+          e.preventDefault()
+          e.stopPropagation()
+          setDropping(true)
+        }}
+        onDragLeave={() => setDropping(false)}
+        onDrop={(e) => {
+          if (!onDropFiles || e.dataTransfer.files.length === 0) return
+          e.preventDefault()
+          e.stopPropagation()
+          setDropping(false)
+          // A file row drops into its folder.
+          const dir = entry.isDir ? entry.path : parentOf(entry.path)
+          void onDropFiles(dir, [...e.dataTransfer.files]).then(async () => {
+            if (entry.isDir) {
+              await loadChildren().catch(() => null)
+              setExpanded(true)
+            }
+          })
+        }}
         onContextMenu={(e) => {
           e.preventDefault()
           openMenu(e.clientX, e.clientY)
@@ -126,6 +151,7 @@ function Node({ entry, depth, activePath, onOpenFile, onMenu }: NodeProps) {
               activePath={activePath}
               onOpenFile={onOpenFile}
               onMenu={onMenu}
+              onDropFiles={onDropFiles}
             />
           ))}
         </div>
@@ -145,8 +171,14 @@ export function FileTree({
   onPathRemoved,
   onPathRenamed,
   onConvertMarkdown,
+  readOnly = false,
+  onFilesUploaded,
 }: {
   activePath: string
+  /** Viewers cannot upload. */
+  readOnly?: boolean
+  /** Called after files were uploaded (the preview reloads its file list). */
+  onFilesUploaded?: () => void
   onOpenFile: (path: string) => void
   /** Called after a file/folder is deleted, so an open editor on it can close. */
   onPathRemoved?: (path: string) => void
@@ -215,6 +247,18 @@ export function FileTree({
       onPathRenamed?.(entry.path, to)
     }, 'Không đổi tên được')
 
+  const dropFiles = async (dir: string, files: File[]) => {
+    setErrorMsg(null)
+    try {
+      for (const f of files) await uploadFile(dir, f, f.name)
+      refresh()
+      onFilesUploaded?.()
+    } catch (err) {
+      setErrorMsg(errorText(err, 'Không tải tệp lên được'))
+    }
+  }
+  const uploadInput = useRef<HTMLInputElement>(null)
+
   const remove = (entry: TreeEntry) =>
     run(async () => {
       await api.del(`/api/workspace/file?path=${encodeURIComponent(entry.path)}`)
@@ -236,7 +280,18 @@ export function FileTree({
   )
 
   return (
-    <div className="file-tree-container">
+    <div
+      className="file-tree-container"
+      // Dropping on empty space uploads into the project root.
+      onDragOver={(e) => {
+        if (!readOnly && e.dataTransfer.types.includes('Files')) e.preventDefault()
+      }}
+      onDrop={(e) => {
+        if (readOnly || e.dataTransfer.files.length === 0) return
+        e.preventDefault()
+        void dropFiles('', [...e.dataTransfer.files])
+      }}
+    >
       <div className="file-tree-header">
         <span className="file-tree-title">Tệp dự án</span>
         <div className="file-tree-actions">
@@ -256,6 +311,29 @@ export function FileTree({
           >
             <Icon name="folder-plus" size={15} />
           </button>
+          {!readOnly && (
+            <>
+              <button
+                className="tree-action-btn btn-ghost"
+                title="Tải tệp lên (hoặc kéo thả tệp vào cây thư mục)"
+                aria-label="Tải tệp lên"
+                onClick={() => uploadInput.current?.click()}
+              >
+                <Icon name="cloud-upload" size={15} />
+              </button>
+              <input
+                ref={uploadInput}
+                type="file"
+                multiple
+                hidden
+                onChange={(e) => {
+                  const files = [...(e.target.files ?? [])]
+                  e.target.value = ''
+                  if (files.length) void dropFiles('', files)
+                }}
+              />
+            </>
+          )}
           <button className="tree-action-btn btn-ghost" title="Làm mới" aria-label="Làm mới" onClick={refresh}>
             <Icon name="refresh" size={15} />
           </button>
@@ -270,7 +348,15 @@ export function FileTree({
 
       <div className="file-tree" role="tree" aria-label="Tệp dự án" key={version}>
         {roots.map((r) => (
-          <Node key={r.path} entry={r} depth={0} activePath={activePath} onOpenFile={onOpenFile} onMenu={setMenu} />
+          <Node
+            key={r.path}
+            entry={r}
+            depth={0}
+            activePath={activePath}
+            onOpenFile={onOpenFile}
+            onMenu={setMenu}
+            onDropFiles={readOnly ? null : dropFiles}
+          />
         ))}
         {roots.length === 0 && !errorMsg && <div className="file-tree-empty">Dự án chưa có tệp nào.</div>}
       </div>

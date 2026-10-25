@@ -403,5 +403,6 @@ func isProtectedPath(root, p string) bool {
 		return true
 	}
 	first := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
-	return first == ".git" || first == ".typstify"
+	// Case-insensitive: Windows and macOS file systems treat .GIT as .git.
+	return strings.EqualFold(first, ".git") || strings.EqualFold(first, ".typstify")
 }

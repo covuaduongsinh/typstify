@@ -171,6 +171,8 @@ export function PreviewPane({
   const [fitWidth, setFitWidth] = useState<boolean>(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
+  const previewBodyRef = useRef<HTMLDivElement | null>(null)
+  const [presenting, setPresenting] = useState(false)
   const [tinymistReady, setTinymistReady] = useState(false)
   const [headingAnchors, setHeadingAnchors] = useState<PageAnchor[] | null>(null)
 
@@ -206,9 +208,36 @@ export function PreviewPane({
     }
   }
 
+  // Presentation covers the screen with the preview body: real full screen
+  // when the browser allows it (it must be asked from the click itself),
+  // otherwise just the window (iPhone Safari has no element full screen).
+  const startPresenting = () => {
+    setPresenting(true)
+    previewBodyRef.current?.requestFullscreen?.().catch(() => {})
+  }
+  const stopPresenting = useCallback(() => {
+    setPresenting(false)
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
+  }, [])
+  useEffect(() => {
+    if (!presenting) return
+    // Esc in real full screen is handled by the browser, which only tells
+    // us afterwards.
+    const onChange = () => {
+      if (!document.fullscreenElement) setPresenting(false)
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [presenting])
+  // Only the in-browser preview presents; leaving it ends the presentation.
+  useEffect(() => {
+    if (presenting && (viewMode !== 'wasm' || !path)) stopPresenting()
+  }, [presenting, viewMode, path, stopPresenting])
+
   // The browser compiler could not start (blocked worker, missing assets):
   // show the server rendering instead, without remembering it, so the
   // next visit tries the browser compiler again.
+
   const handleWasmUnavailable = useCallback((reason: string) => {
     setWasmUnavailable(reason)
     setViewModeState('svg')
@@ -736,6 +765,18 @@ export function PreviewPane({
           </button>
         )}
 
+        {viewMode === 'wasm' && (
+          <button
+            className="btn-ghost preview-tool"
+            title="Trình chiếu toàn màn hình (←/→ hoặc bấm để chuyển trang, Esc để thoát)"
+            aria-label="Trình chiếu"
+            onClick={startPresenting}
+            disabled={!wasmStatus?.pageCount}
+          >
+            <Icon name="eye" size={14} />
+          </button>
+        )}
+
         {/* Open PDF in new tab */}
         {viewMode !== 'tinymist' && (
           <button
@@ -749,7 +790,7 @@ export function PreviewPane({
         )}
       </div>
 
-      <div className="preview-body">
+      <div className={`preview-body${presenting ? ' presenting' : ''}`} ref={previewBodyRef}>
         {viewMode === 'wasm' && path && (
           <Suspense fallback={null}>
             <WasmPreview
@@ -765,8 +806,21 @@ export function PreviewPane({
               onUnavailable={handleWasmUnavailable}
               onScrollToLine={onScrollToLine}
               onJumpToLine={onJumpToLine}
+              presenting={presenting}
+              onExitPresent={stopPresenting}
             />
           </Suspense>
+        )}
+        {presenting && (
+          // Touch screens have no Esc key.
+          <button
+            className="present-close"
+            onClick={stopPresenting}
+            title="Thoát trình chiếu (Esc)"
+            aria-label="Thoát trình chiếu"
+          >
+            <Icon name="x" size={18} />
+          </button>
         )}
 
         {/* SVG Paper View Mode */}

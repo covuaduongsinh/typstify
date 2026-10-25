@@ -36,6 +36,7 @@ const MarkdownImportModal = lazy(() => import('./MarkdownImportModal').then((m) 
 const DropboxSyncModal = lazy(() => import('./DropboxSyncModal').then((m) => ({ default: m.DropboxSyncModal })))
 const ShareModal = lazy(() => import('./ShareModal').then((m) => ({ default: m.ShareModal })))
 const HistoryPanel = lazy(() => import('./HistoryPanel').then((m) => ({ default: m.HistoryPanel })))
+const SymbolPicker = lazy(() => import('./SymbolPicker').then((m) => ({ default: m.SymbolPicker })))
 
 function PanelLoading() {
   return (
@@ -226,6 +227,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   // that aren't in the registry behave as before: fully editable.
   const [access, setAccess] = useState<WorkspaceRole | null>(null)
   const [isShareOpen, setIsShareOpen] = useState(false)
+  const [isSymbolsOpen, setIsSymbolsOpen] = useState(false)
   useEffect(() => {
     api
       .get<WorkspaceRole>('/api/workspace/role')
@@ -300,6 +302,9 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         switch (action.id) {
           case 'save':
             void editorRef.current?.save()
+            break
+          case 'format':
+            void editorRef.current?.format()
             break
           case 'openBoard':
             openBoard()
@@ -543,6 +548,22 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                   <span className="hdr-label">{dirty ? 'Lưu' : 'Đã lưu'}</span>
                 </button>
               )}
+              {activePath.endsWith('.typ') && !readOnly && (
+                <button
+                  className="btn-ghost hdr-btn"
+                  title="Định dạng mã Typst bằng typstyle (Ctrl+Shift+F)"
+                  onClick={() => void editorRef.current?.format()}
+                >
+                  <Icon name="type" />
+                  <span className="hdr-label">Định dạng</span>
+                </button>
+              )}
+              {activePath.endsWith('.typ') && !readOnly && (
+                <button className="btn-ghost hdr-btn" title="Chèn ký hiệu Typst (sym.*)" onClick={() => setIsSymbolsOpen(true)}>
+                  <span aria-hidden="true">Ω</span>
+                  <span className="hdr-label">Ký hiệu</span>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -619,6 +640,8 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
           <aside className="workspace-filetree" style={{ width: fileTreeWidth }}>
             <FileTree
               key={treeVersion}
+              readOnly={readOnly}
+              onFilesUploaded={() => setPreviewVersion((v) => v + 1)}
               activePath={activePath ?? ''}
               onOpenFile={openFile}
               onPathRemoved={(p) => {
@@ -731,6 +754,12 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     readOnly={readOnly || (!!collabProvider && collab.status.mode === 'unavailable')}
                     collab={collabBinding}
                     commentRanges={commentRanges}
+                    onFilesUploaded={() => {
+                      // New files: the tree shows them, the in-browser
+                      // compiler reloads its file list to find them.
+                      setTreeVersion((v) => v + 1)
+                      setPreviewVersion((v) => v + 1)
+                    }}
                   />
                 </Suspense>
               </div>
@@ -926,6 +955,15 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
             isOpen={isDropboxOpen}
             onClose={() => setIsDropboxOpen(false)}
             onSyncCompleted={() => setTreeVersion((v) => v + 1)}
+          />
+        )}
+        {isSymbolsOpen && (
+          <SymbolPicker
+            onInsert={(text) => {
+              editorRef.current?.insertText(text)
+              setIsSymbolsOpen(false)
+            }}
+            onClose={() => setIsSymbolsOpen(false)}
           />
         )}
         {isShareOpen && access?.project && (

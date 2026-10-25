@@ -55,6 +55,11 @@ export class WasmCompilerClient {
   private pending = new Map<number, Pending>()
   private onReady!: (v: { fontCount: number; ms: number }) => void
   private onFatal!: (e: Error) => void
+  // Settles after the first file list was sent (or failed to load): a
+  // compile before it would see an empty project, and the compiler keeps
+  // "file missing" answers.
+  private manifestSent: Promise<void>
+  private markManifestSent!: () => void
 
   private constructor() {
     this.worker = new Worker(new URL('./compiler.worker.ts', import.meta.url), {
@@ -66,6 +71,7 @@ export class WasmCompilerClient {
       this.onReady = resolve
       this.onFatal = reject
     })
+    this.manifestSent = new Promise((resolve) => (this.markManifestSent = resolve))
     // Callers attach their own handlers; keep an unawaited rejection quiet.
     this.ready.catch(() => undefined)
     void this.start()
@@ -119,15 +125,20 @@ export class WasmCompilerClient {
 
   /** Reloads the project file list; call after opening a project or saving. */
   async refreshManifest(): Promise<void> {
-    const res = await fetch('/api/sync/manifest', { credentials: 'include' })
-    if (!res.ok) throw new Error(`manifest: ${res.status}`)
-    const entries = (await res.json()) as ManifestEntry[]
-    await this.ready
-    this.send({ type: 'manifest', entries })
+    try {
+      const res = await fetch('/api/sync/manifest', { credentials: 'include' })
+      if (!res.ok) throw new Error(`manifest: ${res.status}`)
+      const entries = (await res.json()) as ManifestEntry[]
+      await this.ready
+      this.send({ type: 'manifest', entries })
+    } finally {
+      this.markManifestSent()
+    }
   }
 
   async compile(mainPath: string, source: string, reset = false): Promise<CompileOutcome> {
     await this.ready
+    await this.manifestSent
     const m = await this.request<Extract<FromWorker, { type: 'compiled' }>>((id) => ({
       type: 'compile',
       id,

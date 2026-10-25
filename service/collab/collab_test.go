@@ -12,6 +12,18 @@ import (
 	"looz.ws/typstify/service/projects"
 )
 
+// tempDir is removed best-effort: on Windows a log file closed by a room
+// goroutine just after the test ends fails t.TempDir's strict cleanup.
+func tempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "collab-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
 // References printed by Yjs 13.6.33 itself:
 //
 //	d = new Y.Doc(); d.clientID = id; d.getText('content').insert(0, text)
@@ -35,7 +47,7 @@ func TestEncodeInsertTextMatchesYjs(t *testing.T) {
 }
 
 func TestLogAppendReplaceReload(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "x.ylog")
+	p := filepath.Join(tempDir(t), "x.ylog")
 	l, _ := openLog(p)
 	for _, s := range []string{"a", "bb", "ccc"} {
 		if err := l.append([]byte(s)); err != nil {
@@ -115,12 +127,12 @@ func controls(msgs [][]byte) []map[string]any {
 
 func setup(t *testing.T, content string) (*Hub, string, string) {
 	t.Helper()
-	proj := t.TempDir()
+	proj := tempDir(t)
 	abs := filepath.Join(proj, "main.typ")
 	if err := os.WriteFile(abs, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	h := &Hub{Base: t.TempDir(), Save: func(abs string, data []byte) ([]byte, error) {
+	h := &Hub{Base: tempDir(t), Save: func(abs string, data []byte) ([]byte, error) {
 		return data, os.WriteFile(abs, data, 0o644)
 	}}
 	return h, proj, abs
@@ -404,7 +416,7 @@ func TestCommentsCompactWithoutLeader(t *testing.T) {
 }
 
 func TestTornLogIsTruncatedBeforeAppending(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "x.ylog")
+	p := filepath.Join(tempDir(t), "x.ylog")
 	l, _ := openLog(p)
 	_ = l.append([]byte("ok"))
 	f, _ := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0o644)

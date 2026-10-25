@@ -23,6 +23,7 @@ export interface ShortcutAction {
 // default here would silently never match any keypress.
 export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: 'save', label: 'Lưu tài liệu', defaultKey: 'Mod-S' },
+  { id: 'format', label: 'Định dạng mã Typst', defaultKey: 'Mod-Shift-F' },
   { id: 'openBoard', label: 'Xếp bàn cờ', defaultKey: 'Mod-B' },
   { id: 'openPgn', label: 'Nhập PGN', defaultKey: 'Mod-Shift-P' },
   { id: 'insertBoard', label: 'Chèn nhanh khung bàn cờ', defaultKey: 'Mod-Shift-B' },

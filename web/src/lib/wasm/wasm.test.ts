@@ -69,6 +69,14 @@ describe('ProjectAccessModel', () => {
     expect(reads).toBe(1)
   })
 
+  it('reports when files were added or removed', () => {
+    const am = new ProjectAccessModel(() => undefined)
+    expect(am.setManifest([entry('a.typ', 'h1')])).toBe(true)
+    expect(am.setManifest([entry('a.typ', 'h2')])).toBe(false) // edited, same files
+    expect(am.setManifest([entry('a.typ', 'h2'), entry('assets/x.png', 'h3')])).toBe(true)
+    expect(am.setManifest([entry('assets/x.png', 'h3')])).toBe(true)
+  })
+
   it('keeps /@memory/ files in memory', () => {
     const am = new ProjectAccessModel(() => undefined)
     const mtime = new Date(5)

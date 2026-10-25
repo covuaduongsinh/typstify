@@ -60,6 +60,8 @@ Link chia sẻ có dạng `https://<máy chủ>/?join=<token>`; web tự tham gi
 | GET | `/api/workspace/tree` | Cây file |
 | GET / PUT / POST / DELETE | `/api/workspace/file` | Đọc / ghi / tạo (`{path,isDir}`) / xoá |
 | POST | `/api/workspace/rename` | Đổi tên |
+| POST | `/api/workspace/upload?dir=&name=` | Tải tệp lên (editor, body nhị phân ≤ 25 MiB). Tên được làm sạch (giữ chữ Unicode, khoảng trắng thành `-`, bắt buộc có đuôi); trùng tên thì thêm `-1`, `-2`…; trả `{path}` |
+| GET | `/api/symbols` | (viewer) Bảng ký hiệu `sym.*` của tinymist: `[{name, char, category}]`, cache trong tiến trình; 503 khi tinymist chưa sẵn sàng |
 
 Đường dẫn được chặn thoát khỏi root bởi `resolveInRoot` (`server/paths.go`); `.git` và `.typstify` được bảo vệ (`isProtectedPath`, `server/files_api.go`).
 
@@ -198,7 +200,7 @@ Cộng tác thời gian thực trên một tệp (`server/collab_ws.go`, `servic
 Vai trò được kiểm tra lại ở mỗi tin nhắn; người bị thu hồi quyền bị ngắt kết nối (mã 1008, không nối lại). Mã 4000 là ngắt tạm thời (client chậm), client tự nối lại. Phần phát lại log khi vào phòng được ghi thẳng ra socket, không qua hàng đợi. Trong lúc tệp có phòng mở, `PUT /api/workspace/file` cho tệp đó trả 409.
 
 ### `/ws/lsp`
-Cầu nối LSP tới tinymist (giới hạn đọc 20 MiB, `server/lsp_ws.go`). Client `web/src/lib/lspClient.ts` tự nối lại với backoff 1–15 giây.
+Cầu nối LSP tới tinymist (giới hạn đọc 20 MiB, `server/lsp_ws.go`). Tin nhắn `format` (chỉ editor, kèm `content` là văn bản trong editor) trả `formatResult` với `edits` của typstyle tính trên đúng văn bản đó, hoặc `error` nếu phiên khác cập nhật tài liệu trong lúc định dạng. Client `web/src/lib/lspClient.ts` tự nối lại với backoff 1–15 giây.
 
 ## Xác thực và giới hạn
 
@@ -211,6 +213,6 @@ Cầu nối LSP tới tinymist (giới hạn đọc 20 MiB, `server/lsp_ws.go`).
 - Sai mã MFA 5 lần thì khoá MFA **theo tài khoản** trong 15 phút, độc lập với giới hạn theo IP.
 - Phiên: TTL trượt 30 ngày, trần 90 ngày (`sessionTTL`, `sessionMaxAge`, `server/auth.go`).
 - Đăng nhập sai bị trễ (`failedLoginDelay`); giới hạn 5 lần / 15 phút / IP, khoá 15 phút, trả 429 (`loginLimiter`, `server/security.go`).
-- Body: 2 MiB mặc định, 64 MiB cho PUT file (`withBodyLimit`).
+- Body: 2 MiB mặc định, 64 MiB cho PUT file, 25 MiB cho upload, 30 MiB cho upload font (`withBodyLimit`).
 - Biên dịch đồng thời tối đa 2, mỗi lần 90 giây (`maxConcurrentCompiles`, `compileTimeout`, `server/export_api.go`).
 - WebSocket kiểm tra Origin cùng nguồn (`sameOrigin`); chỉ tin `X-Forwarded-*` từ peer loopback/riêng tư (`trustedPeer`).

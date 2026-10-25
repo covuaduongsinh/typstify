@@ -46,6 +46,12 @@ func (doc *document) Content() string {
 	return ""
 }
 
+func (doc *document) version() int {
+	doc.mu.Lock()
+	defer doc.mu.Unlock()
+	return doc.Version
+}
+
 func (doc *document) IsNew() bool {
 	doc.mu.Lock()
 	defer doc.mu.Unlock()

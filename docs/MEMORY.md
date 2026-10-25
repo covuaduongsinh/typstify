@@ -26,6 +26,12 @@ File này gom những điều không suy ra được từ đọc mã một lần
 - Autosave không ghi đè nếu file trên đĩa đã đổi so với `originalHash` (báo "edited elsewhere").
 
 **Server / web**
+- Preview WASM: `getBoundingClientRect()` của `g.typst-page` chỉ bao phần có mực. Kích thước trang lấy từ `data-page-width/height`, vị trí từ `transform` (`pageBoxes` trong `WasmPreview.tsx`).
+- `requestFullscreen` phải gọi ngay trong trình xử lý click, gọi trong `useEffect` sẽ bị từ chối ("not granted"). Chrome điều khiển qua extension từ chối luôn, nên trình chiếu có dự phòng phủ kín cửa sổ.
+- Trong Chrome tự động hoá (Claude in Chrome), trình duyệt cắt WebSocket sau khoảng 15 giây kể cả với server tối giản; đừng nhầm là lỗi của `/ws/lsp` hay `/ws/collab`.
+- Worker WASM tải font từ CDN phải dùng `credentials: 'same-origin'`: CDN trả `Access-Control-Allow-Origin: *`, yêu cầu kèm credentials bị chặn và font bị bỏ qua mà không báo lỗi.
+- typst.ts nhớ câu trả lời "không có tệp": phải có danh sách tệp trước lần biên dịch đầu, và `compiler.reset()` khi tệp thêm/bớt (`setManifest` trả `true`).
+- Chính tả: CodeMirror đặt `spellcheck=false` cho nội dung; chỉ các span văn bản được đánh dấu `spellcheck="true" lang="vi"`. Không đóng gói `dictionary-vi` (GPL).
 - Preview "Tức thì" (WASM, typst.ts 0.8.0-rc3 = Typst 0.15): **không dùng `renderToSvg`** của renderer. Nó gọi `window.typstProcessSvg` rồi `unwrap()` (panic khi hàm không tồn tại, làm hỏng cả module WASM) và bỏ qua vẽ lại khi bề rộng không đổi (`data-applied-width`). Dùng `renderSvgDiff` + `patchRoot` như typst-preview (`WasmPreview.tsx`).
 - `renderSvgDiff` không kèm stylesheet: lớp chữ để bôi đen (`.tsel`) phải được CSS của app làm trong suốt, nếu không nó vẽ chồng lên chữ thật (`App.css`, `.wasm-preview-doc .tsel`).
 - Phiên bản Go: Docker build dùng `golang:1.25`, `go.mod` giữ `go 1.25.5`. Khi thêm hoặc nâng thư viện, kiểm tra dòng `go` trong `.mod` của nó (`go-git` 5.19+ và `x/crypto` 0.56+ đòi 1.26). `go get` tự nâng `go.mod` mà không báo.

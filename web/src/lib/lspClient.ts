@@ -1,3 +1,4 @@
+import type { LspTextEdit } from './lspEdits'
 import { wsUrl } from '../api/client'
 
 // Wire format mirrors server/lsp_ws.go's lspClientMessage/lspServerMessage.
@@ -18,6 +19,7 @@ interface IncomingMessage {
   items?: unknown
   hover?: { contents?: string } | null
   symbols?: unknown
+  edits?: LspTextEdit[]
   diagnostics?: LspDiagnostic[]
   message?: string
 }
@@ -216,6 +218,13 @@ export class LspClient {
   async documentSymbols(path: string): Promise<LspDocumentSymbol[]> {
     const res = await this.request<IncomingMessage>({ type: 'documentSymbols', path })
     return (res.symbols as LspDocumentSymbol[] | null | undefined) ?? []
+  }
+
+  /** typstyle's edits for content, the editor's text of path (it also
+   * becomes the text tinymist knows, like didChange). */
+  async format(path: string, content: string): Promise<LspTextEdit[]> {
+    const res = await this.request<IncomingMessage>({ type: 'format', path, content })
+    return res.edits ?? []
   }
 
   close() {

@@ -200,6 +200,8 @@ func (s *Server) routes() {
 	s.handleRole("POST /api/workspace/file", projects.RoleEditor, s.handleFileCreate)
 	s.handleRole("DELETE /api/workspace/file", projects.RoleEditor, s.handleFileDelete)
 	s.handleRole("POST /api/workspace/rename", projects.RoleEditor, s.handleFileRename)
+	s.handleRole("POST /api/workspace/upload", projects.RoleEditor, s.handleUpload)
+	s.handleRole("GET /api/symbols", projects.RoleViewer, s.handleSymbols)
 
 	// Export (PDF/PNG/SVG download).
 	s.handleRole("GET /api/export", projects.RoleViewer, s.handleExport)

@@ -31,12 +31,16 @@ export class ProjectAccessModel {
     this.onFetched = onFetched
   }
 
-  /** Replaces the file list; cached contents of changed files are dropped. */
-  setManifest(entries: ManifestEntry[]) {
+  /** Replaces the file list; cached contents of changed files are dropped.
+   * Returns whether files were added or removed. */
+  setManifest(entries: ManifestEntry[]): boolean {
+    const before = this.manifest
     this.manifest = new Map(entries.map((e) => ['/' + e.path, e]))
+    const changed = before.size !== this.manifest.size || [...this.manifest.keys()].some((p) => !before.has(p))
     for (const [p, c] of this.contents) {
       if (this.manifest.get(p)?.hash !== c.hash) this.contents.delete(p)
     }
+    return changed
   }
 
   /** Whether path's current version still has to be read (or seeded). */
