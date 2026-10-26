@@ -57,7 +57,21 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 - **Đo RAM** (Windows, tài liệu 40 chương mỗi project, working set): không project 105 MB; 1 project 135 MB; 2 project 226 MB; 3 project 258 MB (server ~125–130 MB, mỗi tinymist khoảng 10–80 MB tuỳ lúc đã biên dịch xong hay chưa). `go vet` sạch; `go build .` (desktop Gio) và `cargo test --lib` của Tauri (7/7) vẫn xanh.
 - **Còn mở**: chưa thử bằng hai trình duyệt thật (gõ + preview song song), chưa build Docker (Docker Desktop không chạy trên máy dev; CI có job Docker), chưa mở lại app desktop Gio và bản Tauri sidecar.
 
-### 2026-10-26 — Giai đoạn 7c: ứng dụng Android Tauri 2 (chưa chạy thử trên máy)
+### 2026-10-27 — Giai đoạn 7c: hoàn tất build APK Android và bộ cài Desktop mới
+- **Yêu cầu**: Build APK debug x86_64 và bộ cài Windows NSIS mới, kiểm tra các việc còn mở của 3b và 7c theo `docs/plans/plan_typst_app_parity_2026-10.md` và `docs/plans/plan_phase7c_tauri_mobile.md`.
+- **Đã làm và khắc phục cạm bẫy build**:
+  1. **Lỗi SDK Android**: cấu hình ban đầu đặt `compileSdk = 37` khiến CI không tìm thấy SDK package; hạ xuống 34 thì gặp lỗi `CheckAarMetadata` do `tauri-android` và `tauri-plugin-opener` (Tauri 2) bắt buộc API level ≥ 36. Đã chỉnh `compileSdk = 36`, `targetSdk = 36` và CI tải `platforms;android-36` (khớp với AVD `rn_api36_x86_64` và SDK local).
+  2. **Lỗi tài nguyên thiếu khi build mobile**: `tauri-build` khi đọc `tauri.conf.json` kiểm tra thư mục tài nguyên `resources/packages` và `resources/web`. `prepare-mobile.ps1` đã được bổ sung tạo thư mục stub, đồng thời `bundle.resources` trong `tauri.android.conf.json` đổi sang `[]` (mảng rỗng) để ghi đè map tài nguyên desktop.
+  3. **Build CI trên GitHub Actions**: Kích hoạt thành công workflow `.github/workflows/tauri.yml` trên nhánh `feat/typst-app-parity` qua PR #4. Cả hai job hoàn tất:
+     - APK Android universal debug (`x86_64` + `aarch64`): tải về tại `apps/tauri/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk` (328 MB).
+     - Bộ cài Desktop Windows NSIS mới: tải về tại `apps/tauri/src-tauri/target/release/bundle/nsis/Duong Sinh Chess Studio_0.1.0_x64-setup.exe` (57.9 MB).
+- **Kiểm chứng**:
+  - `cargo test --lib` (Tauri proxy): 7/7 tests passed (chuyển tiếp HTTP, cookie, WebSocket, Origin lạ, giao diện đóng gói, chống DNS rebinding).
+  - Go backend test (`server`, `service`, `lsp`, `agent`): tất cả passed (`server` 17s, `lsp` 1.48s, `agent` 1.5s).
+  - Biên dịch ứng dụng Desktop Gio: `go build .` thành công.
+  - Khởi chạy server Go độc lập trên cổng 8085 với APPDATA riêng trong `scratch/mobile-test/appdata`: `/api/auth/status` trả về JSON hợp lệ cho client web/mobile kết nối qua loopback `http://10.0.2.2:8085`.
+
+### 2026-10-26 — Giai đoạn 7c: ứng dụng Android Tauri 2 (thiết kế và mã nguồn)
 - **Yêu cầu**: Giai đoạn 7c theo `docs/plans/plan_phase7c_tauri_mobile.md`; giao diện đóng gói trong app, chạy thử trên máy ảo x86_64. iOS để sau (cần macOS).
 - **Đã làm**:
   1. Tách `src-tauri/src/main.rs` thành `lib.rs` (`run()` chung, nhớ cổng, mở link ngoài), `desktop.rs` (sidecar như 7b, chỉ `cfg(desktop)`) và `mobile.rs` (`cfg(mobile)`).

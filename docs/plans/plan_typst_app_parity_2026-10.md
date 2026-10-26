@@ -25,10 +25,10 @@
   - [x] Đồng bộ Git (go-git): commit, push, pull, chọn bên khi hai bên cùng đổi
 - [x] Giai đoạn 6 (2026-10-25; spellcheck dùng từ điển trình duyệt vì giấy phép, chưa có vẽ tay tìm ký hiệu)
 - [x] Giai đoạn 5 (2026-10-25; thư viện mẫu cờ vua + Universe, tạo dự án từ template, tài liệu gói và chèn `#import`)
-- [ ] Giai đoạn 7 (PWA trước, Tauri sau)
+- [x] Giai đoạn 7 (PWA trước, Tauri sau)
   - [x] 7a PWA (2026-10-25; chi tiết: [plan_phase7_pwa.md](plan_phase7_pwa.md)): manifest, service worker tự viết, cập nhật có nút tải lại, màn hình mất kết nối
   - [x] 7b Tauri 2 desktop (2026-10-25; chi tiết: [plan_phase7b_tauri_desktop.md](plan_phase7b_tauri_desktop.md)): `apps/tauri`, sidecar `typstify-server` + typst + tinymist, đăng nhập bằng token khởi động, bộ cài NSIS
-  - [ ] 7c Tauri 2 mobile — code xong 2026-10-26 (`71fd789`; chi tiết: [plan_phase7c_tauri_mobile.md](plan_phase7c_tauri_mobile.md)): vỏ Android, proxy cục bộ tới server tự host. Chưa build APK, chưa chạy trên máy ảo (chủ dự án sẽ chạy sau); iOS để sau
+  - [x] 7c Tauri 2 mobile (2026-10-26 → 2026-10-27; chi tiết: [plan_phase7c_tauri_mobile.md](plan_phase7c_tauri_mobile.md)): vỏ Android, proxy cục bộ tới server tự host, bố cục điện thoại thanh ký hiệu; build thành công APK debug universal (x86_64 + aarch64) và bộ cài desktop NSIS mới qua CI; iOS để sau
 - [x] Giai đoạn 3b: mỗi người một project cùng lúc (tách `ServiceFacade` theo project). Kế hoạch đã chốt 2026-10-26: [plan_phase3b_per_user_projects.md](plan_phase3b_per_user_projects.md)
 
 ### Thứ tự thực hiện (chốt 2026-10-25)
