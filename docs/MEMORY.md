@@ -49,7 +49,7 @@ File này gom những điều không suy ra được từ đọc mã một lần
   - **Không bao giờ ép văn bản chung về nội dung trên đĩa.** Sửa từ bên ngoài được gửi dạng `{base, text}` và client chỉ áp phần `base → text` (`rebaseChange`); chồng lấn thì hỏi người dùng. Cách "ép theo đĩa" cũ đã xoá mất sửa đổi ngoại tuyến.
   - Mọi lần leader lưu (kể cả khi đĩa đã trùng) phải cập nhật `base.txt`/`DiskHash`, nếu không lần khởi động lại sau sẽ báo nhầm "sửa ngoài".
   - Lần lưu nào cũng kèm hash của bản đĩa mà leader đã gộp. Máy chủ chỉ ghi khi tệp vẫn là bản đó (hoặc bản đã đồng bộ), nên autosave đến trước lần kiểm tra đĩa 2 giây không thể đè sửa đổi bên ngoài. Khi đang có xung đột thì client không lưu.
-  - Phòng gắn với project hiện hành của máy chủ; client gửi `project` và bị từ chối nếu máy chủ đã đổi project (cùng đường dẫn tương đối có thể là tệp khác).
+  - Phòng khoá theo (thư mục project, đường dẫn tương đối); client gửi `project` và bị từ chối (409) nếu phiên của nó đã đổi sang project khác (cùng đường dẫn tương đối có thể là tệp khác).
   - Bản IndexedDB được đặt tên theo epoch; đổi epoch thì dùng cơ sở dữ liệu mới thay vì xoá rồi mở lại trùng tên (`clearData` là bất đồng bộ).
   - Kiểm thử hai tài khoản trong cùng Chrome: dùng `127.0.0.1` và `localhost` (cookie tách biệt).
 - Sau `patchRoot`, thứ tự `.typst-page` trong DOM **không** theo thứ tự trang; tính vị trí trang phải sắp theo toạ độ.
@@ -60,7 +60,8 @@ File này gom những điều không suy ra được từ đọc mã một lần
 - Lỗi compile preview trả HTTP 200 với `ok:false`.
 - WebSocket agent đọc tối đa 20 MiB (ảnh dán); `/ws/lsp` từng thiếu `SetReadLimit` (xem plan rà soát, đối chiếu lại trước khi tin).
 - Rò tiến trình con: không để `TYPSTIFY_SERVER_PASSWORD` lọt vào env agent/terminal.
-- Server chỉ có **một project hiện hành toàn cục**; phân quyền (`handleRole`) kiểm user của request với project đó. Route mới đụng file project phải đăng ký bằng `handleRole` (đọc ≥ viewer, ghi ≥ editor); route đổi cấu hình máy chủ dùng `handleAdmin`.
+- **Mỗi phiên đăng nhập một project** (Giai đoạn 3b). Trong `server/`, lấy thư mục project bằng `s.projectRoot(r)` / `s.projectDir(r)` (`server/session_project.go`), **không** dùng `appSrv.CurrentProjectDir()` (đó chỉ là project mặc định cho request không có phiên) và **không** gọi `SetProjectDir` (khởi động tinymist mặc định, đổi project cho mọi người); mở project thì dùng `s.openProjectFor(r, dir)`. tinymist/preview/MCP của server lấy qua `appSrv.Runtimes()` (`Acquire` giữ runtime trong thời gian kết nối, nhớ `release`), không dùng `lsp.GetLspClient`. Phân quyền (`handleRole`) kiểm user của request với project của phiên đó. Route mới đụng file project phải đăng ký bằng `handleRole` (đọc ≥ viewer, ghi ≥ editor); route đổi cấu hình máy chủ dùng `handleAdmin`.
+- Test server nhiều người dùng: mỗi `apiClient` phải tự `POST /api/projects/{id}/open` (không còn "người này mở thì người kia dùng chung").
 - Test trong `server/` phải dùng `testService()` (dùng chung một `ServiceFacade`): mỗi `service.NewService` mở cùng file bbolt thật, lần mở thứ hai trong cùng tiến trình hết thời gian chờ và `log.Fatal("timeout")` làm chết cả gói test mà không có `--- FAIL`. Truyền `Options.StorageDir` là thư mục tạm để không ghi vào tài khoản thật.
 - Mở project trong test khởi động tinymist và file watcher, giữ thư mục trên Windows; dùng `os.MkdirTemp` + `RemoveAll` bỏ qua lỗi thay cho `t.TempDir()`.
 - Chạy thử server mà không đụng dữ liệu thật: đặt `APPDATA` sang thư mục tạm (settings và tài khoản nằm dưới `os.UserConfigDir()`). Gửi JSON tiếng Việt từ Git Bash bằng `--data-binary @file`, vì tham số dòng lệnh bị đổi codepage.

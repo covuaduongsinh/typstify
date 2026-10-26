@@ -124,7 +124,7 @@ func NewService(ctx context.Context) *ServiceFacade {
 			return s.consoleState
 		}
 		return io.Discard
-	}, nil)
+	}, func() int { return st.Lsp().MaxOpenProjects })
 	go s.runtimes.Run(ctx)
 
 	s.RegisterDevice()

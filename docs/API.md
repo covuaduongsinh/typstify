@@ -43,13 +43,13 @@ Vai trò: `owner` > `editor` (sửa) > `commenter` (góp ý) > `viewer` (chỉ x
 | GET | `/api/projects` | đăng nhập | Project mình có quyền, kèm `role` |
 | POST | `/api/projects` | đăng nhập | `{name, template?: {name, version}, mainContent?}`: tạo thư mục dưới `-project-root` (hoặc `<RootDir>/projects`), người tạo là owner. `template` chép thư mục `[template]` của gói `@preview` (như `typst init`); `mainContent` (≤ 1 MiB) là nội dung `main.typ` (mẫu cờ vua); không có cả hai thì `main.typ` chỉ có tiêu đề. Lỗi thì xoá thư mục vừa tạo. Trả thêm `main`: tệp cần mở |
 | POST | `/api/projects/join` | đăng nhập | `{token}`: tham gia bằng link chia sẻ; không hạ vai trò đang có |
-| POST | `/api/projects/{id}/open` | ≥ viewer | Đặt làm project hiện hành |
+| POST | `/api/projects/{id}/open` | ≥ viewer | Đặt làm project của phiên đăng nhập này (không ảnh hưởng người khác) |
 | DELETE | `/api/projects/{id}` | owner | Bỏ đăng ký (giữ nguyên file) |
 | GET | `/api/projects/{id}/members` | owner | Danh sách thành viên |
 | PUT / DELETE | `/api/projects/{id}/members/{user}` | owner | `{role}` đặt vai trò / xoá thành viên (không áp dụng cho owner) |
 | GET / POST | `/api/projects/{id}/shares` | owner | Liệt kê / tạo link `{role, expiresInDays}` (0 = không hết hạn); token chỉ trả một lần, server chỉ lưu SHA-256 |
 | DELETE | `/api/projects/{id}/shares/{shareId}` | owner | Thu hồi link |
-| GET | `/api/workspace/role` | đăng nhập | Vai trò trên project hiện hành (`registered: false` nếu thư mục chưa đăng ký) |
+| GET | `/api/workspace/role` | đăng nhập | Vai trò trên project của phiên (`registered: false` nếu thư mục chưa đăng ký) |
 
 Link chia sẻ có dạng `https://<máy chủ>/?join=<token>`; web tự tham gia sau khi đăng nhập.
 
@@ -69,7 +69,9 @@ Link chia sẻ có dạng `https://<máy chủ>/?join=<token>`; web tự tham gi
 
 Đường dẫn được chặn thoát khỏi root bởi `resolveInRoot` (`server/paths.go`); `.git` và `.typstify` được bảo vệ (`isProtectedPath`, `server/files_api.go`).
 
-**Phân quyền theo project hiện hành** (`handleRole`): khi thư mục đang mở đã đăng ký trong `projects.json`, thì:
+**Project theo phiên** (Giai đoạn 3b): mỗi phiên đăng nhập có project riêng (`POST /api/projects/{id}/open`, `POST /api/workspace/open|create`); request không có phiên dùng project mặc định của máy chủ. Request có header `X-Typstify-Project` (WebSocket: `?project=`, đường dẫn đã URL-encode) khác project của phiên nhận 409 `{"error": …, "code": "project_changed"}` — tab khác của cùng trình duyệt đã mở project khác. LSP, ký hiệu, preview tinymist và công cụ MCP của agent chạy trên runtime riêng của project; khi máy chủ đã mở tối đa `maxOpenProjects` project (`/api/settings/lsp`, mặc định 3) và tất cả đang dùng thì trả 503.
+
+**Phân quyền theo project của phiên** (`handleRole`): khi thư mục đang mở đã đăng ký trong `projects.json`, thì:
 - đọc (`tree`, `GET file`, export, preview, `GET /api/sync/*`, `/ws/lsp`) cần ≥ viewer;
 - ghi (`PUT/POST/DELETE file`, `rename`, `POST /api/sync/*`, `POST /api/dropbox/sync`, `/ws/agent`) cần ≥ editor;
 - không đủ quyền thì trả 403.
@@ -202,7 +204,7 @@ Giới hạn đọc 20 MiB (ảnh dán). Không có `sessionId` → phiên mới
 - Payload `data` là kiểu ACP thô (`web/src/lib/acpTypes.ts`).
 
 ### `/ws/collab?path=&project=`
-Cộng tác thời gian thực trên một tệp (`server/collab_ws.go`, `service/collab`). Cần vai trò viewer. `project` phải trùng project hiện hành của máy chủ, nếu không thì trả 409. Tin nhắn nhị phân `[loại][kênh][payload]`:
+Cộng tác thời gian thực trên một tệp (`server/collab_ws.go`, `service/collab`). Cần vai trò viewer. `project` phải trùng project của phiên, nếu không thì trả 409. Tin nhắn nhị phân `[loại][kênh][payload]`:
 
 | Loại | Hướng | Nội dung |
 |---|---|---|

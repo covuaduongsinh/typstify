@@ -47,6 +47,8 @@ export interface LspSettings {
   enablePowerSaving: number
   openPreviewInBrowser: number
   enablePartialRenderPreview: boolean
+  /** Projects the server keeps a tinymist for at once; 0 = default (3). */
+  maxOpenProjects: number
 }
 
 export interface AgentSettings {

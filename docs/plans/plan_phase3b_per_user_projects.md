@@ -87,6 +87,8 @@ type ProjectRuntime struct {
 5. Frontend: header + 409 "đổi ở tab khác"; cài đặt "số dự án mở tối đa" trong trang quản trị.
 6. Tài liệu (`docs/MODULES.md`, `docs/MEMORY.md`, `HISTORY.md`).
 
+**Tiến độ (2026-10-26)**: xong cả 6 bước (`84b3814`, `d5861d7`, `9c2b91c`, và commit frontend + tài liệu). Phần kiểm chứng còn thiếu ghi ở mục 3b của `docs/HISTORY.md`.
+
 ## Kiểm chứng
 
 - `go test ./...` (phần không cần X11), `go vet`, `npm test`, build Docker.

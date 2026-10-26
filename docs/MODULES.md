@@ -37,7 +37,7 @@ Tài liệu này liệt kê từng module theo thư mục. Phần **Desktop / l�
 ### `lsp/` — tinymist
 | File | Nội dung |
 |---|---|
-| `server.go`, `lsp.go` | `Server.Start` spawn tinymist; `GetLspClient(workspace, settings)` singleton theo project |
+| `server.go`, `lsp.go` | `Server.Start` spawn tinymist (stdio, chạy song song được); `NewClient(workspace, settings)` cho từng project; `GetLspClient` là client mặc định của desktop |
 | `client.go` | JSON-RPC client: diagnostics, `didOpen/didChange/didSave/didClose`, hover, symbols, completion, `RegisterShowDocumentHandler`, `handleShowDocument` |
 | `completion.go` | `LspAutoCompletor` (`Suggest`, `FilterAndRank`) |
 | `previewer.go` | `PreviewService`: `Start`, `ScrollOnSelectionChange`, chế độ `document`/`slide` |
@@ -60,7 +60,8 @@ Tài liệu này liệt kê từng module theo thư mục. Phần **Desktop / l�
 ### `service/`
 | Gói / file | Nội dung |
 |---|---|
-| `service.go` | `ServiceFacade`, `SetProjectDir`, `initMcpServer`, `StartACPSession`, `ListACPSessions`, `LoadOrResumeACPSession`, `CloseACPSession` |
+| `service.go` | `ServiceFacade`, `SetProjectDir` (desktop), `SetDefaultProjectDir` (server), `initMcpServer`, `RuntimeMcpServers`, `SetMcpResolver`, `StartACPSession`, `ListACPSessions`, `LoadOrResumeACPSession`, `CloseACPSession` |
+| `runtimes.go` | `Runtimes`/`ProjectRuntime`: tinymist, preview, MCP theo từng project mở trên server; đếm tham chiếu, giới hạn `MaxOpenProjects`, dọn nhàn rỗi |
 | `workspace.go` | `WorkspaceService` (bbolt, git watch, `syncManagedBibliography`) |
 | `filewatcher.go` | fsnotify → bus |
 | `bus/` | `bus.go`, `topics.go` |
@@ -116,6 +117,7 @@ Chỉ làm transport, ủy quyền cho `ServiceFacade`. Bảng route đầy đ�
 |---|---|
 | `server.go` | `Server`, `routes()`, `compileSlots`, static handler + SPA fallback |
 | `auth.go`, `api_tokens.go`, `password.go` | Người dùng (mật khẩu argon2id, tự nâng cấp hash SHA-256 cũ), phiên cookie, Bearer token (băm SHA-256) |
+| `session_project.go` | Project của phiên (`projectDir`, `projectRoot`, `openProjectFor`), header `X-Typstify-Project` / `?project=` → 409 `project_changed`, theo dõi project đang hoạt động |
 | `security.go` | `loginLimiter`, `withBodyLimit`, `sameOrigin`, `trustedPeer` |
 | `paths.go`, `files_api.go` | `resolveInRoot` (chặn symlink), `isProtectedPath`, CRUD file/workspace |
 | `export_api.go` | `/api/export`, `acquireCompile` (2 slot, 90 giây) |

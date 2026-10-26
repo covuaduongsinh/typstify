@@ -36,10 +36,14 @@ func (s *Server) projectRoot(r *http.Request) (string, error) {
 	if root == "" {
 		return "", errNoProjectOpen
 	}
-	if want := r.Header.Get(projectHeader); want != "" {
-		if dir, err := url.PathUnescape(want); err == nil && !sameDir(dir, root) {
-			return "", errProjectChanged
-		}
+	// The header for fetches; ?project= for WebSockets, which cannot carry
+	// headers.
+	want, err := url.PathUnescape(r.Header.Get(projectHeader))
+	if err != nil || want == "" {
+		want = r.URL.Query().Get("project")
+	}
+	if want != "" && !sameDir(want, root) {
+		return "", errProjectChanged
 	}
 	s.markActive(root)
 	return root, nil

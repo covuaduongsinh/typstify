@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
-import { ApiError, api } from './api/client'
+import { ApiError, api, PROJECT_CHANGED_EVENT, setActiveProject } from './api/client'
 import type { AuthStatus, ProjectInfo } from './api/types'
 import { ChangeServerLink } from './components/ChangeServerLink'
 import { LoginPage } from './components/LoginPage'
+import { Modal } from './components/Modal'
 import { ProjectPicker } from './components/ProjectPicker'
 import { Workspace } from './components/Workspace'
 
@@ -31,6 +32,17 @@ function App() {
   const [screen, setScreen] = useState<Screen>({ kind: 'loading' })
   const [joinToken, setJoinToken] = useState<string | null>(() => takeJoinToken())
   const [notice, setNotice] = useState<string | null>(null)
+  const [projectChanged, setProjectChanged] = useState(false)
+
+  // Set during render, not in an effect: the workspace's own effects run
+  // first and their requests must already name the project.
+  setActiveProject(screen.kind === 'workspace' ? screen.path : null)
+
+  useEffect(() => {
+    const onChanged = () => setProjectChanged(true)
+    window.addEventListener(PROJECT_CHANGED_EVENT, onChanged)
+    return () => window.removeEventListener(PROJECT_CHANGED_EVENT, onChanged)
+  }, [])
 
   // Connection attempts: each one supersedes the previous, so an "online"
   // event and a click on "Thử lại" never run the login flow twice.
@@ -145,11 +157,30 @@ function App() {
       return <ProjectPicker notice={notice} onOpened={(path, openFile) => setScreen({ kind: 'workspace', path, openFile })} />
     case 'workspace':
       return (
-        <Workspace
-          projectPath={screen.path}
-          initialFile={screen.openFile}
-          onCloseProject={() => setScreen({ kind: 'pickProject' })}
-        />
+        <>
+          <Workspace
+            projectPath={screen.path}
+            initialFile={screen.openFile}
+            onCloseProject={() => setScreen({ kind: 'pickProject' })}
+          />
+          {projectChanged && (
+            <Modal
+              title="Dự án đã đổi ở tab khác"
+              className="prompt-dialog"
+              onClose={() => setProjectChanged(false)}
+              footer={
+                <button className="btn-primary" onClick={() => window.location.reload()}>
+                  Tải lại trang
+                </button>
+              }
+            >
+              <p className="prompt-dialog-body">
+                Một tab khác của trình duyệt này vừa mở dự án khác. Mỗi trình duyệt làm việc trên một dự án, nên tab
+                này không lưu thêm được vào <b>{screen.path}</b>. Hãy tải lại trang để làm việc tiếp trên dự án mới.
+              </p>
+            </Modal>
+          )}
+        </>
       )
   }
 }

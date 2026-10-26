@@ -44,6 +44,18 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-26 — Giai đoạn 3b: mỗi phiên đăng nhập một project
+- **Yêu cầu**: làm Giai đoạn 3b theo `docs/plans/plan_phase3b_per_user_projects.md`. Chủ dự án chốt: mặc định tối đa 3 project mở cùng lúc (quản trị viên đổi được); một project mỗi phiên trình duyệt, tab cũ nhận 409 và lời nhắc tải lại.
+- **Đã làm** (mỗi bước một commit):
+  1. `lsp`: `NewClient(workspace, settings)` tạo client riêng cho từng project; `GetLspClient` chỉ còn là client mặc định của desktop (`84b3814`).
+  2. `service/runtimes.go`: `Runtimes`/`ProjectRuntime` giữ tinymist, preview, MCP theo project; đếm tham chiếu theo kết nối, quá giới hạn thì đóng runtime nhàn rỗi lâu nhất hoặc trả 503, nhàn rỗi 10 phút thì tự đóng (`84b3814`).
+  3. Server: project nằm trong phiên (`session.Project`), mọi handler lấy thư mục qua `s.projectRoot(r)`; quyền tính trên project của phiên; collab, lịch sử tự động, LSP, ký hiệu, preview dùng runtime của project; request không có phiên dùng project mặc định (`SetDefaultProjectDir`) (`d5861d7`).
+  4. Agent: `SessionManager.SetMcpResolver` gắn MCP server của đúng project vào phiên ACP theo `cwd`; "tài liệu đang mở" tách theo project (`9c2b91c`).
+  5. Web: header `X-Typstify-Project` trên mọi request, `?project=` trên WebSocket; 409 `code: project_changed` mở hộp thoại "Dự án đã đổi ở tab khác". Cài đặt LSP thêm `maxOpenProjects` (1–50, `sync:"local"` nên desktop đồng bộ không ghi đè).
+  6. Tài liệu: `API.md`, `ARCHITECTURE.md`, `MEMORY.md`, `MODULES.md`.
+- **Kiểm chứng**: `go test` cho `server`, `service`, `service/settings`, `lsp`, `agent` xanh, `-race` sạch; web `vitest` 141/141, `tsc -b`, `oxlint` sạch. Chạy thật với server cô lập (APPDATA riêng): hai tài khoản mở hai project khác nhau, mỗi người đọc/ghi đúng `main.typ` của mình, đúng hai tiến trình tinymist; giới hạn 2 thì project thứ ba nhận 503 rõ ràng; tab cũ nhận 409 `project_changed`; khi runtime khác nhàn rỗi thì project mới được cấp runtime; tắt server không còn tinymist.
+- **Còn mở**: chưa thử bằng hai trình duyệt thật (gõ + preview song song), chưa build Docker, chưa đo RAM với 1/2/3 project, chưa chạy lại desktop Gio và bản Tauri sidecar sau thay đổi (`go test` của các package này xanh nhưng chưa mở app).
+
 ### 2026-10-26 — Giai đoạn 7c: ứng dụng Android Tauri 2 (chưa chạy thử trên máy)
 - **Yêu cầu**: Giai đoạn 7c theo `docs/plans/plan_phase7c_tauri_mobile.md`; giao diện đóng gói trong app, chạy thử trên máy ảo x86_64. iOS để sau (cần macOS).
 - **Đã làm**:

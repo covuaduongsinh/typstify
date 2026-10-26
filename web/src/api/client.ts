@@ -14,11 +14,27 @@ export class ApiError extends Error {
   }
 }
 
+// The project this tab has open. Every request names it, so that when
+// another tab of the same browser (one session) opens a different project
+// the server answers 409 "project_changed" instead of this tab silently
+// working on the other one (docs/plans/plan_phase3b_per_user_projects.md).
+let activeProject: string | null = null
+
+export function setActiveProject(path: string | null) {
+  activeProject = path
+}
+
+/** Fired on window when the server says another tab changed the project. */
+export const PROJECT_CHANGED_EVENT = 'typstify:project-changed'
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers)
+  if (init?.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  if (activeProject) headers.set('X-Typstify-Project', encodeURIComponent(activeProject))
   const res = await fetch(path, {
     credentials: 'include',
-    headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
     ...init,
+    headers,
   })
 
   if (!res.ok) {
@@ -29,6 +45,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       if (typeof body?.error === 'string') message = body.error
     } catch {
       // ignore non-JSON error bodies
+    }
+    if (res.status === 409 && body?.code === 'project_changed') {
+      window.dispatchEvent(new Event(PROJECT_CHANGED_EVENT))
     }
     throw new ApiError(res.status, message, body)
   }
@@ -57,4 +76,12 @@ export const api = {
 export function wsUrl(path: string): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${proto}//${window.location.host}${path}`
+}
+
+/** wsUrl for a project WebSocket: names the tab's project (?project=),
+ * since a WebSocket cannot carry the X-Typstify-Project header. */
+export function projectWsUrl(path: string): string {
+  if (!activeProject) return wsUrl(path)
+  const sep = path.includes('?') ? '&' : '?'
+  return wsUrl(`${path}${sep}project=${encodeURIComponent(activeProject)}`)
 }

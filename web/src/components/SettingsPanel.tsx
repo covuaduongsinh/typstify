@@ -320,6 +320,23 @@ function LspSettingsSection() {
               </small>
             </div>
 
+            <label className="settings-field" style={{ marginTop: 12 }}>
+              <span>Số dự án mở cùng lúc tối đa</span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={value.maxOpenProjects || 3}
+                onChange={(e) => setValue({ ...value, maxOpenProjects: Math.max(1, Math.round(Number(e.target.value)) || 1) })}
+                style={{ width: 80 }}
+              />
+              <small className="settings-hint">
+                Mỗi người làm trên một dự án riêng; mỗi dự án đang mở chạy một tinymist (khoảng 150–300 MB RAM). Khi đủ
+                số này, dự án để lâu không dùng nhất sẽ được đóng; nếu tất cả đều đang dùng, người mở thêm sẽ được báo thử
+                lại sau.
+              </small>
+            </label>
+
             <div className="settings-actions" style={{ marginTop: 12 }}>
               <button className="btn-primary" onClick={save} disabled={busy}>
                 {busy ? 'Đang lưu…' : 'Lưu'}

@@ -1,5 +1,5 @@
 import type { LspTextEdit } from './lspEdits'
-import { wsUrl } from '../api/client'
+import { projectWsUrl } from '../api/client'
 
 // Wire format mirrors server/lsp_ws.go's lspClientMessage/lspServerMessage.
 
@@ -85,7 +85,7 @@ export class LspClient {
 
   private connect() {
     this.openPromise = new Promise<void>((resolve, reject) => {
-      const ws = new WebSocket(wsUrl('/ws/lsp'))
+      const ws = new WebSocket(projectWsUrl('/ws/lsp'))
       this.ws = ws
       ws.addEventListener('open', () => {
         const isReconnect = this.everOpened
