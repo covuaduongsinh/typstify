@@ -84,7 +84,7 @@ jobs:
           workspaces: apps/tauri/src-tauri -> target
       - name: Android SDK platform and NDK
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37" > /dev/null
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-34" > /dev/null
           echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
       - name: Bundled UI
         shell: pwsh
