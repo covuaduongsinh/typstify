@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"looz.ws/typstify/agent"
 	"looz.ws/typstify/lsp"
 	"looz.ws/typstify/service/settings"
 )
@@ -27,8 +28,9 @@ const DefaultMaxOpenProjects = 3
 const runtimeIdleTimeout = 10 * time.Minute
 
 // ProjectRuntime holds what one open project needs on the server: its own
-// tinymist (LSP) and tinymist preview. Both start on first use, so a
-// project only browsed or edited through the REST API costs nothing.
+// tinymist (LSP), tinymist preview and MCP server (the AI agent's built-in
+// tools, bound to this project). All start on first use, so a project only
+// browsed or edited through the REST API costs nothing.
 type ProjectRuntime struct {
 	Dir string
 	st  *settings.Settings
@@ -38,6 +40,7 @@ type ProjectRuntime struct {
 	mu      sync.Mutex
 	client  *lsp.Client
 	preview *lsp.PreviewService
+	mcp     *agent.McpServer
 	closed  bool
 
 	// Guarded by Runtimes.mu.
@@ -120,6 +123,43 @@ func (rt *ProjectRuntime) RestartPreview(entryFile string, onFinish func()) {
 	}, onFinish)
 }
 
+// mcpServer returns the runtime's MCP server, made by build on first use;
+// nil once closed or when build fails (the agent then runs without the
+// built-in tools).
+func (rt *ProjectRuntime) mcpServer(build func() (*agent.McpServer, error)) *agent.McpServer {
+	rt.mu.Lock()
+	if rt.closed {
+		rt.mu.Unlock()
+		return nil
+	}
+	if rt.mcp != nil {
+		m := rt.mcp
+		rt.mu.Unlock()
+		return m
+	}
+	rt.mu.Unlock()
+
+	// Built unlocked: build starts tinymist through LSP(), which locks.
+	m, err := build()
+	if err != nil {
+		log.Printf("MCP tools for %s: %v", rt.Dir, err)
+		return nil
+	}
+
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if rt.closed || rt.mcp != nil {
+		// Closed meanwhile, or another caller won the race.
+		_ = m.Shutdown(context.Background())
+		if rt.closed {
+			return nil
+		}
+		return rt.mcp
+	}
+	rt.mcp = m
+	return m
+}
+
 func (rt *ProjectRuntime) close() {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
@@ -127,6 +167,10 @@ func (rt *ProjectRuntime) close() {
 		return
 	}
 	rt.closed = true
+	if rt.mcp != nil {
+		_ = rt.mcp.Shutdown(context.Background())
+		rt.mcp = nil
+	}
 	if rt.preview != nil {
 		_ = rt.preview.Destroy(context.Background())
 		rt.preview = nil

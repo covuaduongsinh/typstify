@@ -65,6 +65,27 @@ type SessionManager struct {
 
 	// Optional mcp servers to use when initializing sessions
 	mcpServers []acp.McpServer
+	// mcpFor, when set, picks the MCP servers by the session's working
+	// directory instead (the web server runs one per open project).
+	mcpFor func(cwd string) []acp.McpServer
+}
+
+// SetMcpResolver makes sessions get the MCP servers resolve returns for
+// their working directory instead of the fixed list.
+func (sm *SessionManager) SetMcpResolver(resolve func(cwd string) []acp.McpServer) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.mcpFor = resolve
+}
+
+func (sm *SessionManager) serversFor(conn *AgentConn, cwd string) []acp.McpServer {
+	sm.mu.Lock()
+	resolve, servers := sm.mcpFor, sm.mcpServers
+	sm.mu.Unlock()
+	if resolve != nil {
+		servers = resolve(cwd)
+	}
+	return filterMcpServers(conn, servers)
 }
 
 func NewSessionManager(mcpServers []acp.McpServer) *SessionManager {
@@ -79,7 +100,7 @@ func (sm *SessionManager) Config() AgentConfig {
 	return sm.agentConfig
 }
 
-// mcpServersForConn returns sm.mcpServers filtered to only the transports
+// filterMcpServers returns servers filtered to only the transports
 // the connected agent actually declared support for in its Initialize
 // response. Sending an agent an MCP server over a transport it just told us
 // it doesn't support is worse than sending nothing: observed live
@@ -89,12 +110,12 @@ func (sm *SessionManager) Config() AgentConfig {
 // file-editing prompt (which needs the agent to reach for a tool) hung
 // indefinitely with zero ACP updates, consistent with the agent getting
 // stuck trying to use a server entry it cannot actually connect to.
-func (sm *SessionManager) mcpServersForConn(conn *AgentConn) []acp.McpServer {
+func filterMcpServers(conn *AgentConn, servers []acp.McpServer) []acp.McpServer {
 	if conn == nil {
 		return []acp.McpServer{}
 	}
-	filtered := make([]acp.McpServer, 0, len(sm.mcpServers))
-	for _, s := range sm.mcpServers {
+	filtered := make([]acp.McpServer, 0, len(servers))
+	for _, s := range servers {
 		if s.Http != nil && !conn.AgentCapabilities.McpCapabilities.Http {
 			continue
 		}
@@ -255,7 +276,7 @@ func (sm *SessionManager) NewSession(ctx context.Context, cwd string) (*ACPSessi
 
 	resp, err := conn.Conn.NewSession(ctx, acp.NewSessionRequest{
 		Cwd:        cwd,
-		McpServers: sm.mcpServersForConn(conn),
+		McpServers: sm.serversFor(conn, cwd),
 	})
 
 	err = checkACPErr(err)
@@ -369,7 +390,7 @@ func (sm *SessionManager) LoadSession(ctx context.Context, session *ACPSession) 
 
 	resp, err := conn.Conn.LoadSession(ctx, acp.LoadSessionRequest{
 		Cwd:        session.Cwd,
-		McpServers: sm.mcpServersForConn(conn),
+		McpServers: sm.serversFor(conn, session.Cwd),
 		SessionId:  acp.SessionId(session.SessionID),
 	})
 
@@ -420,7 +441,7 @@ func (sm *SessionManager) ResumeSession(ctx context.Context, session *ACPSession
 
 	resp, err := conn.Conn.ResumeSession(ctx, acp.ResumeSessionRequest{
 		Cwd:        session.Cwd,
-		McpServers: sm.mcpServersForConn(conn),
+		McpServers: sm.serversFor(conn, session.Cwd),
 		SessionId:  acp.SessionId(session.SessionID),
 	})
 

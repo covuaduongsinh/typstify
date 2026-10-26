@@ -138,3 +138,16 @@ func jsonString(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
 }
+
+func TestActiveDocumentIsPerProject(t *testing.T) {
+	s := New(testService(), Options{ProjectRoot: t.TempDir(), StorageDir: tempStorage(t)})
+	x, y := t.TempDir(), t.TempDir()
+	s.SetActiveFile(x+"/chuong1.typ", 0)
+	s.SetActiveFile(y+"/bai-tap.typ", 3)
+	if got := s.activeDocumentFor(x).File; got != x+"/chuong1.typ" {
+		t.Fatalf("X's document = %q", got)
+	}
+	if got := s.activeDocumentFor(y); got.File != y+"/bai-tap.typ" || got.CursorPos != 3 {
+		t.Fatalf("Y's document = %+v", got)
+	}
+}

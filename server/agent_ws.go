@@ -268,6 +268,12 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
+	// Hold the project's runtime while chatting: its MCP server (the
+	// agent's tools) must not be closed for being idle mid-conversation.
+	// Over the open-projects limit the agent still runs, without tools.
+	if _, release, err := s.appSrv.Runtimes().Acquire(root); err == nil {
+		defer release()
+	}
 
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: s.wsOriginPatterns(r)})
 	if err != nil {

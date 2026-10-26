@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	acp "github.com/coder/acp-go-sdk"
 	"looz.ws/typstify/service"
 	"looz.ws/typstify/service/collab"
 	"looz.ws/typstify/service/gitsync"
@@ -73,8 +74,10 @@ type Server struct {
 	// consoleTextFn overrides the console source (tests).
 	consoleTextFn func() string
 
+	// Files recently opened or saved, by absolute path: each project's
+	// MCP tools ask for the latest one inside it (activeDocumentFor).
 	activeDocMu sync.RWMutex
-	activeDoc   mcp.ActiveDocument
+	activeDocs  map[string]activeDocEntry
 
 	// Projects requests worked on recently (session_project.go).
 	active activeProjects
@@ -100,15 +103,30 @@ type webActiveDocProvider struct {
 }
 
 func (p *webActiveDocProvider) GetActiveDocument() mcp.ActiveDocument {
-	p.server.activeDocMu.RLock()
-	doc := p.server.activeDoc
-	p.server.activeDocMu.RUnlock()
+	return p.server.activeDocumentFor(p.server.appSrv.CurrentProjectDir())
+}
 
+type activeDocEntry struct {
+	doc mcp.ActiveDocument
+	at  time.Time
+}
+
+// activeDocumentFor is the document the MCP tools of root's project work
+// on: the file of root used last, else main.typ, else any .typ at its top.
+func (s *Server) activeDocumentFor(root string) mcp.ActiveDocument {
+	var doc mcp.ActiveDocument
+	var at time.Time
+	s.activeDocMu.RLock()
+	for file, e := range s.activeDocs {
+		if root != "" && within(filepath.Clean(root), filepath.Clean(file)) && e.at.After(at) {
+			doc, at = e.doc, e.at
+		}
+	}
+	s.activeDocMu.RUnlock()
 	if doc.File != "" {
 		return doc
 	}
 
-	root := p.server.appSrv.CurrentProjectDir()
 	if root != "" {
 		mainTyp := filepath.Join(root, "main.typ")
 		if _, err := os.Stat(mainTyp); err == nil {
@@ -127,10 +145,16 @@ func (p *webActiveDocProvider) GetActiveDocument() mcp.ActiveDocument {
 func (s *Server) SetActiveFile(absPath string, cursorPos int) {
 	s.activeDocMu.Lock()
 	defer s.activeDocMu.Unlock()
-	s.activeDoc = mcp.ActiveDocument{
-		File:      absPath,
-		CursorPos: cursorPos,
+	if s.activeDocs == nil {
+		s.activeDocs = map[string]activeDocEntry{}
 	}
+	now := time.Now()
+	for file, e := range s.activeDocs {
+		if now.Sub(e.at) > 24*time.Hour {
+			delete(s.activeDocs, file)
+		}
+	}
+	s.activeDocs[absPath] = activeDocEntry{doc: mcp.ActiveDocument{File: absPath, CursorPos: cursorPos}, at: now}
 }
 
 func New(appSrv *service.ServiceFacade, opts Options) *Server {
@@ -164,6 +188,13 @@ func New(appSrv *service.ServiceFacade, opts Options) *Server {
 	if s.appSrv != nil {
 		s.appSrv.SetViewManager(nil, nil, nil, func() any {
 			return &webActiveDocProvider{server: s}
+		})
+		// Each agent session gets the MCP tools of its own project
+		// (docs/plans/plan_phase3b_per_user_projects.md).
+		s.appSrv.SetMcpResolver(func(cwd string) []acp.McpServer {
+			return s.appSrv.RuntimeMcpServers(cwd, func() mcp.ActiveDocument {
+				return s.activeDocumentFor(cwd)
+			})
 		})
 	}
 	s.routes()
