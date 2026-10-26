@@ -198,7 +198,7 @@ type dropboxSyncRequest struct {
 }
 
 func (s *Server) handleDropboxSync(w http.ResponseWriter, r *http.Request) {
-	projDir := s.appSrv.CurrentProjectDir()
+	projDir := s.projectDir(r)
 	if projDir == "" {
 		writeError(w, http.StatusConflict, "chưa có dự án nào đang mở")
 		return
@@ -346,7 +346,7 @@ func (s *Server) handleDropboxImport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	s.appSrv.SetProjectDir(abs)
+	s.openProjectFor(r, abs)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"path":       abs,
 		"downloaded": downloadCount,

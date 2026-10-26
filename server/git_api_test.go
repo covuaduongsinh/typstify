@@ -41,6 +41,7 @@ func TestGitAPI(t *testing.T) {
 
 	ed := &apiClient{t: t, h: h}
 	mustStatus(t, ed.do("POST", "/api/auth/login", `{"username":"editor1","password":"pw1234"}`), 200, "editor login")
+	mustStatus(t, ed.do("POST", "/api/projects/"+created.ID+"/open", ""), 200, "editor opens")
 
 	body, _ := json.Marshal(map[string]string{"remote": bare, "branch": "main", "token": "s3cret"})
 	mustStatus(t, ed.do("PUT", "/api/git/config", string(body)), 403, "editor configures")
@@ -83,9 +84,9 @@ func TestGitAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	openBody, _ := json.Marshal(map[string]string{"path": sub})
-	mustStatus(t, owner.do("POST", "/api/workspace/open", string(openBody)), 200, "open subfolder")
+	mustStatus(t, ed.do("POST", "/api/workspace/open", string(openBody)), 200, "open subfolder")
 	mustStatus(t, ed.do("POST", "/api/git/commit", `{"message":"x"}`), 409, "git in a subfolder")
-	if w := owner.do("GET", "/api/history", ""); strings.TrimSpace(w.Body.String()) != "[]" {
+	if w := ed.do("GET", "/api/history", ""); strings.TrimSpace(w.Body.String()) != "[]" {
 		t.Fatalf("subfolder must have its own history, got %s", w.Body.String())
 	}
 }

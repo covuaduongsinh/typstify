@@ -76,6 +76,9 @@ type Server struct {
 	activeDocMu sync.RWMutex
 	activeDoc   mcp.ActiveDocument
 
+	// Projects requests worked on recently (session_project.go).
+	active activeProjects
+
 	// Real-time co-editing rooms (collab_ws.go).
 	collab *collab.Hub
 	// Version history of projects (history_api.go).

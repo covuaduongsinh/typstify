@@ -61,9 +61,9 @@ func (s *Server) runCollabDiskWatch(ctx context.Context) {
 }
 
 // collabRole is the caller's current role for an open room: none once the
-// session ended or the server switched to another project.
+// session ended or switched to another project.
 func (s *Server) collabRole(r *http.Request, projectDir string) (projects.Role, bool) {
-	if s.appSrv.CurrentProjectDir() != projectDir {
+	if !sameDir(s.projectDir(r), projectDir) {
 		return "", false
 	}
 	if s.auth.enabled() {
@@ -91,7 +91,7 @@ func sameDir(a, b string) bool {
 
 // handleCollabWS joins the co-editing room of ?path= in the open project.
 func (s *Server) handleCollabWS(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -171,6 +171,7 @@ func (s *Server) handleCollabWS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if typ == websocket.MessageBinary {
+			s.markActive(root)
 			room.Handle(peer, data)
 		}
 	}

@@ -121,6 +121,8 @@ func TestCollabWebSocketRoles(t *testing.T) {
 		t.Fatalf("owner hello %v, %d updates", hello, seeded)
 	}
 
+	// Each session has its own project (plan_phase3b): the guest opens it too.
+	mustStatus(t, guest.do("POST", "/api/projects/"+created.ID+"/open", ""), 200, "guest opens")
 	gc := dialCollab(t, srv, guest, cur.Path, "main.typ")
 	defer gc.CloseNow()
 	hello, seeded = readUntilSynced(t, gc)

@@ -97,10 +97,21 @@ func TestNonMemberCannotReachProjectThroughParentOrChildFolder(t *testing.T) {
 		t.Fatal("existing folder was claimed by create")
 	}
 
-	// Owner reaching a child folder of their own project is fine, and a
-	// file there is still governed by the project.
+	// Owner reaching a child folder of their own project is fine. That must
+	// not move mallory's session there (each session has its own project,
+	// plan_phase3b): before, opening switched one project shared by the whole
+	// server, and mallory's next request ran against the owner's folder.
 	mustStatus(t, owner.do("POST", "/api/workspace/open", body(child)), 200, "owner opens child")
-	mustStatus(t, m.do("GET", "/api/workspace/file?path=a.typ", ""), 403, "mallory reads via owner's open child")
+	mustStatus(t, owner.do("PUT", "/api/workspace/file?path=a.typ", "secret"), 200, "owner writes in child")
+	w = m.do("GET", "/api/workspace/file?path=a.typ", "")
+	if w.Code == 200 || strings.Contains(w.Body.String(), "secret") {
+		t.Fatalf("mallory read the owner's file through the owner's open project: %d %s", w.Code, w.Body.String())
+	}
+	var cur struct{ Path string }
+	_ = json.Unmarshal(m.do("GET", "/api/workspace/current", "").Body.Bytes(), &cur)
+	if !sameDir(cur.Path, legacy) {
+		t.Fatalf("mallory's project = %q, want her own %q", cur.Path, legacy)
+	}
 }
 
 func TestMFAEnableRequiresPassword(t *testing.T) {

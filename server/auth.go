@@ -60,6 +60,9 @@ type session struct {
 	Username string    `json:"username"`
 	Expires  time.Time `json:"expires"`
 	Created  time.Time `json:"created"`
+	// Project is the directory this session has open: each browser works
+	// on its own project (docs/plans/plan_phase3b_per_user_projects.md).
+	Project string `json:"project,omitempty"`
 }
 
 type authManager struct {
@@ -335,6 +338,40 @@ func (a *authManager) getSession(r *http.Request) (session, bool) {
 		return session{}, false
 	}
 	return sess, true
+}
+
+// sessionProject returns the project directory the request's session has
+// open; ok is false when there is no valid session (auth disabled, or an
+// API token).
+func (a *authManager) sessionProject(r *http.Request) (dir string, ok bool) {
+	sess, ok := a.getSession(r)
+	if !ok {
+		return "", false
+	}
+	return sess.Project, true
+}
+
+// setSessionProject records dir as the request's session project; false
+// when the request has no valid session.
+func (a *authManager) setSessionProject(r *http.Request, dir string) bool {
+	c, err := r.Cookie(sessionCookieName)
+	if err != nil || c.Value == "" {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	now := time.Now()
+	sess, ok := a.sessions[c.Value]
+	if !ok || now.After(sess.Expires) || now.Sub(sess.Created) > sessionMaxAge {
+		return false
+	}
+	if sess.Project == dir {
+		return true
+	}
+	sess.Project = dir
+	a.sessions[c.Value] = sess
+	_ = a.saveSessionsLocked()
+	return true
 }
 
 // sweepExpired drops expired sessions. Caller holds a.mu.

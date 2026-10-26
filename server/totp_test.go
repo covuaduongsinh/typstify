@@ -105,7 +105,8 @@ func TestMFAEnableFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	enable := httptest.NewRequest("POST", "/api/auth/mfa/enable", strings.NewReader(`{"password":"pw1234","code":"`+totpCode(raw, time.Now())+`"}`))
+	enableCode := totpCode(raw, time.Now())
+	enable := httptest.NewRequest("POST", "/api/auth/mfa/enable", strings.NewReader(`{"password":"pw1234","code":"`+enableCode+`"}`))
 	enable.AddCookie(cookie)
 	ew := httptest.NewRecorder()
 	a.handleMFAEnable(ew, enable)
@@ -116,8 +117,9 @@ func TestMFAEnableFlow(t *testing.T) {
 		t.Fatalf("user after enable: %+v", u)
 	}
 
-	// The code that enabled MFA cannot be replayed.
-	replay := httptest.NewRequest("POST", "/api/auth/mfa/disable", strings.NewReader(`{"password":"pw1234","code":"`+totpCode(raw, time.Now())+`"}`))
+	// The code that enabled MFA cannot be replayed. (Recomputing it here
+	// made the test flaky: across a 30 s step boundary it is a new code.)
+	replay := httptest.NewRequest("POST", "/api/auth/mfa/disable", strings.NewReader(`{"password":"pw1234","code":"`+enableCode+`"}`))
 	replay.AddCookie(cookie)
 	rpw := httptest.NewRecorder()
 	a.handleMFADisable(rpw, replay)

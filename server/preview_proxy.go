@@ -22,8 +22,8 @@ var errPreviewNotReady = errors.New("preview server is not ready yet")
 // HTTP+WS server (started via lsp.PreviewService, listening on
 // 127.0.0.1:<random port>). Built per-request since the target address can
 // change across preview restarts.
-func (s *Server) previewReverseProxy() (*httputil.ReverseProxy, error) {
-	previewSrv := s.appSrv.PreviewService()
+func (s *Server) previewReverseProxy(r *http.Request) (*httputil.ReverseProxy, error) {
+	previewSrv := s.projectPreview(r)
 	if previewSrv == nil {
 		return nil, errPreviewNotReady
 	}
@@ -74,7 +74,7 @@ func (s *Server) previewReverseProxy() (*httputil.ReverseProxy, error) {
 // here -- it's still correct to leave it in place for any GET/asset traffic
 // that isn't a WS upgrade.
 func (s *Server) handlePreviewProxy(w http.ResponseWriter, r *http.Request) {
-	proxy, err := s.previewReverseProxy()
+	proxy, err := s.previewReverseProxy(r)
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
 		return
@@ -122,7 +122,7 @@ func (s *Server) handlePreviewRootWebSocket(w http.ResponseWriter, r *http.Reque
 		return true
 	}
 
-	proxy, err := s.previewReverseProxy()
+	proxy, err := s.previewReverseProxy(r)
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
 		return true
@@ -160,7 +160,7 @@ func injectBaseHref(resp *http.Response) error {
 }
 
 func (s *Server) handlePreviewStatus(w http.ResponseWriter, r *http.Request) {
-	previewSrv := s.appSrv.PreviewService()
+	previewSrv := s.projectPreview(r)
 	ready := previewSrv != nil && previewSrv.Address() != ""
 	writeJSON(w, http.StatusOK, map[string]bool{"ready": ready})
 }
@@ -173,13 +173,13 @@ func (s *Server) handlePreviewRestart(w http.ResponseWriter, r *http.Request) {
 	var req restartPreviewRequest
 	_ = json.NewDecoder(r.Body).Decode(&req) // entryFile is optional
 
+	root, err := s.projectRoot(r)
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
 	entryFile := req.EntryFile
 	if entryFile != "" {
-		root, err := s.projectRoot()
-		if err != nil {
-			writeError(w, http.StatusConflict, err.Error())
-			return
-		}
 		abs, err := resolveInRoot(root, entryFile)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -188,7 +188,13 @@ func (s *Server) handlePreviewRestart(w http.ResponseWriter, r *http.Request) {
 		entryFile = abs // tinymist requires an absolute path here
 	}
 
-	s.appSrv.RestartPreviewWithEntry(r.Context(), entryFile, nil)
+	rt, release, err := s.appSrv.Runtimes().Acquire(root)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, tooManyProjectsMessage(err))
+		return
+	}
+	defer release()
+	rt.RestartPreview(entryFile, nil)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -209,7 +215,7 @@ func (s *Server) handlePreviewCursor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	previewSrv := s.appSrv.PreviewService()
+	previewSrv := s.projectPreview(r)
 	if previewSrv == nil {
 		writeError(w, http.StatusServiceUnavailable, errPreviewNotReady.Error())
 		return

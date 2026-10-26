@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -49,32 +50,37 @@ func (s *Server) historyStore(root string) *history.Store {
 	return s.history.For("dir:" + key)
 }
 
-// runHistoryAuto takes an automatic version of the open project every few
-// minutes when something changed, whoever changed it.
+// runHistoryAuto takes an automatic version, when something changed, of
+// every project worked on since the previous round (each session has its
+// own project), whoever changed it.
 func (s *Server) runHistoryAuto(ctx context.Context) {
 	t := time.NewTicker(historyAutoInterval)
 	defer t.Stop()
+	last := time.Now()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.C:
+		case now := <-t.C:
 			if s.appSrv == nil {
 				continue
 			}
-			root := s.appSrv.CurrentProjectDir()
-			if root == "" {
-				continue
+			roots := s.activeSince(last)
+			last = now
+			if def := s.appSrv.CurrentProjectDir(); def != "" && !slices.ContainsFunc(roots, func(d string) bool { return sameDir(d, def) }) {
+				roots = append(roots, def)
 			}
-			if _, _, err := s.historyStore(root).Take(root, "Tự động", "", history.KindAuto, false); err != nil {
-				log.Printf("history: %v", err)
+			for _, root := range roots {
+				if _, _, err := s.historyStore(root).Take(root, "Tự động", "", history.KindAuto, false); err != nil {
+					log.Printf("history: %v", err)
+				}
 			}
 		}
 	}
 }
 
 func (s *Server) handleHistoryList(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -96,7 +102,7 @@ func (s *Server) requestDisplayName(r *http.Request) string {
 }
 
 func (s *Server) handleHistoryCreate(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -131,7 +137,7 @@ func historyError(w http.ResponseWriter, err error) {
 }
 
 func (s *Server) handleHistoryGet(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -151,7 +157,7 @@ func (s *Server) handleHistoryGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHistoryFile(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -170,7 +176,7 @@ func (s *Server) handleHistoryFile(w http.ResponseWriter, r *http.Request) {
 // co-editing room are written to disk like any outside edit; the room
 // folds the change in (or asks the people editing).
 func (s *Server) handleHistoryRestore(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return

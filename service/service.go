@@ -129,6 +129,19 @@ func NewService(ctx context.Context) *ServiceFacade {
 	return s
 }
 
+// SetDefaultProjectDir sets the web server's default project (the -project
+// flag, and the project of requests without a session) without starting
+// tinymist: the server runs tinymist per project through Runtimes.
+func (s *ServiceFacade) SetDefaultProjectDir(dir string) {
+	if dir == "" {
+		return
+	}
+	s.projMu.Lock()
+	s.currentProjectDir = dir
+	s.projMu.Unlock()
+	s.Workspace().TouchRecent(dir)
+}
+
 // Runtimes is the per-project tinymist/preview registry the web server
 // uses for each session's project (docs/plans/plan_phase3b_per_user_projects.md).
 // The desktop app keeps using the single current project (SetProjectDir).

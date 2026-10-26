@@ -80,7 +80,7 @@ func createFree(dir, name string, data []byte) (string, error) {
 // and returns the project-relative path. Existing files are never
 // overwritten: a numbered name is chosen instead.
 func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return

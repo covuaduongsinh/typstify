@@ -65,7 +65,10 @@ type WorkspaceService struct {
 	stateIndex       *utils.Bucket[utils.SKey, WorkspaceState]
 	appStateIndex    *utils.Bucket[utils.SKey, AppState]
 	currentWorkspace WorkspaceState
-	allCache         []WorkspaceState
+	// recentMu guards allCache: the web server touches recent projects
+	// from concurrent requests.
+	recentMu sync.Mutex
+	allCache []WorkspaceState
 
 	appState      AppState
 	mu            sync.Mutex
@@ -114,7 +117,7 @@ func (rp *WorkspaceService) SwitchWorkspace(projectDir string) {
 		rp.currentWorkspace = WorkspaceState{Path: projectDir, LastAccessAt: time.Now()}
 	}
 	rp.stateIndex.Save(utils.SKey(projectDir), rp.currentWorkspace)
-	rp.allCache = rp.allCache[:0] // invalidate cache
+	rp.invalidateRecent()
 
 	// restart watcher for bibliography syncer.
 	rp.restartWatcher()
@@ -147,9 +150,30 @@ func (rp *WorkspaceService) Current() *WorkspaceState {
 	return &rp.currentWorkspace
 }
 
+// TouchRecent records projectDir as just opened in the recent-projects
+// list, without switching the current workspace (the web server opens a
+// project per session).
+func (rp *WorkspaceService) TouchRecent(projectDir string) {
+	state, err := rp.stateIndex.Get(utils.SKey(projectDir))
+	if err != nil {
+		state = WorkspaceState{Path: projectDir}
+	}
+	state.LastAccessAt = time.Now()
+	rp.stateIndex.Save(utils.SKey(projectDir), state)
+	rp.invalidateRecent()
+}
+
+func (rp *WorkspaceService) invalidateRecent() {
+	rp.recentMu.Lock()
+	rp.allCache = rp.allCache[:0]
+	rp.recentMu.Unlock()
+}
+
 func (rp *WorkspaceService) GetHistory(maxSize int) []WorkspaceState {
+	rp.recentMu.Lock()
+	defer rp.recentMu.Unlock()
 	if len(rp.allCache) > 0 {
-		return rp.allCache
+		return slices.Clone(rp.allCache)
 	}
 
 	all, err := rp.stateIndex.GetAll()
@@ -165,7 +189,7 @@ func (rp *WorkspaceService) GetHistory(maxSize int) []WorkspaceState {
 	rp.allCache = append(rp.allCache, all[:min(len(all), maxSize)]...)
 	rp.shortenPaths(&rp.allCache)
 
-	return rp.allCache
+	return slices.Clone(rp.allCache)
 }
 
 func (rp *WorkspaceService) shortenPaths(all *[]WorkspaceState) {

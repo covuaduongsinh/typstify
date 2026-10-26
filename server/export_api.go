@@ -37,7 +37,7 @@ func sanitizeExportFilename(name string) string {
 // file download. PNG/SVG export can produce one file per page; when it
 // does, the files are zipped together.
 func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -166,7 +166,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 // previewVersion), not on every keystroke -- matching what the WS preview
 // only ever did too (docs/web-server.md's known v1 limitation).
 func (s *Server) handlePreviewPdf(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return

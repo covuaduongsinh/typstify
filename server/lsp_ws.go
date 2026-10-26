@@ -72,19 +72,25 @@ func (w *watchedPaths) list() []string {
 	return out
 }
 
-// handleLspWS bridges one browser editor session to the tinymist LSP client
-// already managed by ServiceFacade/lsp.GetLspClient. It reuses lsp.Client's
+// handleLspWS bridges one browser editor session to the tinymist of the
+// session's project (service.Runtimes, held open while connected). It reuses lsp.Client's
 // existing synchronous Complete/Hover/DocumentSymbols calls (jsonrpc2
 // Call+Await under the hood) and lsp.Client's poll-friendly Diagnostics()
 // accessor -- no changes to package lsp were needed.
 func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 
-	client := lsp.GetLspClient(root, s.appSrv.Settings())
+	rt, release, err := s.appSrv.Runtimes().Acquire(root)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, tooManyProjectsMessage(err))
+		return
+	}
+	defer release()
+	client := rt.LSP()
 	if client == nil {
 		writeError(w, http.StatusServiceUnavailable, "LSP client is not available (is tinymist installed?)")
 		return

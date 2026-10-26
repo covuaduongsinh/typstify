@@ -42,7 +42,7 @@ func extractPageNum(filename string) int {
 // handlePreviewRender compiles the Typst document (either from disk or from
 // live unsaved editor content) and returns SVG pages for instant live preview.
 func (s *Server) handlePreviewRender(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeJSON(w, http.StatusOK, previewRenderResponse{
 			OK:    false,

@@ -36,18 +36,11 @@ type treeEntry struct {
 	ModTime time.Time `json:"modTime"`
 }
 
-func (s *Server) projectRoot() (string, error) {
-	root := s.appSrv.CurrentProjectDir()
-	if root == "" {
-		return "", errNoProjectOpen
-	}
-	return root, nil
-}
 
 // handleTree lists the entries of a single directory (non-recursive; the
 // frontend file tree expands lazily by calling this again per directory).
 func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -100,7 +93,7 @@ func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFileGet(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -131,7 +124,7 @@ func (s *Server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 // is synced through /ws/lsp's didOpen/didChange instead, which additionally
 // keeps tinymist's in-memory document cache up to date.
 func (s *Server) handleFilePut(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -181,7 +174,7 @@ type createFileRequest struct {
 }
 
 func (s *Server) handleFileCreate(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -221,7 +214,7 @@ func (s *Server) handleFileCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -255,7 +248,7 @@ type renameRequest struct {
 }
 
 func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -300,7 +293,7 @@ func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCurrentProject(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"path": s.appSrv.CurrentProjectDir()})
+	writeJSON(w, http.StatusOK, map[string]string{"path": s.projectDir(r)})
 }
 
 func (s *Server) handleRecentProjects(w http.ResponseWriter, r *http.Request) {
@@ -341,7 +334,7 @@ func (s *Server) handleOpenProject(w http.ResponseWriter, r *http.Request) {
 		s.projects.Touch(p.ID)
 	}
 
-	s.appSrv.SetProjectDir(abs)
+	s.openProjectFor(r, abs)
 	writeJSON(w, http.StatusOK, map[string]string{"path": abs})
 }
 
@@ -391,7 +384,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		_ = os.WriteFile(mainFile, []byte("= "+filepath.Base(abs)+"\n\n"), 0644)
 	}
 
-	s.appSrv.SetProjectDir(abs)
+	s.openProjectFor(r, abs)
 	writeJSON(w, http.StatusOK, map[string]string{"path": abs})
 }
 

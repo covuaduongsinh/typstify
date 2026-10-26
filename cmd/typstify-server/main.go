@@ -58,7 +58,9 @@ func main() {
 	logger.InitLogger(filepath.Join(appSrv.Settings().General().RootDir, "application.log"))
 	defer logger.AppLogger.Close()
 
-	appSrv.SetProjectDir(projectDir)
+	// Default project for requests without a session. tinymist starts per
+	// project, on demand, through appSrv.Runtimes().
+	appSrv.SetDefaultProjectDir(projectDir)
 
 	if *passwordFlag == "" && launchToken == "" {
 		log.Println("WARNING: no password configured (TYPSTIFY_SERVER_PASSWORD/-password) -- the server is running WITHOUT authentication. Only safe for loopback/dev use, never expose this on a network like this.")

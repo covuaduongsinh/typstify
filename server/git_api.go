@@ -43,8 +43,8 @@ func (s *Server) gitKey(root string) string {
 // gitRoot is the open folder for Git operations. A subfolder of a
 // registered project is refused: its settings belong to the whole
 // project, and a repository there would nest inside the project's.
-func (s *Server) gitRoot(w http.ResponseWriter) (string, bool) {
-	root, err := s.projectRoot()
+func (s *Server) gitRoot(w http.ResponseWriter, r *http.Request) (string, bool) {
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return "", false
@@ -87,7 +87,7 @@ func gitCode(err error) string {
 }
 
 func (s *Server) handleGitStatus(w http.ResponseWriter, r *http.Request) {
-	root, ok := s.gitRoot(w)
+	root, ok := s.gitRoot(w, r)
 	if !ok {
 		return
 	}
@@ -111,7 +111,7 @@ func (s *Server) handleGitStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGitConfig(w http.ResponseWriter, r *http.Request) {
-	root, ok := s.gitRoot(w)
+	root, ok := s.gitRoot(w, r)
 	if !ok {
 		return
 	}
@@ -134,7 +134,7 @@ func (s *Server) handleGitConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGitCommit(w http.ResponseWriter, r *http.Request) {
-	root, ok := s.gitRoot(w)
+	root, ok := s.gitRoot(w, r)
 	if !ok {
 		return
 	}
@@ -155,7 +155,7 @@ func (s *Server) handleGitCommit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGitPush(w http.ResponseWriter, r *http.Request) {
-	root, ok := s.gitRoot(w)
+	root, ok := s.gitRoot(w, r)
 	if !ok {
 		return
 	}
@@ -179,7 +179,7 @@ func (s *Server) handleGitPush(w http.ResponseWriter, r *http.Request) {
 // as a history version first, so even "take the remote side" can be
 // undone from the History panel.
 func (s *Server) handleGitPull(w http.ResponseWriter, r *http.Request) {
-	root, ok := s.gitRoot(w)
+	root, ok := s.gitRoot(w, r)
 	if !ok {
 		return
 	}

@@ -42,6 +42,7 @@ func TestHistoryAPI(t *testing.T) {
 
 	guest := &apiClient{t: t, h: h}
 	mustStatus(t, guest.do("POST", "/api/auth/login", `{"username":"guest","password":"pw1234"}`), 200, "guest login")
+	mustStatus(t, guest.do("POST", "/api/projects/"+created.ID+"/open", ""), 200, "guest opens")
 	w = guest.do("GET", "/api/history/"+v1.ID, "")
 	mustStatus(t, w, 200, "viewer reads version")
 	var detail struct {

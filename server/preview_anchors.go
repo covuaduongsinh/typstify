@@ -33,7 +33,7 @@ type previewAnchorsResponse struct {
 // heading structure actually changes -- far less often than every keystroke
 // that triggers a render.
 func (s *Server) handlePreviewAnchors(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeJSON(w, http.StatusOK, previewAnchorsResponse{OK: false, Error: err.Error()})
 		return

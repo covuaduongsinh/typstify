@@ -18,7 +18,7 @@ import (
 
 // handleSyncManifest trả về danh sách file của project đang mở.
 func (s *Server) handleSyncManifest(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -34,7 +34,7 @@ func (s *Server) handleSyncManifest(w http.ResponseWriter, r *http.Request) {
 
 // handleSyncPull trả về nội dung thô của một file.
 func (s *Server) handleSyncPull(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -68,7 +68,7 @@ func (s *Server) handleSyncPull(w http.ResponseWriter, r *http.Request) {
 // được lưu nguyên, không qua repairTypstContent, để hash phía server luôn khớp
 // với hash client đã tính.
 func (s *Server) handleSyncPush(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -108,7 +108,7 @@ type syncDeleteRequest struct {
 
 // handleSyncDelete xoá một file. Xoá file đã không còn là thành công (idempotent).
 func (s *Server) handleSyncDelete(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return

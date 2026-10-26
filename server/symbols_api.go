@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"looz.ws/typstify/lsp"
 )
 
 // symbolInfo is one Typst symbol for the web symbol picker.
@@ -50,12 +49,18 @@ func (s *Server) handleSymbols(w http.ResponseWriter, r *http.Request) {
 	symbolsCache.Lock()
 	defer symbolsCache.Unlock()
 	if symbolsCache.list == nil {
-		root, err := s.projectRoot()
+		root, err := s.projectRoot(r)
 		if err != nil {
 			writeError(w, http.StatusConflict, err.Error())
 			return
 		}
-		client := lsp.GetLspClient(root, s.appSrv.Settings())
+		rt, release, err := s.appSrv.Runtimes().Acquire(root)
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, tooManyProjectsMessage(err))
+			return
+		}
+		defer release()
+		client := rt.LSP()
 		if client == nil || !client.IsReady() {
 			writeError(w, http.StatusServiceUnavailable, "tinymist chưa sẵn sàng")
 			return

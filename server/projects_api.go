@@ -44,12 +44,12 @@ func (s *Server) requestUser(r *http.Request) (string, bool) {
 	return user, s.auth.isAdmin(user)
 }
 
-// currentProjectRole reports the caller's role on the currently open
-// project. registered is false when the open directory isn't in the
+// currentProjectRole reports the caller's role on the project its session
+// has open. registered is false when the open directory isn't in the
 // registry; such legacy projects keep the old "any logged-in user"
 // behavior.
 func (s *Server) currentProjectRole(r *http.Request) (p projects.Project, role projects.Role, registered bool) {
-	dir := s.appSrv.CurrentProjectDir()
+	dir := s.projectDir(r)
 	if dir == "" {
 		return projects.Project{}, "", false
 	}
@@ -348,7 +348,7 @@ func (s *Server) handleProjectOpen(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "Thư mục dự án không còn tồn tại: "+p.Dir)
 		return
 	}
-	s.appSrv.SetProjectDir(p.Dir)
+	s.openProjectFor(r, p.Dir)
 	s.projects.Touch(p.ID)
 	writeJSON(w, http.StatusOK, map[string]any{"path": p.Dir, "project": viewOf(p, role)})
 }
