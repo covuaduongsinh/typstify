@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestModelSave(t *testing.T) {
@@ -140,4 +141,27 @@ func TestModelGetDefault(t *testing.T) {
 		db.Close()
 	})
 
+}
+
+func TestMaxOpenProjectsIsValidatedAndMachineLocal(t *testing.T) {
+	db := newSettings(t.TempDir(), nil)
+	lsp := db.Lsp()
+	lsp.MaxOpenProjects = 51
+	if err := lsp.Save(); err == nil {
+		t.Fatal("51 open projects accepted")
+	}
+	lsp.MaxOpenProjects = 5
+	if err := lsp.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	// A desktop pushing its LSP settings must not reset the server's limit.
+	raw := json.RawMessage(`{"enableLspLogs":1,"maxOpenProjects":2}`)
+	if err := db.Lsp().ApplyRemote(raw, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	got := newSettings(db.store.root, nil).Lsp()
+	if got.MaxOpenProjects != 5 || got.EnableLSPLogs != 1 {
+		t.Fatalf("after sync: maxOpenProjects=%d enableLspLogs=%d, want 5 and 1", got.MaxOpenProjects, got.EnableLSPLogs)
+	}
 }

@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -16,7 +18,7 @@ import (
 
 // handleSyncManifest trả về danh sách file của project đang mở.
 func (s *Server) handleSyncManifest(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -32,7 +34,7 @@ func (s *Server) handleSyncManifest(w http.ResponseWriter, r *http.Request) {
 
 // handleSyncPull trả về nội dung thô của một file.
 func (s *Server) handleSyncPull(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -53,6 +55,10 @@ func (s *Server) handleSyncPull(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// The hash of exactly these bytes (same as the manifest's): a client
+	// caching by hash can tell a file that changed since its manifest.
+	sum := sha256.Sum256(data)
+	w.Header().Set("X-Content-Sha256", hex.EncodeToString(sum[:]))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	_, _ = w.Write(data)
 }
@@ -62,7 +68,7 @@ func (s *Server) handleSyncPull(w http.ResponseWriter, r *http.Request) {
 // được lưu nguyên, không qua repairTypstContent, để hash phía server luôn khớp
 // với hash client đã tính.
 func (s *Server) handleSyncPush(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -102,7 +108,7 @@ type syncDeleteRequest struct {
 
 // handleSyncDelete xoá một file. Xoá file đã không còn là thành công (idempotent).
 func (s *Server) handleSyncDelete(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return

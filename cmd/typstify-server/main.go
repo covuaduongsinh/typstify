@@ -10,7 +10,9 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -34,9 +36,14 @@ func main() {
 	staticDirFlag := flag.String("static-dir", envOr("TYPSTIFY_STATIC_DIR", "web/dist"), "Directory containing the built web frontend to serve; ignored if it doesn't exist")
 	projectRootFlag := flag.String("project-root", os.Getenv("TYPSTIFY_PROJECT_ROOT"), "If set, confine Open/Create Project to this directory (e.g. a persistent volume mount) -- anywhere else is rejected. Empty means unrestricted")
 	flag.Parse()
+	// Set by the desktop app (apps/tauri) for its sidecar: see
+	// server/launch.go. An environment variable, not a flag, so it does not
+	// show in process listings.
+	launchToken := os.Getenv("TYPSTIFY_LAUNCH_TOKEN")
 	// Child processes (AI agents and the shell commands they run, typst,
-	// tinymist) must not inherit the server password.
+	// tinymist) must not inherit the server password or launch token.
 	_ = os.Unsetenv("TYPSTIFY_SERVER_PASSWORD")
+	_ = os.Unsetenv("TYPSTIFY_LAUNCH_TOKEN")
 
 	projectDir, err := resolveProjectDir(*projectDirFlag)
 	if err != nil {
@@ -51,9 +58,11 @@ func main() {
 	logger.InitLogger(filepath.Join(appSrv.Settings().General().RootDir, "application.log"))
 	defer logger.AppLogger.Close()
 
-	appSrv.SetProjectDir(projectDir)
+	// Default project for requests without a session. tinymist starts per
+	// project, on demand, through appSrv.Runtimes().
+	appSrv.SetDefaultProjectDir(projectDir)
 
-	if *passwordFlag == "" {
+	if *passwordFlag == "" && launchToken == "" {
 		log.Println("WARNING: no password configured (TYPSTIFY_SERVER_PASSWORD/-password) -- the server is running WITHOUT authentication. Only safe for loopback/dev use, never expose this on a network like this.")
 	}
 
@@ -75,6 +84,7 @@ func main() {
 			Password:    *passwordFlag,
 			StaticDir:   staticDir,
 			ProjectRoot: *projectRootFlag,
+			LaunchToken: launchToken,
 		}).Handler(),
 	}
 
@@ -88,9 +98,20 @@ func main() {
 
 	log.Printf("Typstify web server starting (version %s)", version.BinVersion)
 	log.Printf("project directory: %s", projectDir)
-	log.Printf("listening on %s", *addrFlag)
+	ln, err := (&net.ListenConfig{Control: exclusiveAddr}).Listen(ctx, "tcp", *addrFlag)
+	if err != nil {
+		log.Fatalf("listen %s: %v", *addrFlag, err)
+	}
+	log.Printf("listening on %s", ln.Addr())
+	if launchToken != "" {
+		// The desktop app (apps/tauri) waits for this line on stdout before
+		// opening its window: only once this process holds the port, so a
+		// window never goes to another program that took it first. Logs go
+		// to stderr.
+		fmt.Printf("TYPSTIFY_READY %s\n", ln.Addr())
+	}
 
-	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := httpSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
 

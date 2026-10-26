@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"looz.ws/typstify/service/projects"
 )
 
 // checkProjectRoot rejects abs when the server was started with a
@@ -33,18 +36,11 @@ type treeEntry struct {
 	ModTime time.Time `json:"modTime"`
 }
 
-func (s *Server) projectRoot() (string, error) {
-	root := s.appSrv.CurrentProjectDir()
-	if root == "" {
-		return "", errNoProjectOpen
-	}
-	return root, nil
-}
 
 // handleTree lists the entries of a single directory (non-recursive; the
 // frontend file tree expands lazily by calling this again per directory).
 func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -97,7 +93,7 @@ func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFileGet(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -128,7 +124,7 @@ func (s *Server) handleFileGet(w http.ResponseWriter, r *http.Request) {
 // is synced through /ws/lsp's didOpen/didChange instead, which additionally
 // keeps tinymist's in-memory document cache up to date.
 func (s *Server) handleFilePut(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -152,6 +148,12 @@ func (s *Server) handleFilePut(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// A co-edited file is written by its room's leader (collab_ws.go); a
+	// plain PUT would replace everyone's newer text with this client's copy.
+	if rel, err := filepath.Rel(root, p); err == nil && s.collab.IsOpen(root, filepath.ToSlash(rel)) {
+		writeError(w, http.StatusConflict, "Tệp đang được cộng tác: thay đổi được lưu qua phiên cộng tác")
+		return
+	}
 	// For .typ files, strip any AI-generated mock #let definitions that
 	// shadow the real chessbook library functions before persisting.
 	if strings.HasSuffix(p, ".typ") {
@@ -172,7 +174,7 @@ type createFileRequest struct {
 }
 
 func (s *Server) handleFileCreate(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -212,7 +214,7 @@ func (s *Server) handleFileCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFileDelete(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -246,7 +248,7 @@ type renameRequest struct {
 }
 
 func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
@@ -291,7 +293,7 @@ func (s *Server) handleFileRename(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCurrentProject(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"path": s.appSrv.CurrentProjectDir()})
+	writeJSON(w, http.StatusOK, map[string]string{"path": s.projectDir(r)})
 }
 
 func (s *Server) handleRecentProjects(w http.ResponseWriter, r *http.Request) {
@@ -323,8 +325,16 @@ func (s *Server) handleOpenProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "not a directory")
 		return
 	}
+	p, registered, err := s.checkDirAccess(r, abs, projects.RoleViewer)
+	if err != nil {
+		writeError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	if registered {
+		s.projects.Touch(p.ID)
+	}
 
-	s.appSrv.SetProjectDir(abs)
+	s.openProjectFor(r, abs)
 	writeJSON(w, http.StatusOK, map[string]string{"path": abs})
 }
 
@@ -348,9 +358,25 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	_, registered, err := s.checkDirAccess(r, abs, projects.RoleEditor)
+	if err != nil {
+		writeError(w, http.StatusForbidden, err.Error())
+		return
+	}
+	_, statErr := os.Stat(abs)
+	existed := statErr == nil
 	if err := os.MkdirAll(abs, 0755); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	// A project created through the server belongs to whoever created it.
+	// Only a folder this request actually created is registered: claiming
+	// an existing (shared, legacy) folder would lock its other users out.
+	if !registered && !existed {
+		user, _ := s.requestUser(r)
+		if _, err := s.projects.Create("", abs, user); err != nil {
+			log.Printf("projects: register %s: %v", abs, err)
+		}
 	}
 
 	mainFile := filepath.Join(abs, "main.typ")
@@ -358,7 +384,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		_ = os.WriteFile(mainFile, []byte("= "+filepath.Base(abs)+"\n\n"), 0644)
 	}
 
-	s.appSrv.SetProjectDir(abs)
+	s.openProjectFor(r, abs)
 	writeJSON(w, http.StatusOK, map[string]string{"path": abs})
 }
 
@@ -370,5 +396,6 @@ func isProtectedPath(root, p string) bool {
 		return true
 	}
 	first := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
-	return first == ".git" || first == ".typstify"
+	// Case-insensitive: Windows and macOS file systems treat .GIT as .git.
+	return strings.EqualFold(first, ".git") || strings.EqualFold(first, ".typstify")
 }

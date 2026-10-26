@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chọn máy chủ — Dương Sinh Chess Studio</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        font-family: Roboto, 'Segoe UI', sans-serif;
+        background: #2b3990;
+        color: #fff;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 24px 16px;
+        box-sizing: border-box;
+      }
+      form {
+        width: 100%;
+        max-width: 420px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .board {
+        display: grid;
+        grid-template-columns: repeat(4, 12px);
+        align-self: center;
+      }
+      .board span {
+        width: 12px;
+        height: 12px;
+      }
+      .board .g {
+        background: #c9a227;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 4px 0 0;
+        text-align: center;
+      }
+      p {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.5;
+        opacity: 0.9;
+      }
+      label {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      input {
+        font: inherit;
+        font-size: 16px;
+        padding: 12px;
+        border-radius: 8px;
+        border: 0;
+      }
+      button {
+        font: inherit;
+        font-size: 16px;
+        font-weight: 600;
+        padding: 12px;
+        border: 0;
+        border-radius: 8px;
+        background: #c9a227;
+        color: #1b1b1b;
+      }
+      button:disabled {
+        opacity: 0.6;
+      }
+      #error {
+        min-height: 1.5em;
+        color: #ffd2d2;
+      }
+      .note {
+        font-size: 13px;
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <form id="form">
+      <div class="board" aria-hidden="true">
+        <span class="g"></span><span></span><span class="g"></span><span></span>
+        <span></span><span class="g"></span><span></span><span class="g"></span>
+      </div>
+      <h1>Dương Sinh Chess Studio</h1>
+      <p>Nhập địa chỉ máy chủ Typstify của anh/chị (VPS hoặc máy trong mạng nội bộ).</p>
+      <label for="url">Địa chỉ máy chủ</label>
+      <input
+        id="url"
+        type="url"
+        inputmode="url"
+        autocomplete="url"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="https://typst.example.com"
+        required
+      />
+      <button id="go" type="submit">Kết nối</button>
+      <p id="error" role="alert"></p>
+      <p class="note" id="switch-note" hidden>
+        Đổi sang máy chủ khác sẽ đăng xuất và xoá dữ liệu tạm trên máy này, kể cả bản sửa offline chưa
+        đồng bộ.
+      </p>
+    </form>
+    <script>
+      const invoke = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args)
+      const input = document.getElementById('url')
+      const button = document.getElementById('go')
+      const error = document.getElementById('error')
+      invoke('current_server')
+        .then((url) => {
+          if (url) {
+            input.value = url
+            document.getElementById('switch-note').hidden = false
+          }
+        })
+        .catch(() => {})
+      document.getElementById('form').addEventListener('submit', async (e) => {
+        e.preventDefault()
+        error.textContent = ''
+        button.disabled = true
+        button.textContent = 'Đang kết nối…'
+        try {
+          await invoke('connect', { url: input.value })
+        } catch (err) {
+          error.textContent = String(err)
+          button.disabled = false
+          button.textContent = 'Kết nối'
+        }
+      })
+    </script>
+  </body>
+</html>

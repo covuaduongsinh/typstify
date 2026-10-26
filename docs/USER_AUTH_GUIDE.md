@@ -34,7 +34,9 @@ Khi truy cập vào đường dẫn website (ví dụ: `https://typst.dsc.edu.vn
 - **Tương thích Trình quản lý mật khẩu**: Biểu mẫu hỗ trợ đầy đủ tiêu chuẩn tự động điền mật khẩu của **Google Chrome, Microsoft Edge, Safari, 1Password, Bitwarden,...** giúp bạn đăng nhập chỉ bằng 1 cú nhấp chuột hoặc FaceID/Vân tay.
 
 ### C. Đăng nhập bằng Mật khẩu máy chủ (Legacy Server Password)
-Nếu máy chủ được cấu hình mật khẩu quản trị chung qua biến môi trường `TYPSTIFY_SERVER_PASSWORD`, bạn có thể để trống trường *Tên đăng nhập* và nhập trực tiếp mật khẩu máy chủ vào ô *Mật khẩu* để đăng nhập với quyền quản trị viên `admin`.
+Nếu máy chủ được cấu hình mật khẩu chung qua biến môi trường `TYPSTIFY_SERVER_PASSWORD`, thì **khi máy chủ chưa có tài khoản nào**, bạn có thể để trống *Tên đăng nhập* và nhập mật khẩu máy chủ để đăng nhập với quyền `admin`, rồi tạo tài khoản thật.
+
+Khi đã có tài khoản, mật khẩu máy chủ không còn dùng để đăng nhập. Nó chỉ là mã cho phép người mới đăng ký. Mỗi người dùng tài khoản riêng của mình, nên phân quyền dự án và xác thực hai bước mới có tác dụng.
 
 ---
 
@@ -60,8 +62,33 @@ Khi đã đăng nhập vào hệ thống, bạn có thể đổi mật khẩu b�
 
 ---
 
+## 4b. Xác thực hai bước (MFA)
+
+1. Mở **Cài đặt**, mục **Bảo mật · Xác thực hai bước**, bấm **Bật xác thực hai bước**.
+2. Trong ứng dụng xác thực (Google Authenticator, Aegis, 1Password, …), thêm tài khoản bằng **khoá thủ công** đang hiện trên màn hình. Trên điện thoại cũng có thể mở liên kết `otpauth`.
+3. Nhập mã 6 số mà ứng dụng hiển thị và mật khẩu tài khoản, rồi bấm **Xác nhận và bật**. Các phiên đăng nhập khác của tài khoản sẽ bị đăng xuất.
+4. **Chép và cất 10 mã khôi phục**: chúng chỉ hiện một lần, và mỗi mã dùng được một lần khi mất điện thoại.
+5. Từ lần sau, sau khi nhập mật khẩu, màn hình đăng nhập sẽ hỏi thêm mã xác thực (hoặc một mã khôi phục).
+6. Muốn tắt: nhập mật khẩu và một mã xác thực trong cùng mục cài đặt.
+
+## 4c. Dự án, vai trò và chia sẻ
+
+- Mỗi dự án có **chủ sở hữu** và các thành viên với một trong ba vai trò:
+  - **Chỉnh sửa**: đọc và sửa tệp, dùng trợ lý AI.
+  - **Góp ý**: xem và bình luận (bôi đen đoạn văn, mở bảng **Bình luận**), không sửa nội dung.
+  - **Chỉ xem**: đọc, xem trước và xuất PDF; editor ở chế độ chỉ đọc.
+- **Quản trị viên** (tài khoản đăng ký đầu tiên) xem và quản lý mọi dự án, và là người duy nhất đổi được cài đặt máy chủ, font, Dropbox và trợ lý AI.
+- **Tạo dự án:** ở màn hình chọn dự án, nhập tên vào mục **Tạo dự án mới**.
+- **Chia sẻ:** chủ sở hữu bấm **Chia sẻ** trên thanh tiêu đề, rồi chọn một trong hai cách:
+  - thêm thành viên theo tên tài khoản trên máy chủ;
+  - **tạo liên kết** theo vai trò và thời hạn. Liên kết chỉ hiện một lần và có thể thu hồi bất cứ lúc nào.
+- **Tham gia:** người nhận mở liên kết `…/?join=…` và đăng nhập, hệ thống tự thêm họ vào dự án và mở dự án. Cũng có thể dán liên kết vào ô **Tham gia bằng liên kết chia sẻ**.
+- Thư mục mở theo đường dẫn mà chưa đăng ký vẫn dùng chung như trước. Dự án tạo bằng **Tạo dự án mới** hoặc **Tạo dự án** theo đường dẫn thì được đăng ký, với chủ sở hữu là người tạo.
+
+---
+
 ## 5. Cơ chế Bảo mật Kỹ thuật
 
-- **Mật khẩu băm an toàn (Salted SHA-256 / Constant-Time Compare)**: Mật khẩu người dùng không bao giờ được lưu dưới dạng văn bản thuần (plain text). Mỗi tài khoản được cấp một chuỗi ngẫu nhiên (Salt 16 bytes) riêng biệt trước khi băm, giúp chống lại các cuộc tấn công Rainbow Table.
+- **Mật khẩu băm an toàn (argon2id / Constant-Time Compare)**: Mật khẩu người dùng không bao giờ được lưu dưới dạng văn bản thuần (plain text). Hash dùng argon2id (m=19 MiB, t=2, p=1, salt ngẫu nhiên 16 byte), lưu dạng PHC `$argon2id$v=19$...` trong `auth_users.json` (`server/password.go`). Tài khoản cũ băm salted SHA-256 vẫn đăng nhập được và được tự động nâng cấp lên argon2id ở lần đăng nhập thành công kế tiếp.
 - **Bảo vệ chống Brute-Force (Rate Limiting)**: Hệ thống tự động khóa tạm thời IP nếu có hành vi cố tình thử sai mật khẩu nhiều lần liên tiếp.
 - **Lưu trữ dữ liệu độc lập & Bền vững**: Dữ liệu tài khoản (`auth_users.json`) và phiên (`auth_sessions.json`) được lưu trực tiếp trong thư mục cấu hình bền vững `/data/config/` (được gắn volume trên Docker), đảm bảo không bao giờ bị mất dữ liệu khi cập nhật ứng dụng.

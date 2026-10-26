@@ -6,7 +6,7 @@ Nguồn: khảo sát mã nguồn 2026-09-29 và `docs/plans/plan_codebase_review
 
 | # | Khoảng trống | Vị trí | Đề xuất | Cách kiểm |
 |---|---|---|---|---|
-| A1 | Preview SVG trên web chưa có click-to-source (chỉ iframe tinymist có) | `web/src/components/PreviewPane.tsx`, `server/preview_render.go` | Thêm bản đồ nguồn (typst `query`/span) hoặc chuyển chế độ tinymist làm mặc định khi cần nhảy về nguồn | Click vào chữ trong preview → editor nhảy đúng dòng |
+| A1 | (Phần lớn đã xong, 2026-10-25) Click-to-source trên preview web: chế độ "Tức thì" khớp chữ được bấm với nguồn. Còn thiếu: nội dung sinh từ code (bàn cờ, bảng dữ liệu) và chế độ "Trang in" của server | `web/src/components/WasmPreview.tsx`, `web/src/lib/wasm/sourceMap.ts` | Bản đồ span chính xác khi typst.ts có API đổi span → vị trí | Click vào chữ trong preview → editor nhảy đúng dòng |
 | A2 | Desktop chưa dùng anchors heading thật (chỉ web) | `typst.QueryHeadingPages` chỉ được `server/preview_anchors.go` gọi | Cân nhắc dùng cho desktop nếu tinymist scroll chưa đủ chính xác | So vị trí cuộn với tài liệu nhiều trang |
 | A3 | (Đã hoàn thành) i18n desktop tiếng Việt | `i18n/translations/locales/vi-VN/` | Thêm `vi-VN/messages.gotext.json`, chuẩn hoá chuỗi nguồn & catalog | Đổi ngôn ngữ trong Settings hiện tiếng Việt đầy đủ |
 | A4 | (Đã hoàn thành) Tài liệu i18n tiếng Việt | `i18n/`, `docs/architecture_and_guide.md` | Đã hỗ trợ tiếng Việt đầy đủ và khớp với mã nguồn | Tài liệu khớp mã |

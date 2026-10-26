@@ -44,6 +44,306 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-26 — Giai đoạn 3b: mỗi phiên đăng nhập một project
+- **Yêu cầu**: làm Giai đoạn 3b theo `docs/plans/plan_phase3b_per_user_projects.md`. Chủ dự án chốt: mặc định tối đa 3 project mở cùng lúc (quản trị viên đổi được); một project mỗi phiên trình duyệt, tab cũ nhận 409 và lời nhắc tải lại.
+- **Đã làm** (mỗi bước một commit):
+  1. `lsp`: `NewClient(workspace, settings)` tạo client riêng cho từng project; `GetLspClient` chỉ còn là client mặc định của desktop (`84b3814`).
+  2. `service/runtimes.go`: `Runtimes`/`ProjectRuntime` giữ tinymist, preview, MCP theo project; đếm tham chiếu theo kết nối, quá giới hạn thì đóng runtime nhàn rỗi lâu nhất hoặc trả 503, nhàn rỗi 10 phút thì tự đóng (`84b3814`).
+  3. Server: project nằm trong phiên (`session.Project`), mọi handler lấy thư mục qua `s.projectRoot(r)`; quyền tính trên project của phiên; collab, lịch sử tự động, LSP, ký hiệu, preview dùng runtime của project; request không có phiên dùng project mặc định (`SetDefaultProjectDir`) (`d5861d7`).
+  4. Agent: `SessionManager.SetMcpResolver` gắn MCP server của đúng project vào phiên ACP theo `cwd`; "tài liệu đang mở" tách theo project (`9c2b91c`).
+  5. Web: header `X-Typstify-Project` trên mọi request, `?project=` trên WebSocket; 409 `code: project_changed` mở hộp thoại "Dự án đã đổi ở tab khác". Cài đặt LSP thêm `maxOpenProjects` (1–50, `sync:"local"` nên desktop đồng bộ không ghi đè).
+  6. Tài liệu: `API.md`, `ARCHITECTURE.md`, `MEMORY.md`, `MODULES.md`.
+- **Kiểm chứng**: `go test` cho `server`, `service`, `service/settings`, `lsp`, `agent` xanh, `-race` sạch; web `vitest` 141/141, `tsc -b`, `oxlint` sạch. Chạy thật với server cô lập (APPDATA riêng): hai tài khoản mở hai project khác nhau, mỗi người đọc/ghi đúng `main.typ` của mình, đúng hai tiến trình tinymist; giới hạn 2 thì project thứ ba nhận 503 rõ ràng; tab cũ nhận 409 `project_changed`; khi runtime khác nhàn rỗi thì project mới được cấp runtime; tắt server không còn tinymist.
+- **Đo RAM** (Windows, tài liệu 40 chương mỗi project, working set): không project 105 MB; 1 project 135 MB; 2 project 226 MB; 3 project 258 MB (server ~125–130 MB, mỗi tinymist khoảng 10–80 MB tuỳ lúc đã biên dịch xong hay chưa). `go vet` sạch; `go build .` (desktop Gio) và `cargo test --lib` của Tauri (7/7) vẫn xanh.
+- **Còn mở**: chưa thử bằng hai trình duyệt thật (gõ + preview song song), chưa build Docker (Docker Desktop không chạy trên máy dev; CI có job Docker), chưa mở lại app desktop Gio và bản Tauri sidecar.
+
+### 2026-10-27 — Giai đoạn 7c: hoàn tất build APK Android và bộ cài Desktop mới
+- **Yêu cầu**: Build APK debug x86_64 và bộ cài Windows NSIS mới, kiểm tra các việc còn mở của 3b và 7c theo `docs/plans/plan_typst_app_parity_2026-10.md` và `docs/plans/plan_phase7c_tauri_mobile.md`.
+- **Đã làm và khắc phục cạm bẫy build**:
+  1. **Lỗi SDK Android**: cấu hình ban đầu đặt `compileSdk = 37` khiến CI không tìm thấy SDK package; hạ xuống 34 thì gặp lỗi `CheckAarMetadata` do `tauri-android` và `tauri-plugin-opener` (Tauri 2) bắt buộc API level ≥ 36. Đã chỉnh `compileSdk = 36`, `targetSdk = 36` và CI tải `platforms;android-36` (khớp với AVD `rn_api36_x86_64` và SDK local).
+  2. **Lỗi tài nguyên thiếu khi build mobile**: `tauri-build` khi đọc `tauri.conf.json` kiểm tra thư mục tài nguyên `resources/packages` và `resources/web`. `prepare-mobile.ps1` đã được bổ sung tạo thư mục stub, đồng thời `bundle.resources` trong `tauri.android.conf.json` đổi sang `[]` (mảng rỗng) để ghi đè map tài nguyên desktop.
+  3. **Build CI trên GitHub Actions**: Kích hoạt thành công workflow `.github/workflows/tauri.yml` trên nhánh `feat/typst-app-parity` qua PR #4. Cả hai job hoàn tất:
+     - APK Android universal debug (`x86_64` + `aarch64`): tải về tại `apps/tauri/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk` (328 MB).
+     - Bộ cài Desktop Windows NSIS mới: tải về tại `apps/tauri/src-tauri/target/release/bundle/nsis/Duong Sinh Chess Studio_0.1.0_x64-setup.exe` (57.9 MB).
+- **Kiểm chứng**:
+  - `cargo test --lib` (Tauri proxy): 7/7 tests passed (chuyển tiếp HTTP, cookie, WebSocket, Origin lạ, giao diện đóng gói, chống DNS rebinding).
+  - Go backend test (`server`, `service`, `lsp`, `agent`): tất cả passed (`server` 17s, `lsp` 1.48s, `agent` 1.5s).
+  - Biên dịch ứng dụng Desktop Gio: `go build .` thành công.
+  - Khởi chạy server Go độc lập trên cổng 8085 với APPDATA riêng trong `scratch/mobile-test/appdata`: `/api/auth/status` trả về JSON hợp lệ cho client web/mobile kết nối qua loopback `http://10.0.2.2:8085`.
+
+### 2026-10-26 — Giai đoạn 7c: ứng dụng Android Tauri 2 (thiết kế và mã nguồn)
+- **Yêu cầu**: Giai đoạn 7c theo `docs/plans/plan_phase7c_tauri_mobile.md`; giao diện đóng gói trong app, chạy thử trên máy ảo x86_64. iOS để sau (cần macOS).
+- **Đã làm**:
+  1. Tách `src-tauri/src/main.rs` thành `lib.rs` (`run()` chung, nhớ cổng, mở link ngoài), `desktop.rs` (sidecar như 7b, chỉ `cfg(desktop)`) và `mobile.rs` (`cfg(mobile)`).
+  2. `proxy.rs`: WebView mở `http://127.0.0.1:<cổng>`; proxy phục vụ giao diện đóng gói và chuyển `/api`, `/ws`, `/preview` tới server tự host (viết lại Host/Origin/Referer, cookie bỏ `Domain`/`Secure`, WebSocket), nên code web, cookie phiên, iframe preview giữ nguyên, server không cần CORS. Server phải `https://`, `http://` chỉ cho loopback/LAN; kiểm tra `/api/auth/status` trước khi lưu.
+  3. Màn hình chọn server (`mobile/app-setup.html`, lệnh IPC `connect`/`current_server`) là trang cục bộ của Tauri; không có đường HTTP nào đổi được server. Đổi server thì xoá dữ liệu duyệt web để cookie và bản sửa ngoại tuyến của server cũ không đi sang server mới.
+  4. Web: `ChangeServerLink` (chỉ hiện trong app mobile, `web/src/lib/platform.ts`) trỏ `/__app/server`. `network_security_config.xml` chỉ cho http tới `127.0.0.1`. `scripts/prepare-mobile.ps1` build giao diện cho APK.
+  5. Bố cục điện thoại cho web và app (màn hình ≤ 720px): một khung mỗi lúc (Tệp / Soạn thảo / Xem trước / Công cụ), chuyển bằng thanh tab ở đáy; các khung vẫn mounted nên không mất trạng thái editor, phòng cộng tác, preview. Thanh ký hiệu Typst (`TypstKeyBar`) phía trên bàn phím ảo, bấm không làm mất focus editor. Kiểm thử trong Chrome với khung 412px: chuyển tab, mở tệp tự sang Soạn thảo, chèn ký tự giữ focus, preview đo lại đúng kích thước (trang A4 365×515px) sau khi bị ẩn, khung Công cụ toàn màn hình; bố cục máy tính (1400px) không đổi.
+  6. CI: workflow riêng `.github/workflows/tauri.yml` (chỉ chạy khi `apps/tauri/` hoặc `web/` đổi, hoặc chạy tay): job `desktop` trên Windows (`prepare.ps1`, test proxy, `tauri build` ra bộ cài NSIS) và job `android` trên Ubuntu (`prepare-mobile.ps1`, `tauri android build --debug --apk` cho aarch64 + x86_64); cả hai tải kết quả lên artifact 7 ngày. `prepare-mobile.ps1` đổi đường dẫn sang `/` để chạy được dưới pwsh trên Linux.
+- **Kiểm chứng**: `cargo test --lib` 7/7 (upstream, cookie, Origin lạ, chuyển tiếp, WebSocket, giao diện đóng gói, chống DNS rebinding); `cargo check --all-targets` bản desktop không cảnh báo; web `vitest` 135/135, `tsc -b` sạch.
+- **Rà soát bảo mật và đã sửa**: proxy tin header `Host` để viết lại `Origin`, nên trang lạ trong trình duyệt khác trên máy (DNS rebinding về `127.0.0.1`) được đổi cả Host lẫn Origin thành của server, vượt qua lớp kiểm tra Host/Origin của server và đọc được trang không cần đăng nhập (kể cả server chỉ có trong LAN). Nay proxy chỉ nhận `Host` đúng bằng địa chỉ đang nghe, còn lại trả 421.
+- **Còn mở**: chưa build APK và chạy thử trên máy ảo (bước 3 của kế hoạch; xác nhận luôn trang của proxy không gọi được IPC); `cargo check --lib --target x86_64-linux-android` đã chạy xong (26/10, `CARGO_BUILD_JOBS=2`, NDK 27.1) không lỗi, không cảnh báo, nên `mobile.rs` biên dịch được; build APK trên máy dev bị dừng vì thiếu RAM (web và `prepare-mobile.ps1` đã xong); iOS; ký APK phát hành; workflow `tauri.yml` chưa chạy lần nào trên GitHub.
+
+### 2026-10-25 — Giai đoạn 7b: ứng dụng desktop Tauri 2
+- **Yêu cầu**: làm tiếp Giai đoạn 7b; chủ dự án chọn build với cấu hình Cargo mặc định. Chi tiết ở `docs/plans/plan_phase7b_tauri_desktop.md`.
+- **Đã làm**:
+  1. `apps/tauri`: vỏ Tauri 2 (Rust, tauri 2.12.2) không có giao diện riêng: cửa sổ mở giao diện web do `typstify-server` chạy kèm phục vụ trên `127.0.0.1`, nên web và desktop dùng chung một mã nguồn. Typst, tinymist, gói chessbook và board-n-pieces đi kèm (chạy offline).
+  2. Đăng nhập không cần mật khẩu nhưng vẫn an toàn: token ngẫu nhiên mỗi lần mở, truyền qua biến môi trường, đổi lấy phiên ở `GET /api/auth/launch` (`server/launch.go`); có token thì server luôn bật xác thực, trang web khác trên máy không dùng được cổng cục bộ.
+  3. Một phiên bản duy nhất; Job Object dừng server, tinymist, typst khi app thoát hoặc bị giết; cổng được nhớ để dữ liệu trình duyệt của giao diện không mất giữa các lần mở; màn hình chờ báo lỗi kèm đường dẫn nhật ký.
+  4. `scripts/prepare.ps1` chuẩn bị sidecar và tài nguyên; `npx tauri build` ra bộ cài NSIS (khoảng 56 MB).
+- **Kiểm chứng**: test Go (token sai/thiếu bị từ chối, xác thực luôn bật, tạo tài khoản `desktop` hoặc dùng quản trị sẵn có); `cargo check` không cảnh báo; chạy bản build: server khởi động, cửa sổ đi qua `/api/auth/launch` và tải workspace, `/api/workspace/tree` không có phiên trả 401, token sai trả 403, token không hiện trên dòng lệnh; đóng app hoặc giết app thì không còn tiến trình nào; mở lần hai chỉ đưa cửa sổ cũ lên.
+- **Rà soát bảo mật và đã sửa** (2 lỗi cao, 3 trung bình):
+  - lần chạy đầu, kho tài khoản rỗng: trong lúc cửa sổ chưa kịp mở, người khác trên máy (hoặc một trang web) có thể đăng ký trước và thành tài khoản quản trị mà cửa sổ đăng nhập vào. Nay tài khoản được chốt trước khi server nghe cổng, chế độ desktop không cho đăng ký khi chưa có phiên, kiểm tra `Host`/`Origin` chống DNS rebinding và CSRF;
+  - kẻ khác chiếm cổng đã nhớ trước khi server bind thì cửa sổ (kèm token) đi tới chương trình của họ: nay server bind độc quyền rồi mới in `TYPSTIFY_READY`, vỏ chỉ mở cửa sổ khi đọc được dòng đó đúng cổng;
+  - trang web liên tục gửi token sai có thể khoá IP `127.0.0.1` và chặn cửa sổ thật: nay token sai chỉ bị trễ;
+  - gán vào Job Object lỗi thì server mồ côi: nay dừng ngay;
+  - token dùng lại được suốt đời server (và nằm trong lịch sử WebView2): nay dùng một lần, hạn 5 phút; mất phiên thì giao diện bảo mở lại app;
+  - cửa sổ không giới hạn điều hướng: link ngoài mở bằng trình duyệt hệ thống (`tauri-plugin-opener`), chỉ trang của chính app mới mở trong app;
+  - `board-n-pieces` tải về không kiểm SHA-256 (nay ghim, mọi tệp tải đều bắt buộc có SHA); `npm ci` luôn chạy; thông báo lỗi đưa vào trang qua `serde_json`; mutex bị poison không làm hỏng việc dừng server.
+- **Sửa khi chạy thử bản phát hành**: tinymist không bao giờ kết nối được trong app. `initialize` mất khoảng 16 giây (quét font hệ thống và thư mục dự án, Defender quét exe mới chưa ký số, máy thiếu RAM) nên vượt hạn 15 giây; sau lần đầu, pipe stdio đã đóng nên mọi lần thử lại đều hỏng (`file already closed`). Nâng `lsp.InitializeTimeout` lên 45 giây và `StartTimeout` lên 60 giây.
+- **Còn mở**: chưa ký số (SmartScreen sẽ cảnh báo); chưa có CI build Tauri; chưa chạy `cargo audit`/`govulncheck`; font in ấn của chessbook dùng font hệ thống (bản Docker thì đóng gói sẵn); chỉ Windows; Giai đoạn 7c (mobile).
+
+### 2026-10-25 — Giai đoạn 7a: PWA
+- **Yêu cầu**: tiếp theo thứ tự đã chốt (Giai đoạn 7, PWA trước Tauri); chi tiết ở `docs/plans/plan_phase7_pwa.md`.
+- **Đã làm**:
+  1. `public/manifest.webmanifest` + icon PNG 192/512, maskable và `apple-touch-icon` (vẽ lại logo từ `favicon.svg`).
+  2. Service worker tự viết (`src/sw/sw.ts`), không thêm Workbox: plugin Vite build ra `/sw.js` và chèn danh sách tệp cần cache sẵn cùng mã phiên bản. Trang: mạng trước, mất mạng dùng bản cache; `/assets/*`: cache trước; Google Fonts và tệp gốc: dùng cache rồi cập nhật nền; `/api`, `/ws`, `/preview` không bao giờ qua cache; `.wasm` chỉ cache khi dùng lần đầu.
+  3. Bản mới không tự thay bản đang chạy: hiện "Có phiên bản mới, Tải lại"; khi tab được mở lại thì kiểm tra cập nhật.
+  4. Màn hình "Không kết nối được máy chủ" (thay vì chuyển về đăng nhập) khi máy chủ không phản hồi hoặc proxy trả 5xx, tự thử lại khi có mạng; thanh báo "Đang ngoại tuyến".
+- **Kiểm chứng**: vitest cho chọn chiến lược và danh sách cache sẵn; build kiểm tra placeholder đã được thay. Chạy thật trong Chrome: service worker kích hoạt và cache 36 tệp; tắt máy chủ rồi tải lại vẫn ra giao diện kèm màn hình mất kết nối, bật lại thì tự vào workspace; đổi `sw.js` thì hiện nút "Tải lại", bấm thì chạy bản mới. Service worker thử nghiệm đã được gỡ khỏi Chrome sau khi thử.
+- **Rà soát độc lập và đã sửa** (3 lỗi cao, 5 trung bình):
+  - máy chủ trả `index.html` (200) cho mọi đường dẫn không tồn tại, kể cả `/assets/x.js` đã bị xoá sau khi triển khai lại: service worker (và trình duyệt) lưu trang HTML dưới tên một script, hỏng vĩnh viễn. Nay đường dẫn có đuôi tệp hoặc dưới `/assets/` mà không có tệp thì trả 404 (`isMissingFile`, `server/server.go`); service worker chỉ lưu phản hồi đúng loại (HTML cho trang, không phải HTML cho tệp khác), bỏ qua 206/Range;
+  - tab khác hỏng sau khi một tab bấm "Tải lại" (cache phiên bản cũ bị xoá, nút "Tải lại" ở tab đó không làm gì): nay giữ cache của phiên bản trước, tab khác hiện "Ứng dụng đã được cập nhật ở một tab khác", nút luôn tải lại được;
+  - máy chủ sập sau Caddy (502/503) thì trả trang lỗi của proxy: nay trả giao diện đã cache;
+  - cài đặt luôn "thành công" dù thiếu tệp rồi xoá bản đầy đủ: nay cài là tất cả hoặc không gì;
+  - mọi trang 200 ghi đè giao diện cache (kể cả mở `/sw.js` trong tab, hoặc `/?join=<token>` lưu cả token): nay chỉ dùng bản `index.html` cache sẵn của đúng phiên bản;
+  - `.wasm` (30 MB) mất sau mỗi lần triển khai: nay chép sang cache của phiên bản mới;
+  - plugin build: báo lỗi nếu `sw.js` bị tách ra nhiều chunk; mã phiên bản tính trên nội dung (cả `public/`);
+  - Google Fonts tải có `crossorigin` (không còn phản hồi opaque), cache runtime giới hạn 80 mục;
+  - màn hình mất kết nối: chỉ 401/403 mới về đăng nhập, tự thử lại sau 5, 10, 20… tối đa 60 giây, hai lần thử không chạy chồng nhau.
+- **Còn mở**: mở dự án khi hoàn toàn ngoại tuyến (danh sách tệp, nội dung tệp chưa mở) vẫn cần máy chủ; Tauri desktop và mobile (7b, 7c).
+
+### 2026-10-25 — Giai đoạn 5: template và Typst Universe
+- **Yêu cầu**: "tiếp" theo thứ tự đã chốt; chi tiết ở `docs/plans/plan_phase5_templates.md`.
+- **Đã làm**:
+  1. `service/universe`: đọc chỉ mục `packages.typst.org/preview/index.json` (khoảng 5000 bản ghi, giữ bản mới nhất của mỗi gói), cache trên đĩa, làm mới nền sau 12 giờ, mất mạng thì dùng bản cũ; ảnh xem trước tải hộ và cache; chép template như `typst init` (chặn đường dẫn ra ngoài gói, bỏ qua symlink, giới hạn số tệp và dung lượng); đọc README.
+  2. Route `/api/universe/packages`, `/thumbnail/{name}/{version}`, `/readme/{name}/{version}`. `POST /api/projects` nhận thêm `template` hoặc `mainContent`, trả `main`, xoá thư mục khi tạo lỗi.
+  3. Web: "Tạo từ mẫu…" ở màn hình chọn dự án mở thư viện mẫu với hai thẻ: Cờ vua (8 mẫu có sẵn, chuyển sang `lib/chessTemplates.ts`) và Typst Universe (tìm kiếm, lọc nhóm, lưới ảnh xem trước, phân trang). Tạo xong mở thẳng tệp chính của template.
+  4. Bảng Gói: tìm qua chỉ mục Universe thay cho Tpix (Tpix đòi API key, trả 401 khi chưa cấu hình); nút "Tài liệu" (README, không hiển thị HTML thô và ảnh) và "Chèn #import" (thêm dưới các import đầu tệp, giữ import chessbook ở dòng 1, không thêm trùng).
+- **Kiểm chứng**: test Go cho chỉ mục (bản mới nhất theo số phiên bản, lọc, phân trang, dùng bản đĩa khi mất mạng, làm mới nền), chép template (chặn `..`, đường dẫn tuyệt đối, thiếu `[template]`), ảnh xem trước cache, tạo dự án từ template và dọn khi lỗi; vitest cho `importInsertion`. Chạy thật trong Chrome: thư viện Universe hiển thị 867 mẫu có ảnh, tìm "letter", tạo dự án từ `letter-pro` và preview "Tức thì" biên dịch ngay; bảng Gói tìm `cetz`, xem README, chèn `#import` hai lần (lần hai báo đã có).
+- **Rà soát độc lập và đã sửa** (0 lỗi cao, 4 trung bình, phần lớn lỗi thấp):
+  - hai yêu cầu tạo dự án cùng tên có thể dùng chung một thư mục, rồi bước dọn dẹp khi lỗi xoá mất dự án của người kia: nay giành thư mục bằng `os.Mkdir` độc quyền;
+  - "Chèn #import" chèn vào giữa một import nhiều dòng `(...)`, và coi import nằm trong comment là đã có;
+  - lần tải chỉ mục đầu tiên khi mất mạng: mỗi yêu cầu lại chờ tới 60 giây; nay nhớ lỗi trong 5 phút và tải bằng context riêng (yêu cầu bị huỷ không làm hỏng lần tải chung);
+  - chép template: kiểm tra trên đường dẫn thật (symlink ở thư mục giữa), đếm cả thư mục vào giới hạn, bỏ qua `.git`, hạ giới hạn xuống 32 MiB;
+  - ảnh xem trước: nhớ ảnh không tồn tại 1 giờ, gộp yêu cầu trùng;
+  - thư viện mẫu: đổi từ khoá thì bỏ ngay kết quả cũ (không phân trang nhầm truy vấn), bỏ trùng khi nối trang, `/open` lỗi thì bấm lại không tạo dự án thứ hai, link mã nguồn chỉ nhận `http(s)`; bảng Gói báo khi kết quả bị cắt ở 100.
+- **Còn mở**:
+  - chưa có hạn mức dung lượng/số dự án cho mỗi người dùng: người đã đăng nhập có thể tạo nhiều dự án từ template lớn (mỗi lần ≤ 32 MiB) hoặc kéo nhiều gói vào cache (như `/api/wasm/packages` sẵn có);
+  - xem README phải tải cả gói vào cache;
+  - chỉ mục chỉ có bản mới nhất của mỗi gói (chưa chọn được phiên bản cũ trong thư viện mẫu);
+  - mẫu cờ vua trong `chessbook/templates/` (import tương đối `../lib`) vẫn tách biệt với 8 mẫu của web.
+
+### 2026-10-25 — Giai đoạn 6: hoàn thiện editor
+- **Yêu cầu**: tiếp theo thứ tự đã chốt (4 → 6 → 5 → 7 → 3b); chi tiết ở `docs/plans/plan_phase6_editor.md`.
+- **Đã làm**:
+  1. Định dạng mã bằng typstyle qua tinymist (`formatterMode: typstyle`, `textDocument/formatting`): nút "Định dạng" và phím `Ctrl+Shift+F`. Kết quả bị bỏ nếu tài liệu đổi trong lúc chờ.
+  2. Dán hoặc kéo thả ảnh vào editor: ảnh lưu vào `assets/` (tên `anh-YYYYMMDD-HHMMSS.ext`), chèn `#image(...)` trên dòng riêng. Kéo thả tệp vào cây thư mục, nút tải tệp lên. Route mới `POST /api/workspace/upload` (editor, tối đa 25 MiB, tên trùng thì đánh số).
+  3. Chế độ Vim (`@replit/codemirror-vim`), bật/tắt tại chỗ trong Cài đặt → Trình soạn thảo.
+  4. Bảng ký hiệu Typst (`GET /api/symbols`, lấy từ `tinymist.getResources("/symbols")`): tìm theo tên hoặc dán ký tự; bấm chèn `#sym.tên`, Shift+bấm chèn thẳng ký tự.
+  5. Kiểm tra chính tả bằng từ điển của trình duyệt, chỉ bật cho phần văn bản (nút `Text` của cây cú pháp), bỏ qua mã, công thức, raw, nhãn, tham chiếu.
+  6. Trình chiếu từ preview "Tức thì": mỗi trang vừa màn hình, chuyển bằng phím mũi tên/PgUp/PgDn/Space/Home/End hoặc bấm chuột, Esc để thoát. Dùng toàn màn hình thật khi trình duyệt cho phép, nếu không thì phủ kín cửa sổ (iPhone Safari không có fullscreen cho phần tử thường).
+- **Quyết định**: không đóng gói từ điển `dictionary-vi` vì giấy phép GPL (Typstify là Apache 2.0); dùng spellcheck của trình duyệt, người dùng cần thêm tiếng Việt trong cài đặt ngôn ngữ của trình duyệt.
+- **Sửa lỗi có sẵn phát hiện trong lúc làm**:
+  - `POST /api/settings/fonts` bị giới hạn body 2 MiB mặc định trong khi handler cho phép 30 MiB, nên hầu hết font thật bị từ chối;
+  - preview "Tức thì" đo vị trí trang bằng `getBoundingClientRect()` của nhóm `.typst-page`, vốn chỉ bao phần có mực. Đồng bộ cuộn và bấm-để-nhảy-dòng vì thế lệch, nhất là trang ít chữ. Nay tính từ `data-page-width/height` và `transform` của trang;
+  - preview "Tức thì" không tải được font mặc định nào từ CDN (kể cả font toán NewCMMath, nên mọi công thức báo `no font could be found`): worker gửi `credentials: 'include'`, mà CDN trả `Access-Control-Allow-Origin: *`. Nay dùng `same-origin`;
+  - preview "Tức thì" không thấy ảnh hay tệp của dự án (`failed to load file (is a directory)`): lần biên dịch đầu chạy trước khi có danh sách tệp, và typst.ts nhớ luôn câu trả lời "không có tệp". Nay chờ danh sách tệp đầu tiên và `reset()` compiler khi có tệp thêm/bớt.
+- **Rà soát độc lập và đã sửa** (2 lỗi cao, 5 trung bình, phần lớn lỗi thấp):
+  - trình chiếu dự phòng không có đường thoát trên màn hình cảm ứng (thêm nút ×); trình chiếu kẹt khi rời preview "Tức thì"; số trang giảm khi đang trình chiếu; thoát trình chiếu thì mất vị trí đọc; trang khác khổ bị cắt (nay mỗi trang có tỉ lệ riêng);
+  - ảnh vừa dán không hiện trong preview tới lần lưu kế tiếp (nay tải lại danh sách tệp sau mỗi lần tải lên);
+  - hai lần tải lên cùng tên cùng lúc đè nhau, và vòng chọn tên có thể lặp vô hạn (nay tạo tệp độc quyền `O_EXCL`, tối đa 1000 lần thử);
+  - dán chữ từ Word/trình duyệt (clipboard có cả chữ lẫn ảnh) bị biến thành tải ảnh lên;
+  - định dạng khi cộng tác có thể áp thay đổi tính trên văn bản của người khác: nay client gửi kèm văn bản, server định dạng đúng văn bản đó và từ chối nếu tài liệu bị cập nhật trong lúc chờ;
+  - `isProtectedPath` phân biệt hoa/thường nên `.GIT`, `.Typstify` lọt qua trên Windows/macOS (nay `EqualFold`, áp dụng mọi route);
+  - tên tệp NFD (macOS/Safari) mất dấu tiếng Việt (nay chuẩn hoá NFC); `/api/symbols` nay cần quyền viewer; ảnh tải xong không chèn vào tệp khác nếu người dùng đã chuyển tệp; chỉ dán ảnh trong tệp `.typ`.
+- **Sửa thêm**: test `service/collab` chập chờn trên Windows vì `t.TempDir()` dọn thư mục thất bại (dùng thư mục tạm dọn kiểu best-effort như `gitsync`).
+- **Kiểm chứng**: test Go (upload, symbols, giới hạn body font), vitest (lspEdits, upload, symbols, spellcheck, manifest). Chạy thật trong Chrome: định dạng, dán ảnh (lưu xuống đĩa, hiện ngay trong preview không cần lưu), dán chữ kèm ảnh, Vim `dd`/`u`, bảng ký hiệu, thuộc tính chính tả, công thức toán, trình chiếu (phím, End, nút ×, trở về đúng trang).
+- **Còn mở**:
+  - trong môi trường Chrome tự động hoá, chính trình duyệt cắt mọi WebSocket sau khoảng 15 giây (thử với một server WebSocket tối giản cũng vậy); client tự nối lại nên không mất dữ liệu, nhưng thao tác định dạng đúng lúc đang nối lại sẽ không có kết quả;
+  - chưa có "vẽ tay để tìm ký hiệu" như typst.app.
+
+### 2026-10-25 — Giai đoạn 4: lịch sử phiên bản và Git
+- **Yêu cầu**: "Chạy theo thứ tự tối ưu" → thứ tự chốt 4 → 6 → 5 → 7 → 3b (lý do trong `docs/plans/plan_typst_app_parity_2026-10.md`); chi tiết ở `docs/plans/plan_phase4_history.md`.
+- **Đã làm**:
+  1. `service/history` + `/api/history*`:
+     - phiên bản tự động mỗi 5 phút khi có thay đổi;
+     - phiên bản có tên;
+     - xem khác biệt từng tệp so với hiện tại;
+     - khôi phục một tệp hoặc cả phiên bản, luôn chụp bản "Trước khi khôi phục" trước.
+     - Nội dung lưu theo hash, nên tệp không đổi không tốn thêm chỗ. Có dọn dẹp theo lịch và hạn mức dung lượng `TYPSTIFY_HISTORY_MAX_MB` (mặc định 2 GiB mỗi dự án).
+  2. `service/gitsync` (go-git, không cần lệnh `git`) + `/api/git*`:
+     - commit, push, pull;
+     - khi kho và máy chủ cùng có commit mới thì không tự gộp, người dùng chọn bên giữ lại; pull luôn lưu một phiên bản lịch sử trước;
+     - token chỉ lưu trên máy chủ;
+     - kết nối tới IP nội bộ bị chặn (chống SSRF).
+  3. Web: bảng **Lịch sử** với hai thẻ:
+     - Phiên bản: danh sách, xem khác biệt hai cột bằng `@codemirror/merge`, khôi phục;
+     - Git: cấu hình kho, commit, đẩy lên, lấy về.
+- **Kiểm chứng**:
+  - Go:
+    - lịch sử: loại trùng, dọn dẹp, hạn mức, khôi phục, chặn id lạ;
+    - Git với kho bare: fast-forward, hai bên cùng đổi, ghi đè, tệp chưa theo dõi, symlink, `.gitignore`;
+    - API: phân quyền, token không lộ, thư mục con.
+  - Chạy thật trong Chrome:
+    - lưu phiên bản, xem khác biệt, khôi phục tệp đang được cộng tác (editor tự cập nhật, không có xung đột giả);
+    - Git: từ chối địa chỉ `http://127.0.0.1`, commit đầu tiên tạo kho.
+- **Lỗi tìm ra khi chạy thật và đã sửa**:
+  - không commit được lần đầu khi chưa có kho;
+  - trang trắng sau khi commit (danh sách thay đổi `null`);
+  - go-git commit cả `.typstify/` vì bỏ qua `.gitignore` và `info/exclude`.
+- **Rà soát độc lập và đã sửa** (2 lỗi mức cao, 6 lỗi mức trung bình):
+  - pull dùng hard reset nên xoá mọi tệp chưa theo dõi hoặc bị ignore; nay chỉ ghi hoặc xoá các tệp khác nhau giữa hai commit, bỏ qua symlink và submodule từ kho;
+  - mở thư mục con dùng chung lịch sử và cấu hình Git của gốc; nay lịch sử tách theo thư mục con, Git từ chối khi không mở thư mục gốc;
+  - token đi theo khi đổi kho sang host khác (nay bị xoá);
+  - crash giữa lúc prune có thể chặn dọn dẹp vĩnh viễn (nay ghi index trước, bỏ qua manifest đã mất);
+  - một lần `fetch` khoá Git của mọi dự án (nay khoá theo dự án, và chỉ editor được fetch);
+  - người chỉ xem làm `Compare` ghi object (nay `Compare` không ghi gì);
+  - dung lượng tăng không giới hạn (nay có hạn mức);
+  - các sửa nhỏ: kiểm tra định dạng `id` phiên bản, tên nhánh, dải CGNAT/NAT64, chặn `.git` không phân biệt hoa thường, khoá Git theo chữ thường trên Windows.
+- **Sửa thêm khi chạy bộ test**:
+  - go-git 5.19.3 đòi Go 1.26 trong khi Docker dùng `golang:1.25`; đã dùng go-git 5.18.0 và giữ `go 1.25.5`;
+  - lộ ra một panic có sẵn từ trước ở `lsp/client.go`: goroutine `Wait()` đọc `c.jsonConn` đã bị gán nil khi kết nối tinymist thất bại.
+- **Còn mở**:
+  - chỉ hỗ trợ kho qua HTTPS kèm token, chưa có SSH;
+  - không gộp tự động khi hai bên cùng đổi.
+
+### 2026-10-25 — Giai đoạn 3: cộng tác thời gian thực
+- **Yêu cầu**: "commit Giai đoạn 1 và 2 trước, rồi làm tiếp giai đoạn 3" (chi tiết ở `docs/plans/plan_phase3_collab.md`). Giai đoạn 1–2 đã commit ở nhánh `feat/typst-app-parity` (`2a1295a`).
+- **Đã làm**:
+  1. Server `service/collab` + `/ws/collab`:
+     - chuyển tiếp và lưu update Yjs theo tệp;
+     - kênh văn bản (editor) và kênh bình luận (commenter) tách riêng để phân quyền thật;
+     - leader ghi tệp xuống đĩa và nén log;
+     - khởi tạo phòng từ tệp bằng update Yjs tự mã hoá, khớp từng byte với Yjs.
+  2. Web: tệp `.typ` mở ở chế độ cộng tác (Yjs + `y-codemirror.next`):
+     - hiện con trỏ và tên người khác;
+     - undo riêng từng người;
+     - avatar người đang mở;
+     - trạng thái đồng bộ thay cho nút Lưu.
+  3. Bình luận theo luồng, neo vào văn bản bằng `Y.RelativePosition`:
+     - trả lời, đánh dấu xong, xoá, nhắc `@tên`;
+     - tô sáng đoạn được bình luận trong editor;
+     - bảng **Bình luận** ở panel phải.
+  4. Ngoại tuyến: bản sao IndexedDB; khi nối lại chỉ gửi phần máy chủ chưa có.
+  5. Sửa từ bên ngoài (agent AI, Dropbox, desktop) được gộp ba chiều vào văn bản chung; nếu trùng chỗ thì hiện lựa chọn cho người dùng.
+  6. Sửa lỗi Giai đoạn 2: lớp chữ ẩn của preview "Tức thì" bị vẽ chồng lên chữ thật.
+- **Kiểm chứng**:
+  - Go:
+    - `service/collab` (chạy cả `-race`);
+    - `server` qua WebSocket thật: vai trò, thu hồi quyền, sai project.
+  - Web: 112 test dùng Yjs thật (diff, gộp ba chiều, bình luận neo đúng chỗ).
+  - Chạy thật hai tài khoản trong Chrome:
+    - gõ ở tab chủ thì tab khách thấy trong 1 giây, kèm con trỏ có tên;
+    - khách (Góp ý) không sửa được nhưng bình luận được; bình luận hiện và được tô sáng ở tab chủ;
+    - sửa tệp trên đĩa thì cả hai editor cập nhật;
+    - tắt máy chủ, gõ, bật lại thì nội dung lên đĩa và sang tab khách.
+- **Lỗi tìm ra khi chạy thật và đã sửa**:
+  - Sửa ngoại tuyến bị xoá sau khi máy chủ khởi động lại. Nguyên nhân: `DiskHash` không được cập nhật khi lần lưu trùng nội dung đĩa, cộng với cách "ép văn bản theo đĩa". Đã chuyển sang gộp ba chiều và có test hồi quy.
+  - Sau khi máy chủ đổi project, client có thể vào nhầm phòng của tệp cùng tên ở project khác. Đã kiểm tra tham số `project`.
+- **Rà soát độc lập và đã sửa** (2 lỗi mức cao, 6 lỗi mức trung bình):
+  - **Ghi đè sửa đổi bên ngoài:** autosave của leader có thể ghi đè sửa đổi bên ngoài trong khoảng 2 giây trước lần kiểm tra đĩa, và vẫn chạy cả khi đang có xung đột. Nay mỗi lần lưu kèm hash bản đĩa đã thấy; máy chủ từ chối ghi đè bản chưa thấy, và client không lưu khi đang có xung đột. Đã chạy thật: sửa ngoại tuyến cùng dòng với agent thì hiện xung đột, file trên đĩa được giữ nguyên.
+  - **Ngắt tạm thời bị coi như từ chối vĩnh viễn:** client chậm bị ngắt cũng dùng mã 1008, nên client bỏ hẳn phiên. Nay dùng mã 4000 và client tự nối lại.
+  - **Phòng có log dài làm người mới vào bị ngắt:** phần phát lại log bị đẩy vào hàng đợi giới hạn và làm tràn nó. Nay phát lại được ghi thẳng ra socket. Log bình luận cũng nén được khi phòng chỉ có người Góp ý.
+  - **Log bị rách:** bản ghi rách (do mất điện giữa chừng) nay được cắt bỏ khi mở, và file thay thế được `fsync` trước khi rename.
+  - **Leader bị hạ quyền:** người này nay rời vai trò leader và phòng tự bầu leader mới.
+  - **`PUT` đè văn bản chung:** `PUT` của bản cũ có thể ghi đè văn bản chung; nay bị chặn khi tệp đang có phòng mở.
+  - **Mất sửa ngoại tuyến khi lịch sử phòng bị thay:** nay bản cục bộ cũ được đọc lại và đề xuất khôi phục.
+  - **Các sửa nhỏ:**
+    - bản cục bộ tách theo người dùng;
+    - khoá phòng không phân biệt hoa thường trên Windows;
+    - bắt buộc tham số `project`;
+    - giới hạn kích thước awareness;
+    - nút Lưu không còn báo "đã lưu" khi không ghi gì.
+  - **Sửa lỗi chập chờn của test server trên Windows:** thư mục lưu trữ trong test nay được dọn theo kiểu best-effort.
+- **Còn mở**:
+  - tác giả bình luận do client tự khai, và quyền xoá bình luận chỉ được kiểm ở giao diện (giới hạn của CRDT phía client);
+  - mỗi người mở một project riêng cùng lúc (3b);
+  - đổi tên hoặc xoá tệp làm mất lịch sử cộng tác và bình luận của tệp đó.
+
+### 2026-10-25 — Giai đoạn 2: biên dịch Typst ngay trong trình duyệt
+- **Yêu cầu**: "tiếp giai đoạn 2" của kế hoạch đồng bộ typst.app (chi tiết ở `docs/plans/plan_phase2_wasm.md`).
+- **Đã làm**:
+  1. Web: chế độ preview mới **Tức thì** (mặc định). Compiler typst.ts 0.8.0-rc3 (Typst 0.15, khớp typst 0.15.1 của server) chạy trong Web Worker, biên dịch tăng dần và chỉ gửi delta; renderer vá SVG tại chỗ. Lỗi Typst hiện vị trí `file:dòng:cột`, preview giữ bản đúng gần nhất.
+  2. Click vào chữ trên preview → editor nhảy tới dòng nguồn (khớp văn bản, ưu tiên lần xuất hiện gần vị trí bấm). Cuộn đồng bộ hai chiều dùng trang heading truy vấn ngay trong WASM.
+  3. Server: `/api/wasm/fonts`, `/api/wasm/fonts/{id}`, `/api/wasm/packages/{ns}/{name}/{ver}` (`service/wasmassets`, `server/wasm_api.go`). `@preview` thiếu thì tải từ packages.typst.org vào cache, giải nén chặn path traversal và giới hạn kích thước.
+  4. Cache phía trình duyệt: font trong Cache Storage, package và file project (theo hash) trong IndexedDB. Đã tắt server vẫn gõ và biên dịch tiếp được.
+  5. Preview cũ (Trang in, PDF, Đồng bộ chính xác) giữ nguyên. WASM không khởi động được thì tự quay về "Trang in".
+- **Kiểm chứng**: `go test ./service/wasmassets/ ./server/`; web 98 test, lint, build; chạy thật trong Chrome với demo chessbook (import `@local/chessbook`, bàn cờ từ `@preview/board-n-pieces`): mỗi lần gõ biên dịch 2–8 ms, click "C. Vua" nhảy đúng dòng 69, con trỏ ở trang 3 thì preview cuộn tới trang 3, báo lỗi đúng `main.typ:79:2`.
+- **Cạm bẫy gặp phải**: xem mục WASM trong `docs/MEMORY.md` (renderer `renderToSvg` panic, thứ tự trang sau khi vá, `query` parse hai lần).
+- **Rà soát độc lập và đã sửa**:
+  - delta của file mới bị ghép nhầm lên tài liệu cũ khi lần biên dịch đầu sau reset bị lỗi; worker giữ cờ `pendingReset` tới lần thành công đầu tiên;
+  - shadow source của file/project cũ che file trên đĩa; nay `resetShadow` khi đổi file chính và khi nạp lại manifest, và không biên dịch khi nội dung chưa tải;
+  - link `javascript:` trong tài liệu chạy được trong trang của app; nay chỉ giữ http(s)/mailto/#, link web mở tab mới;
+  - cache IndexedDB có thể lưu sai byte dưới hash cũ; `/api/sync/pull` trả `X-Content-Sha256`, worker chỉ cache khi khớp;
+  - server: gộp download/đóng gói trùng nhau (`singleflight`), tối đa 2 download, nhớ lỗi tải 10 phút, cache archive giới hạn 96 MB, không trả lỗi có đường dẫn, giới hạn quét lại font 30 giây/lần.
+- **Còn mở**: IndexedDB chưa có hạn mức/dọn dẹp; package đã lưu được nạp hết vào RAM khi khởi động worker; hết phiên đăng nhập hiện như "không tìm thấy file"; font mặc định của Typst lấy từ jsdelivr (lần đầu cần Internet).
+
+### 2026-10-25 — Giai đoạn 1: đa người dùng, chia sẻ dự án, MFA
+- **Yêu cầu**: triển khai tiếp kế hoạch đồng bộ typst.app (Giai đoạn 1, chi tiết ở `docs/plans/plan_phase1_multiuser.md`).
+- **Đã làm**:
+  1. `service/projects`: sổ đăng ký project gồm owner, thành viên, vai trò editor/commenter/viewer và share link. Token chỉ lưu SHA-256, có hạn dùng, thu hồi được. Dữ liệu ở `projects.json`, ghi nguyên tử.
+  2. `server/projects_api.go`:
+     - API `/api/projects/*` và `/api/workspace/role`;
+     - `handleRole` thực thi quyền trên project hiện hành (đọc ≥ viewer, ghi ≥ editor);
+     - `handleAdmin` cho cài đặt, font, Dropbox auth, cấu hình agent và console;
+     - `POST /api/workspace/create` tự đăng ký owner;
+     - tuỳ chọn `Options.StorageDir`.
+  3. Admin: người đăng ký đầu tiên. File cũ chưa có admin thì tài khoản tạo sớm nhất thành admin.
+  4. MFA TOTP tự viết theo RFC 6238 (`server/totp.go`): chống dùng lại mã, 10 mã khôi phục argon2id dùng một lần. Login và cấp API token đều trả `mfaRequired` khi cần mã.
+  5. Web:
+     - `ProjectPicker` có các mục "Dự án của tôi", "Tạo dự án mới" và "Tham gia bằng liên kết";
+     - `?join=` tự tham gia;
+     - `ShareModal`: thành viên và liên kết;
+     - editor chỉ đọc cho viewer/commenter;
+     - login có bước mã MFA; Settings có mục Bảo mật (`SecuritySection`).
+- **Kiểm chứng**:
+  - `go test ./server/ ./service/...` có test mới cho registry, TOTP (vector RFC 6238), MFA, admin, chia sẻ và phân quyền.
+  - Web: `npm test` (88 test), `npm run lint` (không lỗi), `npm run build`.
+  - Chạy thử server tách dữ liệu (`APPDATA` tạm): đăng ký, tạo project, tạo link, join, viewer bị 403 khi ghi và khi đổi cài đặt, bật MFA, đăng nhập cần mã.
+- **Rà soát bảo mật độc lập** (agent `security-reviewer`) tìm ra 10 lỗi. Đã sửa cả 10, có test hồi quy trong `server/security_regression_test.go`:
+  1. Mở thư mục cha hoặc con để vượt quyền project. Sửa bằng `Covering`/`ContainsAny`.
+  2. Mật khẩu máy chủ thành đăng nhập admin không có MFA. Nay chỉ dùng được khi chưa có tài khoản.
+  3. Dò mã MFA bằng cách xoá bộ đếm theo IP. Thêm khoá theo tài khoản (`server/credentials.go`).
+  4. Chiếm thư mục có sẵn qua `create`.
+  5. Preview tinymist không kiểm quyền.
+  6. Argon2 chạy khi đang giữ khoá toàn cục, nguy cơ DoS.
+  7. Bật MFA không cần mật khẩu; tắt MFA không giới hạn tần suất.
+  8. Viewer sửa được nội dung preview qua LSP.
+  9. Phản hồi lộ đường dẫn máy chủ và danh sách thành viên.
+  10. Dò tên tài khoản qua thời gian phản hồi.
+- **Thay đổi hành vi cần biết**:
+  - Khi đã có tài khoản, đăng nhập bằng mật khẩu máy chủ không còn hoạt động.
+  - Tài khoản không phải admin không còn đổi được cài đặt máy chủ, font, Dropbox auth và cấu hình agent.
+- **Dang dở**:
+  - Phiên tách theo từng user và nhiều project mở đồng thời (Giai đoạn 3).
+  - Bình luận cho vai trò Góp ý (Giai đoạn 3).
+  - Mã QR cho MFA (hiện nhập khoá thủ công hoặc mở liên kết `otpauth`).
+
+### 2026-10-24 — Phân tích typst.app và khởi động lộ trình đồng bộ ba nền tảng
+- **Yêu cầu**: dùng `rea` phân tích typst.app, chọn tính năng Typstify chưa có, đưa vào Typstify, xây dựng đồng bộ web/desktop/mobile.
+- **Quyết định**:
+  - Mobile và desktop mới dùng Tauri 2 bọc React. Bản desktop Gio giữ song song trong giai đoạn chuyển tiếp.
+  - Ưu tiên bốn hướng: cộng tác realtime, compile WASM, lịch sử phiên bản, template/Universe.
+  - Chỉ tái hiện ở mức cơ chế, không chép mã của typst.app.
+- **Đã làm**:
+  1. Kế hoạch tổng `docs/plans/plan_typst_app_parity_2026-10.md` (8 giai đoạn).
+  2. Giai đoạn 0: `docs/research/typst-app-analysis.md`. Ghi nhận kiến trúc của typst.app (CodeMirror 6, Yjs qua WebSocket, GraphQL 125 thao tác, lõi Rust WASM đa phiên bản 0.10–0.15.1, pool worker, font tải lười, PWA) và bảng đối chiếu ưu tiên.
+  3. Giai đoạn 1, lát cắt đầu: mật khẩu băm argon2id dạng PHC (`server/password.go`). Hash SHA-256 cũ vẫn đăng nhập được và tự nâng cấp ở lần đăng nhập thành công. Test: `server/password_test.go`.
+- **Dang dở**:
+  - Công cụ trình duyệt của `rea` cần Chrome bật CDP (`--remote-debugging-port`) trên profile riêng.
+  - Giai đoạn 1 còn: mô hình Project/thành viên/vai trò, share link, MFA TOTP.
+
 ### 2026-10-05 — Đợt 7: Cải tiến toàn diện File Chooser & Quản lý File/Thư mục Desktop (thay thế gioview/explorer)
 - **Yêu cầu**: Xây dựng mới hoàn toàn component `ui/filechooser` thay thế cho `github.com/oligo/gioview/explorer`. Sửa lỗi ổ đĩa Windows hiển thị thành dấu `\`, thiếu Volume Label (`Local Disk (C:)`, `Data (D:)`, `Google Drive (G:)`); thêm Breadcrumbs có thể click từng cấp và ô nhập trực tiếp đường dẫn (Address Bar) hỗ trợ paste/enter; bổ sung danh mục Favorites đầy đủ (Home, Desktop, Documents, Downloads); sắp xếp danh sách file luôn gom Thư mục lên trước Files, hỗ trợ sort đa cột (Name, Date Modified, Size) kèm icon nhận diện từng loại file (.typ, .pdf, image, font, code, binary); hỗ trợ tạo New Folder inline và phím tắt (Enter, Esc, F5).
 - **Quyết định & Thực hiện**:

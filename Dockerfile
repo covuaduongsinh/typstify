@@ -176,7 +176,8 @@ ENV TYPSTIFY_STATIC_DIR=/app/web/dist \
     HOME=/data \
     XDG_CONFIG_HOME=/data/config \
     XDG_CACHE_HOME=/data/cache \
-    TYPST_PACKAGE_PATH=/opt/typst-packages
+    TYPST_PACKAGE_PATH=/opt/typst-packages \
+    TYPSTIFY_WASM_FONT_DIRS=/usr/share/fonts/truetype/chessbook
 
 VOLUME ["/data"]
 EXPOSE 8080

@@ -26,7 +26,8 @@ Desktop và server dùng chung `service.ServiceFacade` (không phụ thuộc Gio
 | `typst/` | Bọc CLI `typst` (compile/watch/eval/query), `export.CompileHelper`, `pkg/` (Tpix) |
 | `editor/` | Editor lõi: autosave, git gutter diff, highlight, search |
 | `ui/` | Giao diện Gio: `editors`, `preview`, `navpanel`, `pkgmgmt`, `assistant`, `settings`, `dialog`, `remoteproject` |
-| `web/` | Frontend React (`src/components`, `src/lib`, `src/api`) |
+| `web/` | Frontend React (`src/components`, `src/lib`, `src/api`), PWA (`src/sw`, `public/manifest.webmanifest`) |
+| `apps/tauri/` | Ứng dụng Tauri 2. Desktop: vỏ Rust chạy `typstify-server` kèm theo (sidecar) và mở giao diện web (`src-tauri/src/desktop.rs`, `scripts/prepare.ps1`). Android: giao diện đóng gói trong app, proxy cục bộ tới server tự host (`src/mobile.rs`, `src/proxy.rs`, `scripts/prepare-mobile.ps1`, `src-tauri/gen/android`) |
 | `chessbook/` | Thư viện Typst cờ vua: `lib/`, `templates/`, `data/`, `demo_collection/` |
 | `i18n/`, `fonts/` | i18n desktop (en-US, zh-CN, de-DE); font nhúng của UI desktop |
 | `scripts/` | `check-chessbook.sh`, `install-chessbook.sh/.ps1` |
@@ -47,23 +48,28 @@ go test ./...                              # package UI desktop cần header X11
 scripts/check-chessbook.sh                 # biên dịch mọi demo/template chessbook
 powershell -File scripts/package-desktop.ps1 -Version 0.1.0   # bộ cài Windows -> dist/
 docker compose up -d --build               # server + Caddy TLS
+powershell -File apps/tauri/scripts/prepare.ps1 && cd apps/tauri && npm ci && npx tauri build   # desktop Tauri (Windows) -> src-tauri/target/release/bundle
+powershell -File apps/tauri/scripts/prepare-mobile.ps1 && cd apps/tauri && npx tauri android build --debug --target x86_64 --apk   # Android (cần NDK_HOME) -> src-tauri/gen/android/app/build/outputs/apk
+cd apps/tauri/src-tauri && cargo test --lib  # test proxy của bản mobile
 ```
 
-Không có Justfile/Makefile. Bản desktop phát hành cần `gogio` và CGO. CI: `.github/workflows/ci.yml`.
+Không có Justfile/Makefile. Bản desktop phát hành cần `gogio` và CGO. CI: `.github/workflows/ci.yml` (Go, web, chessbook, Docker) và `.github/workflows/tauri.yml` (bộ cài Windows + APK debug, chỉ chạy khi `apps/tauri/` hoặc `web/` đổi).
 
 ## 4. Quy ước làm việc
 
 - Giao tiếp và tài liệu bằng **tiếng Việt**; code, đường dẫn, định danh giữ tiếng Anh.
 - Commit message theo kiểu `feat(scope): ...` / `fix(scope): ...` (tiếng Anh), kết thúc bằng dòng `Co-Authored-By` khi có yêu cầu.
 - Logic dùng chung đặt ở `service/`, `agent/`, `lsp/`, `typst/`; `server/` chỉ làm transport. Không kéo phụ thuộc Gio vào `service/`.
-- Server: mọi đường dẫn file phải qua `resolveInRoot` (`server/paths.go`); không lộ secret (`/api/settings/tpix` cố ý không expose).
+- Server: mọi đường dẫn file phải qua `resolveInRoot` (`server/paths.go`); không lộ secret (`/api/settings/tpix` cố ý không expose). Route đụng file project đăng ký bằng `handleRole` (đọc ≥ viewer, ghi ≥ editor), route đổi cấu hình máy chủ bằng `handleAdmin` (`server/projects_api.go`).
 - Settings mới: thêm `Model` (`Save/Load/Validate`), và `RemoteApplier` nếu cần đồng bộ desktop↔web. Section `agent` là máy cục bộ, không sync.
 - Thay đổi hành vi thì cập nhật `docs/` tương ứng và thêm mục vào `docs/HISTORY.md`.
 - `.gitignore` đang loại `.claude/`, `demo/`, `scratch/`, `*.exe`, `.env` — đừng giả định các thư mục này được theo dõi.
 
 ## 5. Cạm bẫy đã biết (tóm tắt — chi tiết ở `docs/MEMORY.md`)
 
-- Preview SVG trên web **chưa có** click-to-source; chỉ desktop và iframe tinymist có.
+- Preview web mặc định là chế độ **Tức thì** (typst.ts trong worker, `web/src/lib/wasm`). Click-to-source ở chế độ này khớp theo văn bản; chế độ "Trang in" của server vẫn chưa có. Đừng dùng `renderToSvg` của renderer (xem `docs/MEMORY.md`).
+- Tệp `.typ` trên web được **cộng tác** (`/ws/collab`, `service/collab`, `web/src/lib/collab`): văn bản chung là Y.Text, leader của phòng ghi xuống đĩa. Đừng ghi đè văn bản chung bằng nội dung đĩa; sửa từ ngoài phải đi qua gộp ba chiều (`rebaseChange`).
+- `go.mod` giữ `go 1.25.5` vì Docker build dùng `golang:1.25`. `go get` có thể tự nâng dòng này (ví dụ go-git 5.19+, x/crypto 0.56+ đòi 1.26): kiểm tra rồi chọn phiên bản cũ hơn.
 - Scroll sync bằng vị trí heading thật chỉ có ở web (`typst.QueryHeadingPages`).
 - `tinymist.doKillPreview` phải truyền id `"default_preview"`.
 - Callback LSP chạy trên goroutine riêng: đụng UI Gio phải gọi `RefreshWindow()`.

@@ -1,19 +1,15 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"looz.ws/typstify/service"
 )
 
 func TestDropboxAPI_StatusAndDisconnect(t *testing.T) {
-	appSrv := service.NewService(context.Background())
-	s := New(appSrv, Options{})
+	s := New(testService(), Options{})
 
 	// 1. Get initial status (unconnected)
 	req := httptest.NewRequest("GET", "/api/dropbox/status", nil)

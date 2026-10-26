@@ -263,10 +263,16 @@ func (s *Server) startSessionOrRequireAuth(ctx context.Context, conn *websocket.
 // configured AI agent for the open project, and bridges it to the browser
 // over a WebSocket. One session per connection.
 func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
+	}
+	// Hold the project's runtime while chatting: its MCP server (the
+	// agent's tools) must not be closed for being idle mid-conversation.
+	// Over the open-projects limit the agent still runs, without tools.
+	if _, release, err := s.appSrv.Runtimes().Acquire(root); err == nil {
+		defer release()
 	}
 
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: s.wsOriginPatterns(r)})

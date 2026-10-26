@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,10 +21,13 @@ import (
 	"looz.ws/typstify/typst"
 )
 
+// The first initialize has to wait out a slow tinymist start (antivirus
+// scanning a freshly installed, unsigned exe can take tens of seconds): once
+// it times out the stdio pipes are closed, so a retry can never succeed.
 var (
-	StartTimeout         = 30 * time.Second
+	StartTimeout         = 60 * time.Second
 	ConnectTimeout       = 1000 * time.Millisecond
-	InitializeTimeout    = 15 * time.Second
+	InitializeTimeout    = 45 * time.Second
 	CommunicationTimeout = 1000 * time.Millisecond
 )
 
@@ -64,6 +68,17 @@ func newClient(server *Server) *Client {
 		logger:   slog.Default(),
 		docCache: newDocumentCache(),
 	}
+}
+
+// Workspace is the project directory this client's tinymist serves.
+func (c *Client) Workspace() string {
+	return c.server.Workspace()
+}
+
+// Running reports whether the tinymist process is still up (it is not
+// after Stop or a crash).
+func (c *Client) Running() bool {
+	return c.server.IsRunning()
 }
 
 func (c *Client) ServerCapabilities() *protocol.ServerCapabilities {
@@ -175,6 +190,9 @@ func (c *Client) buildInitOptions(setting *settings.Settings) map[string]any {
 		"systemFonts":    typstSettings.IgnoreSystemFonts == 0,
 		"syntaxOnly":     syntaxOnly,
 		"typstExtraArgs": typstExtraArgs,
+		// textDocument/formatting is off in tinymist unless a formatter
+		// is chosen; typstyle is the one typst.app uses.
+		"formatterMode": "typstyle",
 	}
 
 	return opts
@@ -201,13 +219,16 @@ func (c *Client) connectServer(ctx context.Context, initOpts map[string]any) err
 	c.jsonConn = jsonConn
 	c.connReady.Store(true)
 
-	go func() {
-		c.jsonConn.Wait()
+	// Wait on this connection, not on c.jsonConn: a failed initialize
+	// below or a concurrent reconnect can reset the field to nil before
+	// this goroutine runs (seen as a nil-pointer panic in Wait).
+	go func(conn *jsonrpc2.Connection) {
+		conn.Wait()
 		if c.connReady.CompareAndSwap(true, false) {
 			c.closeConn()
 		}
 		c.logger.Info("- LSP server connection stopped")
-	}()
+	}(jsonConn)
 
 	trace := protocol.Messages
 	// Send the LSP initialize request.
@@ -757,6 +778,47 @@ func (c *Client) DocumentSymbols(ctx context.Context, filePath string) ([]protoc
 	}
 
 	return symbols, nil
+}
+
+// ErrDocumentChanged is returned by Formatting when another editor session
+// updated the document while it was being formatted.
+var ErrDocumentChanged = errors.New("document changed while formatting")
+
+// Formatting returns typstyle's edits for content, the editor's text of the
+// document. The document is shared by every editor session on the file
+// (collaborative editing), so the edits are only returned when nobody else
+// updated it in between; they would not apply to content otherwise.
+func (c *Client) Formatting(ctx context.Context, filePath, content string) ([]protocol.TextEdit, error) {
+	if !c.IsReady() {
+		return nil, errors.New("LSP is not ready")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, CommunicationTimeout)
+	defer cancel()
+
+	c.docCache.Update(filePath, strings.NewReader(content))
+	doc, err := c.docCache.Get(filePath)
+	if err != nil {
+		return nil, err
+	}
+	version := doc.version()
+	if err := c.notifyDidOpenOrChange(ctx, filePath); err != nil {
+		return nil, err
+	}
+
+	var edits []protocol.TextEdit
+	err = c.jsonConn.Call(ctx, protocol.RPCMethodFormatting,
+		protocol.DocumentFormattingParams{
+			TextDocument: protocol.TextDocumentIdentifier{URI: protocol.URIFromPath(filePath)},
+			Options:      protocol.FormattingOptions{TabSize: 2, InsertSpaces: true},
+		}).Await(ctx, &edits)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to format document")
+	}
+	if doc.version() != version {
+		return nil, ErrDocumentChanged
+	}
+	return edits, nil
 }
 
 func (c *Client) SetServreLogStreamer(dest io.Writer) {

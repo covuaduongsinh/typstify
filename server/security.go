@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"looz.ws/typstify/service/fonts"
 )
 
 const (
@@ -92,6 +94,14 @@ func withBodyLimit(next http.Handler) http.Handler {
 			}
 			if r.Method == http.MethodPost && r.URL.Path == "/api/sync/push" {
 				limit = fileBodyLimit
+			}
+			if r.Method == http.MethodPost && r.URL.Path == "/api/workspace/upload" {
+				limit = uploadBodyLimit
+			}
+			// The handler allows fonts up to fonts.MaxUploadSize; the
+			// 2 MiB default used to reject most real font files first.
+			if r.Method == http.MethodPost && r.URL.Path == "/api/settings/fonts" {
+				limit = fonts.MaxUploadSize
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}

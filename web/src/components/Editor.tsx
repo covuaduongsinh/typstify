@@ -1,12 +1,22 @@
 import { autocompletion, snippetCompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete'
 import { linter, lintGutter, setDiagnostics, type Diagnostic as CmDiagnostic } from '@codemirror/lint'
-import { EditorState, type Extension, type Text } from '@codemirror/state'
-import { EditorView, hoverTooltip } from '@codemirror/view'
+import { Compartment, EditorState, Prec, type Extension, type Text } from '@codemirror/state'
+import { EditorView, hoverTooltip, keymap } from '@codemirror/view'
 import { basicSetup } from 'codemirror'
 import { typst_lezer } from 'codemirror-lang-typst/lezer'
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import ReactMarkdown from 'react-markdown'
+import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next'
+import * as Y from 'yjs'
+import type { Awareness } from 'y-protocols/awareness'
+import { commentHighlights, setCommentRanges, type CommentRange } from '../lib/collab/commentHighlight'
+import { vim } from '@replit/codemirror-vim'
+import { useEditorPrefs } from '../lib/editorPrefs'
+import { proseSpellcheck } from '../lib/spellcheck'
+import { importInsertion } from '../lib/universe'
+import { lspEditsToChanges, type LspTextEdit } from '../lib/lspEdits'
+import { imageMarkup, isImageFile, pastedImageName, uploadFile } from '../lib/upload'
 import { typstifyTheme } from '../lib/editorTheme'
 import { LspClient, type LspDiagnostic, type LspDocumentSymbol } from '../lib/lspClient'
 import {
@@ -32,6 +42,8 @@ export interface EditorHandle {
   getContent: () => string
   /** Inserts `line` at the top of the document unless `present(doc)`. */
   ensureLineAtTop: (line: string, present: (doc: string) => boolean) => void
+  /** Adds `#import "@preview/name:version": *` below the file's imports. */
+  addPackageImport: (name: string, version: string) => 'added' | 'present' | 'readonly'
   /** Auto repairs missing chess library imports and saves */
   autoFixImports: () => void
   /** Applies font size globally across the entire document */
@@ -46,6 +58,14 @@ export interface EditorHandle {
   getOutline: () => Promise<LspDocumentSymbol[]>
   /** Moves the caret to a 0-based line/character, scrolling it into view. */
   goToPosition: (line: number, character: number) => void
+  /** The main selection, for anchoring a comment. */
+  getSelection: () => { from: number; to: number; text: string }
+  /** Selects a range and scrolls it into view (jump to a comment). */
+  selectRange: (from: number, to: number) => void
+  /** Reformats the document with typstyle (via tinymist). Resolves false
+   * when nothing was applied (read-only, LSP error, or the text changed
+   * while the formatter ran). */
+  format: () => Promise<boolean>
   /** Scrolls a 1-based line into view WITHOUT moving the caret or stealing
    * focus -- used by preview->editor scroll sync, which must not fight the
    * editor->preview direction (that one is driven by caret/selection
@@ -73,6 +93,16 @@ interface EditorProps {
   onDocChange?: (content: string) => void
   /** Error/warning counts of the latest LSP diagnostics for this file. */
   onDiagnosticsChange?: (counts: { errors: number; warnings: number }) => void
+  /** Viewer/commenter role on a shared project: the document can't be edited. */
+  readOnly?: boolean
+  /** Co-editing (lib/collab): the document is this shared text, other
+   * people's cursors are shown, and the leader saves it (no dirty state). */
+  collab?: { ytext: Y.Text; awareness: Awareness } | null
+  /** Open comment threads to underline (collab only). */
+  commentRanges?: CommentRange[]
+  /** Called after images pasted or dropped into the editor were uploaded
+   * (to refresh the file tree). */
+  onFilesUploaded?: () => void
 }
 
 // LSP snippets allow bare $1/$0 tabstops (e.g. "${1:name}(${2:args})$0");
@@ -163,11 +193,29 @@ const HOVER_MARKDOWN_COMPONENTS = { a: HoverLink }
  * completion/hover/diagnostics sourced from the tinymist LSP over
  * /ws/lsp (see server/lsp_ws.go and lib/lspClient.ts). */
 export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
-  { path, initialContent, lsp, onDirtyChange, onSave, onSaveError, onCursorChange, onDocChange, onDiagnosticsChange },
+  {
+    path,
+    initialContent,
+    lsp,
+    onDirtyChange,
+    onSave,
+    onSaveError,
+    onCursorChange,
+    onDocChange,
+    onDiagnosticsChange,
+    readOnly = false,
+    collab = null,
+    commentRanges,
+    onFilesUploaded,
+  },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const viewRef = useRef<EditorView | null>(null)
+  const prefs = useEditorPrefs()
+  // Toggled in place: rebuilding the editor would drop unsaved edits.
+  const vimSlot = useRef(new Compartment())
+  const spellSlot = useRef(new Compartment())
   const lspRef = useRef<LspClient | null>(null)
   const changeTimerRef = useRef<number | undefined>(undefined)
 
@@ -257,6 +305,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       if (!view || present(view.state.doc.toString())) return
       view.dispatch({ changes: { from: 0, to: 0, insert: `${line}\n` } })
     },
+    addPackageImport: (name: string, version: string) => {
+      const view = viewRef.current
+      if (!view || readOnly) return 'readonly'
+      const ins = importInsertion(view.state.doc.toString(), name, version)
+      if (!ins) return 'present'
+      view.dispatch({ changes: { from: ins.at, insert: ins.text } })
+      return 'added'
+    },
     autoFixImports: () => {
       const view = viewRef.current
       if (!view) return
@@ -329,6 +385,43 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'center' }) })
       view.focus()
     },
+    getSelection: () => {
+      const view = viewRef.current
+      if (!view) return { from: 0, to: 0, text: '' }
+      const { from, to } = view.state.selection.main
+      return { from, to, text: view.state.sliceDoc(from, to) }
+    },
+    selectRange: (from: number, to: number) => {
+      const view = viewRef.current
+      if (!view) return
+      const len = view.state.doc.length
+      const anchor = Math.min(from, len)
+      view.dispatch({
+        selection: { anchor, head: Math.min(to, len) },
+        effects: EditorView.scrollIntoView(anchor, { y: 'center' }),
+      })
+      view.focus()
+    },
+    format: async () => {
+      const view = viewRef.current
+      const lsp = lspRef.current
+      if (!view || !lsp || readOnly) return false
+      window.clearTimeout(changeTimerRef.current)
+      const before = view.state.doc.toString()
+      let edits: LspTextEdit[]
+      try {
+        // The server formats exactly this text (and refuses if another
+        // collaborator's edit reached tinymist meanwhile).
+        edits = await lsp.format(path, before)
+      } catch {
+        return false
+      }
+      const current = viewRef.current
+      // Edits are positions in `before`; drop them if the user kept typing.
+      if (!current || current.state.doc.toString() !== before || edits.length === 0) return false
+      current.dispatch({ changes: lspEditsToChanges(current.state.doc, edits), userEvent: 'format' })
+      return true
+    },
     scrollToLine: (line: number) => {
       const view = viewRef.current
       if (!view) return
@@ -344,7 +437,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       window.clearTimeout(changeTimerRef.current)
       changeTimerRef.current = window.setTimeout(() => {
         lsp.didChange(path, content)
-        onDirtyChange?.(true)
+        // A co-edited file is saved by the room's leader, never "dirty".
+        if (!collab) onDirtyChange?.(true)
       }, 250)
     }
 
@@ -405,9 +499,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     }
 
     const extensions: Extension[] = [
+      // Vim must come first so its keymap sees keys before the others.
+      vimSlot.current.of(prefs.vim ? vim() : []),
       basicSetup,
       typstifyTheme,
       typst_lezer(),
+      spellSlot.current.of(prefs.spellcheck ? proseSpellcheck() : []),
       autocompletion({ override: [completionSource] }),
       hover,
       linter(() => []), // registers the lint state field; diagnostics are pushed via setDiagnostics below
@@ -426,15 +523,73 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         }
         if (update.docChanged || update.selectionSet) reportCursor(update.state)
       }),
+      EditorState.readOnly.of(readOnly),
+      EditorView.editable.of(!readOnly),
     ]
+    if (collab) {
+      // Undo only reverts this user's own edits; it must win over the
+      // local history basicSetup installs.
+      extensions.push(
+        yCollab(collab.ytext, collab.awareness, { undoManager: new Y.UndoManager(collab.ytext) }),
+        Prec.highest(keymap.of(yUndoManagerKeymap)),
+        commentHighlights(),
+      )
+    }
 
-    const state = EditorState.create({ doc: initialContent, extensions })
+    if (!readOnly && path.endsWith('.typ')) {
+      // Pasted or dropped images are saved under assets/ and referenced
+      // with #image. Other content keeps CodeMirror's default handling.
+      const insertImages = async (files: File[], pasted: boolean) => {
+        try {
+          const lines: string[] = []
+          for (const f of files) {
+            const saved = await uploadFile('assets', f, pasted ? pastedImageName(f) : f.name)
+            lines.push(imageMarkup(saved))
+          }
+          // The user may have opened another file during the upload.
+          const v = viewRef.current
+          if (!v || v !== view) return
+          const at = v.state.selection.main.head
+          // #image goes on lines of its own.
+          const text = (at > v.state.doc.lineAt(at).from ? '\n' : '') + lines.join('\n') + '\n'
+          v.dispatch({ changes: { from: at, insert: text }, selection: { anchor: at + text.length } })
+          onFilesUploaded?.()
+        } catch (err) {
+          onSaveError?.(`Không tải ảnh lên được: ${err instanceof Error ? err.message : String(err)}`)
+        }
+      }
+      extensions.push(
+        EditorView.domEventHandlers({
+          paste(e) {
+            const files = [...(e.clipboardData?.files ?? [])].filter(isImageFile)
+            // Office apps and browsers put a picture of copied text next to
+            // the text itself: that is a text paste.
+            if (!files.length || e.clipboardData?.getData('text/plain')) return false
+            e.preventDefault()
+            void insertImages(files, true)
+            return true
+          },
+          drop(e, v) {
+            const files = [...(e.dataTransfer?.files ?? [])].filter(isImageFile)
+            if (!files.length) return false
+            e.preventDefault()
+            const pos = v.posAtCoords({ x: e.clientX, y: e.clientY })
+            if (pos !== null) v.dispatch({ selection: { anchor: pos } })
+            void insertImages(files, false)
+            return true
+          },
+        }),
+      )
+    }
+
+    const docText = collab ? collab.ytext.toString() : initialContent
+    const state = EditorState.create({ doc: docText, extensions })
     const view = new EditorView({ state, parent: hostRef.current! })
     viewRef.current = view
     reportCursor(state)
     onDiagnosticsChange?.({ errors: 0, warnings: 0 })
 
-    lsp.didOpen(path, initialContent)
+    lsp.didOpen(path, docText)
     // After a dropped /ws/lsp reconnects, the server-side session is new:
     // open the document again with what the user currently has.
     const unsubscribeReconnect = lsp.onReconnect(() => lsp.didOpen(path, view.state.doc.toString()))
@@ -461,7 +616,20 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     }
     // Re-create the whole CodeMirror session when the open file changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, lsp])
+  }, [path, lsp, readOnly, collab])
+
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: vimSlot.current.reconfigure(prefs.vim ? vim() : []) })
+  }, [prefs.vim])
+
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: spellSlot.current.reconfigure(prefs.spellcheck ? proseSpellcheck() : []) })
+  }, [prefs.spellcheck])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (view && collab) view.dispatch({ effects: setCommentRanges.of(commentRanges ?? []) })
+  }, [commentRanges, collab, path, lsp, readOnly])
 
   return <div className="editor-host" ref={hostRef} />
 })

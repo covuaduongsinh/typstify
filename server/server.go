@@ -1,17 +1,26 @@
 package server
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	acp "github.com/coder/acp-go-sdk"
 	"looz.ws/typstify/service"
+	"looz.ws/typstify/service/collab"
+	"looz.ws/typstify/service/gitsync"
+	"looz.ws/typstify/service/history"
 	"looz.ws/typstify/service/mcp"
+	"looz.ws/typstify/service/projects"
+	"looz.ws/typstify/service/universe"
+	"looz.ws/typstify/service/wasmassets"
 )
 
 // Options configures a Server.
@@ -32,6 +41,14 @@ type Options struct {
 	// unrestricted -- the desktop app and bare (non-Docker) server runs
 	// have no such distinction between ephemeral and persistent storage.
 	ProjectRoot string
+	// StorageDir overrides where accounts, sessions and the project
+	// registry are stored (default: the General settings' RootDir). Tests
+	// point it at a temporary directory.
+	StorageDir string
+	// LaunchToken, set by the desktop app (apps/tauri) for its sidecar,
+	// signs its window in through /api/auth/launch (launch.go). It also
+	// turns authentication on even without a password or accounts.
+	LaunchToken string
 }
 
 // Server is the HTTP/WebSocket API described in Giai doan 1 of
@@ -44,6 +61,10 @@ type Server struct {
 	opts   Options
 	auth   *authManager
 	mux    *http.ServeMux
+	// projects maps project directories to owners, members and share
+	// links (projects_api.go).
+	projects   *projects.Registry
+	storageDir string
 	// compileSlots bounds concurrent typst compiles from /api/export and
 	// /api/preview/pdf: every request spawns a typst process.
 	compileSlots chan struct{}
@@ -53,8 +74,28 @@ type Server struct {
 	// consoleTextFn overrides the console source (tests).
 	consoleTextFn func() string
 
+	// Files recently opened or saved, by absolute path: each project's
+	// MCP tools ask for the latest one inside it (activeDocumentFor).
 	activeDocMu sync.RWMutex
-	activeDoc   mcp.ActiveDocument
+	activeDocs  map[string]activeDocEntry
+
+	// Projects requests worked on recently (session_project.go).
+	active activeProjects
+
+	// Real-time co-editing rooms (collab_ws.go).
+	collab *collab.Hub
+	// Version history of projects (history_api.go).
+	history *history.Manager
+	// Git sync of projects (git_api.go).
+	git *gitsync.Service
+
+	// Fonts and package archives for the in-browser compiler (wasm_api.go).
+	wasmFonts    *wasmassets.FontIndex
+	wasmPackages *wasmassets.Packages
+
+	// Typst Universe index and thumbnails (universe_api.go).
+	universe       *universe.Index
+	universeThumbs *universe.Thumbnails
 }
 
 type webActiveDocProvider struct {
@@ -62,15 +103,30 @@ type webActiveDocProvider struct {
 }
 
 func (p *webActiveDocProvider) GetActiveDocument() mcp.ActiveDocument {
-	p.server.activeDocMu.RLock()
-	doc := p.server.activeDoc
-	p.server.activeDocMu.RUnlock()
+	return p.server.activeDocumentFor(p.server.appSrv.CurrentProjectDir())
+}
 
+type activeDocEntry struct {
+	doc mcp.ActiveDocument
+	at  time.Time
+}
+
+// activeDocumentFor is the document the MCP tools of root's project work
+// on: the file of root used last, else main.typ, else any .typ at its top.
+func (s *Server) activeDocumentFor(root string) mcp.ActiveDocument {
+	var doc mcp.ActiveDocument
+	var at time.Time
+	s.activeDocMu.RLock()
+	for file, e := range s.activeDocs {
+		if root != "" && within(filepath.Clean(root), filepath.Clean(file)) && e.at.After(at) {
+			doc, at = e.doc, e.at
+		}
+	}
+	s.activeDocMu.RUnlock()
 	if doc.File != "" {
 		return doc
 	}
 
-	root := p.server.appSrv.CurrentProjectDir()
 	if root != "" {
 		mainTyp := filepath.Join(root, "main.typ")
 		if _, err := os.Stat(mainTyp); err == nil {
@@ -89,28 +145,56 @@ func (p *webActiveDocProvider) GetActiveDocument() mcp.ActiveDocument {
 func (s *Server) SetActiveFile(absPath string, cursorPos int) {
 	s.activeDocMu.Lock()
 	defer s.activeDocMu.Unlock()
-	s.activeDoc = mcp.ActiveDocument{
-		File:      absPath,
-		CursorPos: cursorPos,
+	if s.activeDocs == nil {
+		s.activeDocs = map[string]activeDocEntry{}
 	}
+	now := time.Now()
+	for file, e := range s.activeDocs {
+		if now.Sub(e.at) > 24*time.Hour {
+			delete(s.activeDocs, file)
+		}
+	}
+	s.activeDocs[absPath] = activeDocEntry{doc: mcp.ActiveDocument{File: absPath, CursorPos: cursorPos}, at: now}
 }
 
 func New(appSrv *service.ServiceFacade, opts Options) *Server {
-	var storageDir string
-	if appSrv != nil && appSrv.Settings() != nil && appSrv.Settings().General() != nil {
+	storageDir := opts.StorageDir
+	if storageDir == "" && appSrv != nil && appSrv.Settings() != nil && appSrv.Settings().General() != nil {
 		storageDir = appSrv.Settings().General().RootDir
 	}
 	s := &Server{
-		appSrv: appSrv,
-		opts:   opts,
-		auth:   newAuthManager(opts.Password, storageDir),
-		mux:    http.NewServeMux(),
+		appSrv:     appSrv,
+		opts:       opts,
+		auth:       newAuthManager(opts.Password, storageDir),
+		projects:   openProjectRegistry(storageDir),
+		storageDir: storageDir,
+		mux:        http.NewServeMux(),
 
 		compileSlots: make(chan struct{}, maxConcurrentCompiles),
+		wasmFonts:    wasmassets.NewFontIndex(),
 	}
+	if opts.LaunchToken != "" {
+		if err := s.auth.prepareLaunch(opts.LaunchToken); err != nil {
+			log.Printf("desktop launch: %v", err)
+		}
+	}
+	s.wasmPackages = s.newWasmPackages()
+	s.universe, s.universeThumbs = newUniverse(storageDir)
+	s.collab = s.newCollabHub()
+	go s.runCollabDiskWatch(context.Background())
+	s.history = &history.Manager{Base: filepath.Join(storageDir, "history"), Quota: envMegabytes("TYPSTIFY_HISTORY_MAX_MB")}
+	go s.runHistoryAuto(context.Background())
+	s.git = s.newGitSync()
 	if s.appSrv != nil {
 		s.appSrv.SetViewManager(nil, nil, nil, func() any {
 			return &webActiveDocProvider{server: s}
+		})
+		// Each agent session gets the MCP tools of its own project
+		// (docs/plans/plan_phase3b_per_user_projects.md).
+		s.appSrv.SetMcpResolver(func(cwd string) []acp.McpServer {
+			return s.appSrv.RuntimeMcpServers(cwd, func() mcp.ActiveDocument {
+				return s.activeDocumentFor(cwd)
+			})
 		})
 	}
 	s.routes()
@@ -119,7 +203,11 @@ func New(appSrv *service.ServiceFacade, opts Options) *Server {
 
 // Handler returns the root http.Handler to pass to http.Server.
 func (s *Server) Handler() http.Handler {
-	return withLogging(withBodyLimit(s.mux))
+	h := withBodyLimit(s.mux)
+	if s.opts.LaunchToken != "" {
+		h = desktopGuard(h)
+	}
+	return withLogging(h)
 }
 
 func (s *Server) routes() {
@@ -127,6 +215,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/health", handleHealth)
 	s.mux.HandleFunc("POST /api/auth/register", s.auth.handleRegister)
 	s.mux.HandleFunc("POST /api/auth/login", s.auth.handleLogin)
+	s.mux.HandleFunc("GET /api/auth/launch", s.auth.handleLaunch)
 	s.mux.HandleFunc("POST /api/auth/logout", s.auth.handleLogout)
 	s.mux.HandleFunc("GET /api/auth/status", s.auth.handleStatus)
 	s.handle("POST /api/auth/change-password", s.auth.handleChangePassword)
@@ -135,32 +224,69 @@ func (s *Server) routes() {
 	s.handle("DELETE /api/auth/tokens/{hash}", s.auth.handleRevokeToken)
 	s.mux.HandleFunc("POST /api/i18n", s.handleI18n)
 
-	// Workspace / project / file management.
+	// MFA (TOTP) management for the logged-in account.
+	s.handle("POST /api/auth/mfa/setup", s.auth.handleMFASetup)
+	s.handle("POST /api/auth/mfa/enable", s.auth.handleMFAEnable)
+	s.handle("POST /api/auth/mfa/disable", s.auth.handleMFADisable)
+
+	// Project registry: ownership, members, share links (projects_api.go).
+	s.handle("GET /api/projects", s.handleProjectsList)
+	s.handle("POST /api/projects", s.handleProjectsCreate)
+	s.handle("POST /api/projects/join", s.handleProjectJoin)
+	s.handle("POST /api/projects/{id}/open", s.handleProjectOpen)
+	s.handle("DELETE /api/projects/{id}", s.handleProjectDelete)
+	s.handle("GET /api/projects/{id}/members", s.handleProjectMembers)
+	s.handle("PUT /api/projects/{id}/members/{user}", s.handleProjectSetMember)
+	s.handle("DELETE /api/projects/{id}/members/{user}", s.handleProjectRemoveMember)
+	s.handle("GET /api/projects/{id}/shares", s.handleProjectShares)
+	s.handle("POST /api/projects/{id}/shares", s.handleProjectCreateShare)
+	s.handle("DELETE /api/projects/{id}/shares/{shareId}", s.handleProjectRevokeShare)
+
+	// Workspace / project / file management. Reads need at least viewer and
+	// writes at least editor on the open project, when it is registered.
 	s.handle("GET /api/workspace/current", s.handleCurrentProject)
+	s.handle("GET /api/workspace/role", s.handleWorkspaceRole)
 	s.handle("GET /api/workspace/recent", s.handleRecentProjects)
 	s.handle("POST /api/workspace/open", s.handleOpenProject)
 	s.handle("POST /api/workspace/create", s.handleCreateProject)
-	s.handle("GET /api/workspace/tree", s.handleTree)
-	s.handle("GET /api/workspace/file", s.handleFileGet)
-	s.handle("PUT /api/workspace/file", s.handleFilePut)
-	s.handle("POST /api/workspace/file", s.handleFileCreate)
-	s.handle("DELETE /api/workspace/file", s.handleFileDelete)
-	s.handle("POST /api/workspace/rename", s.handleFileRename)
+	s.handleRole("GET /api/workspace/tree", projects.RoleViewer, s.handleTree)
+	s.handleRole("GET /api/workspace/file", projects.RoleViewer, s.handleFileGet)
+	s.handleRole("PUT /api/workspace/file", projects.RoleEditor, s.handleFilePut)
+	s.handleRole("POST /api/workspace/file", projects.RoleEditor, s.handleFileCreate)
+	s.handleRole("DELETE /api/workspace/file", projects.RoleEditor, s.handleFileDelete)
+	s.handleRole("POST /api/workspace/rename", projects.RoleEditor, s.handleFileRename)
+	s.handleRole("POST /api/workspace/upload", projects.RoleEditor, s.handleUpload)
+	s.handleRole("GET /api/symbols", projects.RoleViewer, s.handleSymbols)
 
 	// Export (PDF/PNG/SVG download).
-	s.handle("GET /api/export", s.handleExport)
+	s.handleRole("GET /api/export", projects.RoleViewer, s.handleExport)
 	// Static-PDF preview, served inline for an <iframe>/<embed> -- see
 	// handlePreviewPdf's doc comment for why this exists alongside the
 	// WebSocket-based /preview/ proxy below.
-	s.handle("GET /api/preview/pdf", s.handlePreviewPdf)
-	s.handle("POST /api/preview/render", s.handlePreviewRender)
-	s.handle("POST /api/preview/anchors", s.handlePreviewAnchors)
+	s.handleRole("GET /api/preview/pdf", projects.RoleViewer, s.handlePreviewPdf)
+	s.handleRole("POST /api/preview/render", projects.RoleViewer, s.handlePreviewRender)
+	s.handleRole("POST /api/preview/anchors", projects.RoleViewer, s.handlePreviewAnchors)
 
 	// VPS sync: desktop pushes project files here (see sync_handler.go).
-	s.handle("GET /api/sync/manifest", s.handleSyncManifest)
-	s.handle("GET /api/sync/pull", s.handleSyncPull)
-	s.handle("POST /api/sync/push", s.handleSyncPush)
-	s.handle("POST /api/sync/delete", s.handleSyncDelete)
+	// Version history of the open project (history_api.go).
+	s.handleRole("GET /api/history", projects.RoleViewer, s.handleHistoryList)
+	s.handleRole("POST /api/history", projects.RoleEditor, s.handleHistoryCreate)
+	s.handleRole("GET /api/history/{id}", projects.RoleViewer, s.handleHistoryGet)
+	s.handleRole("GET /api/history/{id}/file", projects.RoleViewer, s.handleHistoryFile)
+	s.handleRole("POST /api/history/{id}/restore", projects.RoleEditor, s.handleHistoryRestore)
+
+	// Git sync of the open project (git_api.go). The config route also
+	// checks for the owner inside.
+	s.handleRole("GET /api/git", projects.RoleViewer, s.handleGitStatus)
+	s.handleRole("PUT /api/git/config", projects.RoleViewer, s.handleGitConfig)
+	s.handleRole("POST /api/git/commit", projects.RoleEditor, s.handleGitCommit)
+	s.handleRole("POST /api/git/push", projects.RoleEditor, s.handleGitPush)
+	s.handleRole("POST /api/git/pull", projects.RoleEditor, s.handleGitPull)
+
+	s.handleRole("GET /api/sync/manifest", projects.RoleViewer, s.handleSyncManifest)
+	s.handleRole("GET /api/sync/pull", projects.RoleViewer, s.handleSyncPull)
+	s.handleRole("POST /api/sync/push", projects.RoleEditor, s.handleSyncPush)
+	s.handleRole("POST /api/sync/delete", projects.RoleEditor, s.handleSyncDelete)
 
 	// Typst package manager (Tpix).
 	s.handle("GET /api/packages/search", s.handlePkgSearch)
@@ -169,21 +295,32 @@ func (s *Server) routes() {
 	s.handle("POST /api/packages/download", s.handlePkgDownload)
 	s.handle("POST /api/packages/pull-deps", s.handlePkgPullDeps)
 
+	// Fonts and package archives for the in-browser compiler. Shared by
+	// every project, so they only need a signed-in user (wasm_api.go).
+	s.handle("GET /api/universe/packages", s.handleUniverseSearch)
+	s.handle("GET /api/universe/thumbnail/{name}/{version}", s.handleUniverseThumbnail)
+	s.handle("GET /api/universe/readme/{name}/{version}", s.handleUniverseReadme)
+	s.handle("GET /api/wasm/fonts", s.handleWasmFonts)
+	s.handle("GET /api/wasm/fonts/{id}", s.handleWasmFont)
+	s.handle("GET /api/wasm/packages/{namespace}/{name}/{version}", s.handleWasmPackage)
+
 	// Settings.
 	s.handle("GET /api/settings/general", settingsGetHandler(s.appSrv.Settings().General))
-	s.handle("PUT /api/settings/general", settingsPutHandler(s.appSrv.Settings().General))
+	// Settings are server-wide (and include executable paths), so changing
+	// them is admin-only.
+	s.handleAdmin("PUT /api/settings/general", settingsPutHandler(s.appSrv.Settings().General))
 	s.handle("GET /api/settings/editor", settingsGetHandler(s.appSrv.Settings().Editor))
-	s.handle("PUT /api/settings/editor", settingsPutHandler(s.appSrv.Settings().Editor))
+	s.handleAdmin("PUT /api/settings/editor", settingsPutHandler(s.appSrv.Settings().Editor))
 	s.handle("GET /api/settings/typst", settingsGetHandler(s.appSrv.Settings().Typst))
-	s.handle("PUT /api/settings/typst", settingsPutHandler(s.appSrv.Settings().Typst))
+	s.handleAdmin("PUT /api/settings/typst", settingsPutHandler(s.appSrv.Settings().Typst))
 	s.handle("GET /api/settings/lsp", settingsGetHandler(s.appSrv.Settings().Lsp))
-	s.handle("PUT /api/settings/lsp", settingsPutHandler(s.appSrv.Settings().Lsp))
+	s.handleAdmin("PUT /api/settings/lsp", settingsPutHandler(s.appSrv.Settings().Lsp))
 	s.handle("GET /api/settings/agent", settingsGetHandler(s.appSrv.Settings().AcpAgent))
-	s.handle("PUT /api/settings/agent", settingsPutHandler(s.appSrv.Settings().AcpAgent))
+	s.handleAdmin("PUT /api/settings/agent", settingsPutHandler(s.appSrv.Settings().AcpAgent))
 	s.handle("GET /api/settings/meta", s.handleSettingsMeta)
 	s.handle("GET /api/settings/fonts", s.handleFontsList)
-	s.handle("POST /api/settings/fonts", s.handleFontUpload)
-	s.handle("DELETE /api/settings/fonts/{name}", s.handleFontDelete)
+	s.handleAdmin("POST /api/settings/fonts", s.handleFontUpload)
+	s.handleAdmin("DELETE /api/settings/fonts/{name}", s.handleFontDelete)
 	// No /api/settings/tpix: it holds the package-registry API key, which
 	// the web UI never uses, so it is not exposed to the browser at all.
 	// No /api/settings/agent in settings-sync scope: AcpAgentSettings is
@@ -193,32 +330,37 @@ func (s *Server) routes() {
 
 	// Dropbox sync & integration.
 	s.handle("GET /api/dropbox/status", s.handleDropboxStatus)
-	s.handle("POST /api/dropbox/auth/url", s.handleDropboxAuthURL)
-	s.handle("POST /api/dropbox/auth/callback", s.handleDropboxAuthCallback)
-	s.handle("POST /api/dropbox/auth/token", s.handleDropboxSaveToken)
-	s.handle("POST /api/dropbox/auth/disconnect", s.handleDropboxDisconnect)
-	s.handle("POST /api/dropbox/sync", s.handleDropboxSync)
+	s.handleAdmin("POST /api/dropbox/auth/url", s.handleDropboxAuthURL)
+	s.handleAdmin("POST /api/dropbox/auth/callback", s.handleDropboxAuthCallback)
+	s.handleAdmin("POST /api/dropbox/auth/token", s.handleDropboxSaveToken)
+	s.handleAdmin("POST /api/dropbox/auth/disconnect", s.handleDropboxDisconnect)
+	s.handleRole("POST /api/dropbox/sync", projects.RoleEditor, s.handleDropboxSync)
 	s.handle("GET /api/dropbox/projects", s.handleDropboxListProjects)
 	s.handle("POST /api/dropbox/import", s.handleDropboxImport)
 
-	// AI agent registry / selection / auth.
+	// AI agent registry / selection / auth. The agent can edit files and
+	// run commands, so using it needs editor rights; configuring it is
+	// admin-only.
 	s.handle("GET /api/agent/registry", s.handleAgentRegistry)
-	s.handle("POST /api/agent/select", s.handleAgentSelect)
-	s.handle("POST /api/agent/auth/callback", s.handleAgentAuthCallback)
-	s.handle("POST /api/agent/auth/{methodId}", s.handleAgentAuth)
-	s.handle("POST /api/agent/preferred-config", s.handleSavePreferredConfig)
+	s.handleAdmin("POST /api/agent/select", s.handleAgentSelect)
+	s.handleAdmin("POST /api/agent/auth/callback", s.handleAgentAuthCallback)
+	s.handleAdmin("POST /api/agent/auth/{methodId}", s.handleAgentAuth)
+	s.handleAdmin("POST /api/agent/preferred-config", s.handleSavePreferredConfig)
 	s.handle("GET /api/agent/sessions", s.handleAgentSessions)
-	s.handle("GET /api/console", s.handleConsole)
+	s.handleAdmin("GET /api/console", s.handleConsole)
 
 	// LSP + AI agent, over WebSocket.
-	s.handle("GET /ws/lsp", s.handleLspWS)
-	s.handle("GET /ws/agent", s.handleAgentWS)
+	s.handleRole("GET /ws/lsp", projects.RoleViewer, s.handleLspWS)
+	s.handleRole("GET /ws/agent", projects.RoleEditor, s.handleAgentWS)
+	// Co-editing: viewers join to watch; each message is checked against
+	// the sender's role (editor: text, commenter: comments).
+	s.handleRole("GET /ws/collab", projects.RoleViewer, s.handleCollabWS)
 
 	// Preview: reverse-proxied to tinymist's own preview server.
 	s.handle("GET /api/preview/status", s.handlePreviewStatus)
-	s.handle("POST /api/preview/restart", s.handlePreviewRestart)
-	s.handle("POST /api/preview/cursor", s.handlePreviewCursor)
-	s.mux.Handle(previewPathPrefix, s.auth.require(s.handlePreviewProxy))
+	s.handleRole("POST /api/preview/restart", projects.RoleViewer, s.handlePreviewRestart)
+	s.handleRole("POST /api/preview/cursor", projects.RoleViewer, s.handlePreviewCursor)
+	s.mux.Handle(previewPathPrefix, s.auth.require(s.roleGate(projects.RoleViewer, s.handlePreviewProxy)))
 
 	if s.opts.StaticDir != "" {
 		s.mux.Handle("/", s.staticHandler())
@@ -266,9 +408,23 @@ func (s *Server) staticHandler() http.Handler {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
+		// The SPA fallback is for client routes only. A missing file (a
+		// build asset gone after a redeploy, /sw.js after a rollback) must
+		// be a 404: index.html under a script's URL would be cached as that
+		// script by the browser and the service worker.
+		if isMissingFile(r.URL.Path) {
+			http.NotFound(w, r)
+			return
+		}
 		w.Header().Set("Cache-Control", "no-cache")
 		http.ServeFile(w, r, indexFile)
 	})
+}
+
+// isMissingFile reports whether a path that matched no file names a file
+// (under /assets/, or with an extension) rather than a client route.
+func isMissingFile(urlPath string) bool {
+	return strings.HasPrefix(urlPath, "/assets/") || path.Ext(urlPath) != ""
 }
 
 func withLogging(next http.Handler) http.Handler {

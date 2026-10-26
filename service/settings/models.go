@@ -112,6 +112,10 @@ type LspSettings struct {
 	EnablePowerSaving          int  `key:"enablePowerSaving" json:"enablePowerSaving"`
 	OpenPreviewInBrowser       int  `key:"openPreviewInBrowser" json:"openPreviewInBrowser"`
 	EnablePartialRenderPreview bool `json:"enablePartialRenderPreview"`
+	// MaxOpenProjects bounds how many projects the web server keeps a
+	// tinymist for at once (service.Runtimes); 0 means the default (3).
+	// Machine-local: a desktop's value must not overwrite the server's.
+	MaxOpenProjects int `json:"maxOpenProjects" sync:"local"`
 }
 
 type TpixSettings struct {
@@ -389,7 +393,13 @@ func (l *LspSettings) Save() error {
 	return l.baseModel.save(l)
 }
 
+// maxOpenProjectsLimit: each open project runs a tinymist (150-300 MB).
+const maxOpenProjectsLimit = 50
+
 func (l *LspSettings) Validate() error {
+	if l.MaxOpenProjects < 0 || l.MaxOpenProjects > maxOpenProjectsLimit {
+		return fmt.Errorf("số dự án mở cùng lúc phải từ 1 đến %d (0 = mặc định)", maxOpenProjectsLimit)
+	}
 	return nil
 }
 

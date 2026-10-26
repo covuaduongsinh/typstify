@@ -4,6 +4,9 @@ import type { AgentSettings, FontFileInfo, GeneralSettings, LspSettings, TypstSe
 import { describeCombo, effectiveKey, keyComboFromEvent, SHORTCUT_ACTIONS, useShortcuts } from '../lib/shortcuts'
 import { AgentRegistryPicker } from './AgentRegistryPicker'
 import { Icon } from './Icon'
+import { SecuritySection } from './SecuritySection'
+import { ChangeServerLink } from './ChangeServerLink'
+import { setEditorPref, useEditorPrefs } from '../lib/editorPrefs'
 
 interface Field<T> {
   key: keyof T
@@ -124,6 +127,37 @@ function Section<T extends object>({
   )
 }
 
+/** Per-browser editor preferences (lib/editorPrefs.ts). */
+function EditorPrefsSection() {
+  const prefs = useEditorPrefs()
+  return (
+    <details className="settings-section">
+      <summary>
+        <Icon name="chevron-right" size={14} className="settings-caret" />
+        Trình soạn thảo
+      </summary>
+      <div className="settings-section-body">
+        <label className="settings-check">
+          <input type="checkbox" checked={prefs.vim} onChange={(e) => setEditorPref('vim', e.target.checked)} /> Phím
+          tắt kiểu Vim
+        </label>
+        <label className="settings-check">
+          <input
+            type="checkbox"
+            checked={prefs.spellcheck}
+            onChange={(e) => setEditorPref('spellcheck', e.target.checked)}
+          />{' '}
+          Kiểm tra chính tả tiếng Việt (bỏ qua mã, công thức và chuỗi)
+        </label>
+        <p className="settings-hint">
+          Lưu trên trình duyệt này, áp dụng cho mọi dự án. Chính tả dùng từ điển của trình duyệt: cần thêm tiếng Việt
+          trong cài đặt ngôn ngữ của trình duyệt.
+        </p>
+      </div>
+    </details>
+  )
+}
+
 export function SettingsPanel() {
   const [agentSettingsVersion, setAgentSettingsVersion] = useState(0)
 
@@ -136,6 +170,8 @@ export function SettingsPanel() {
       </p>
 
       <AccountSettingsSection />
+
+      <SecuritySection />
 
       <Section<TypstSettings>
         title="Typst & font"
@@ -151,6 +187,8 @@ export function SettingsPanel() {
       <FontsSection />
 
       <ShortcutsSection />
+
+      <EditorPrefsSection />
 
       <details className="settings-section" open>
         <summary>
@@ -281,6 +319,23 @@ function LspSettingsSection() {
                 chủ để áp dụng.
               </small>
             </div>
+
+            <label className="settings-field" style={{ marginTop: 12 }}>
+              <span>Số dự án mở cùng lúc tối đa</span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={value.maxOpenProjects || 3}
+                onChange={(e) => setValue({ ...value, maxOpenProjects: Math.max(1, Math.round(Number(e.target.value)) || 1) })}
+                style={{ width: 80 }}
+              />
+              <small className="settings-hint">
+                Mỗi người làm trên một dự án riêng; mỗi dự án đang mở chạy một tinymist (khoảng 150–300 MB RAM). Khi đủ
+                số này, dự án để lâu không dùng nhất sẽ được đóng; nếu tất cả đều đang dùng, người mở thêm sẽ được báo thử
+                lại sau.
+              </small>
+            </label>
 
             <div className="settings-actions" style={{ marginTop: 12 }}>
               <button className="btn-primary" onClick={save} disabled={busy}>
@@ -764,9 +819,12 @@ function AccountSettingsSection() {
               </div>
             )}
           </div>
-          <button className="btn-secondary btn-sm" onClick={handleLogout} style={{ color: 'var(--error)' }}>
-            Đăng xuất
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <ChangeServerLink />
+            <button className="btn-secondary btn-sm" onClick={handleLogout} style={{ color: 'var(--error)' }}>
+              Đăng xuất
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

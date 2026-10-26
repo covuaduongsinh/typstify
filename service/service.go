@@ -58,10 +58,14 @@ type ServiceFacade struct {
 	acpMu              sync.Mutex
 	acpCond            *sync.Cond
 	acpStarting        bool
+	// mcpResolver, set by the web server, gives each agent session the MCP
+	// tools of its own project (RuntimeMcpServers). Guarded by acpMu.
+	mcpResolver func(cwd string) []acp.McpServer
 	mcpServer          *agent.McpServer // the built-in mcp server
 	dropboxClient      *dropbox.Client
 	dropboxSyncer      *dropbox.Syncer
 	vpsSync            *vpssync.SyncEngine
+	runtimes           *Runtimes
 
 	// projMu guards currentProjectDir and previewSrv: the web server
 	// switches projects from one HTTP handler while others read them.
@@ -115,9 +119,37 @@ func NewService(ctx context.Context) *ServiceFacade {
 	lsp.SetupCmdBuilder(s.settings.General().ExternalTinymist)
 	typst.SetupCmdBuilder(s.settings.General().ExternalTypst)
 
+	s.runtimes = newRuntimes(st, s.workspaceSrv, func() io.Writer {
+		if st.Lsp().EnableLSPLogs != 0 {
+			return s.consoleState
+		}
+		return io.Discard
+	}, func() int { return st.Lsp().MaxOpenProjects })
+	go s.runtimes.Run(ctx)
+
 	s.RegisterDevice()
 
 	return s
+}
+
+// SetDefaultProjectDir sets the web server's default project (the -project
+// flag, and the project of requests without a session) without starting
+// tinymist: the server runs tinymist per project through Runtimes.
+func (s *ServiceFacade) SetDefaultProjectDir(dir string) {
+	if dir == "" {
+		return
+	}
+	s.projMu.Lock()
+	s.currentProjectDir = dir
+	s.projMu.Unlock()
+	s.Workspace().TouchRecent(dir)
+}
+
+// Runtimes is the per-project tinymist/preview registry the web server
+// uses for each session's project (docs/plans/plan_phase3b_per_user_projects.md).
+// The desktop app keeps using the single current project (SetProjectDir).
+func (s *ServiceFacade) Runtimes() *Runtimes {
+	return s.runtimes
 }
 
 func (s *ServiceFacade) DropboxClient() *dropbox.Client {
@@ -202,6 +234,7 @@ func (s *ServiceFacade) Close(ctx context.Context) {
 	if previewSrv := s.PreviewService(); previewSrv != nil {
 		previewSrv.Destroy(ctx)
 	}
+	s.runtimes.Close()
 
 	s.stopAcpSessionManager(ctx)
 	if s.mcpServer != nil {
@@ -405,23 +438,69 @@ func (s *ServiceFacade) initMcpServer(ctx context.Context) {
 }
 
 func (s *ServiceFacade) listMcpServer() []acp.McpServer {
-	mcpServers := make([]acp.McpServer, 0)
 	if s.mcpServer == nil { // failed to start: don't advertise it
-		return mcpServers
+		return []acp.McpServer{}
 	}
+	return []acp.McpServer{mcpEntry(s.mcpServer)}
+}
 
-	// built-in mcp server
-	ip, port := s.mcpServer.Addr()
-	mcpServers = append(mcpServers, acp.McpServer{
+// mcpEntry advertises a built-in MCP server to an agent.
+func mcpEntry(srv *agent.McpServer) acp.McpServer {
+	ip, port := srv.Addr()
+	return acp.McpServer{
 		Http: &acp.McpServerHttpInline{
 			Name:    agent.ServerName,
 			Type:    "http",
 			Url:     fmt.Sprintf("http://%s:%d", ip, port),
 			Headers: []acp.HttpHeader{},
 		},
-	})
+	}
+}
 
-	return mcpServers
+// SetMcpResolver makes agent sessions get their MCP servers from resolve,
+// by working directory, instead of the single built-in server bound to
+// the current project. Takes effect for the next agent start.
+func (s *ServiceFacade) SetMcpResolver(resolve func(cwd string) []acp.McpServer) {
+	s.acpMu.Lock()
+	defer s.acpMu.Unlock()
+	s.mcpResolver = resolve
+}
+
+// RuntimeMcpServers returns the MCP servers bound to dir's project, built
+// on its runtime on first use; empty when the project cannot be opened
+// (over the open-projects limit) or the server fails to start.
+func (s *ServiceFacade) RuntimeMcpServers(dir string, activeDoc func() mcp.ActiveDocument) []acp.McpServer {
+	if dir == "" {
+		return []acp.McpServer{}
+	}
+	rt, release, err := s.runtimes.Acquire(dir)
+	if err != nil {
+		log.Printf("MCP tools for %s: %v", dir, err)
+		return []acp.McpServer{}
+	}
+	defer release()
+
+	srv := rt.mcpServer(func() (*agent.McpServer, error) {
+		m := agent.NewMcpServer(0)
+		if client := rt.LSP(); client != nil {
+			querier := func() *mcp.ActiveDocument {
+				doc := activeDoc()
+				return &doc
+			}
+			m.RegisterToolProvider(mcp.NewEditorMcpService(rt.Dir, s.settings, client, nil, s.eventbus, querier))
+		}
+		pkgTools := mcp.NewPackageMcpService(rt.Dir, s.TpixClient(), s.PkgService())
+		m.RegisterToolProvider(pkgTools)
+		m.RegisterResourceProvider(pkgTools)
+		if err := m.Run(); err != nil {
+			return nil, err
+		}
+		return m, nil
+	})
+	if srv == nil {
+		return []acp.McpServer{}
+	}
+	return []acp.McpServer{mcpEntry(srv)}
 }
 
 func (s *ServiceFacade) StartACPSession(ctx context.Context, projectDir string) (*agent.ACPSession, error) {
@@ -566,18 +645,27 @@ func (s *ServiceFacade) buildAgentConfig() agent.AgentConfig {
 // under s.acpMu (see getOrCreateAcpSessionManager) so concurrent callers
 // never race on that field.
 func (s *ServiceFacade) startAcpSessionManager(ctx context.Context) (*agent.SessionManager, error) {
-	cwd := s.CurrentProjectDir()
-	if cwd == "" {
-		return nil, errors.New("No project dir is open")
+	s.acpMu.Lock()
+	resolve := s.mcpResolver
+	s.acpMu.Unlock()
+
+	var mgr *agent.SessionManager
+	if resolve != nil {
+		// Web server: one MCP server per open project, made on demand
+		// (no default one, which would start another tinymist).
+		mgr = agent.NewSessionManager(nil)
+		mgr.SetMcpResolver(resolve)
+	} else {
+		if s.CurrentProjectDir() == "" {
+			return nil, errors.New("No project dir is open")
+		}
+		// start the mcp server
+		s.initMcpServer(ctx)
+		mgr = agent.NewSessionManager(s.listMcpServer())
 	}
 
 	childCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
-
-	// start the mcp server
-	s.initMcpServer(ctx)
-
-	mgr := agent.NewSessionManager(s.listMcpServer())
 
 	// Setting env ACP_DEBUG=1 will turn Typstify into ACP debug mode.
 	acpDebug := os.Getenv("ACP_DEBUG") == "1"

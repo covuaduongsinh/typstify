@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"looz.ws/typstify/lsp"
+	"looz.ws/typstify/lsp/protocol"
+	"looz.ws/typstify/service/projects"
 )
 
 // lspClientMessage is the wire format for browser -> server messages on
@@ -32,6 +35,7 @@ type lspServerMessage struct {
 	Items       any    `json:"items,omitempty"`
 	Hover       any    `json:"hover,omitempty"`
 	Symbols     any    `json:"symbols,omitempty"`
+	Edits       any    `json:"edits,omitempty"`
 	Diagnostics any    `json:"diagnostics,omitempty"`
 	Message     string `json:"message,omitempty"`
 }
@@ -68,19 +72,25 @@ func (w *watchedPaths) list() []string {
 	return out
 }
 
-// handleLspWS bridges one browser editor session to the tinymist LSP client
-// already managed by ServiceFacade/lsp.GetLspClient. It reuses lsp.Client's
+// handleLspWS bridges one browser editor session to the tinymist of the
+// session's project (service.Runtimes, held open while connected). It reuses lsp.Client's
 // existing synchronous Complete/Hover/DocumentSymbols calls (jsonrpc2
 // Call+Await under the hood) and lsp.Client's poll-friendly Diagnostics()
 // accessor -- no changes to package lsp were needed.
 func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 
-	client := lsp.GetLspClient(root, s.appSrv.Settings())
+	rt, release, err := s.appSrv.Runtimes().Acquire(root)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, tooManyProjectsMessage(err))
+		return
+	}
+	defer release()
+	client := rt.LSP()
 	if client == nil {
 		writeError(w, http.StatusServiceUnavailable, "LSP client is not available (is tinymist installed?)")
 		return
@@ -106,6 +116,13 @@ func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
 		if err := wsjson.Read(sessCtx, conn, &msg); err != nil {
 			return
 		}
+		// Re-checked per message so removing a member also cuts off an
+		// already open socket.
+		if !s.hasProjectRole(r, projects.RoleViewer) {
+			_ = conn.Close(websocket.StatusPolicyViolation, "access revoked")
+			return
+		}
+		canEdit := s.hasProjectRole(r, projects.RoleEditor)
 
 		switch msg.Type {
 		case "didOpen", "didChange":
@@ -113,11 +130,24 @@ func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				continue
 			}
+			content := msg.Content
+			if !canEdit {
+				// tinymist's in-memory document drives the shared preview, so
+				// a read-only member may only load what is on disk.
+				if msg.Type == "didChange" {
+					continue
+				}
+				data, err := os.ReadFile(p)
+				if err != nil {
+					continue
+				}
+				content = string(data)
+			}
 			if strings.HasSuffix(p, ".typ") {
 				s.SetActiveFile(p, 0)
 			}
 			watched.add(msg.Path)
-			client.OnEditorUpdated(p, strings.NewReader(msg.Content))
+			client.OnEditorUpdated(p, strings.NewReader(content))
 
 		case "didClose":
 			p, err := resolveInRoot(root, msg.Path)
@@ -128,6 +158,9 @@ func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
 			client.OnEditorClosed(p)
 
 		case "didSave":
+			if !canEdit {
+				continue
+			}
 			p, err := resolveInRoot(root, msg.Path)
 			if err != nil {
 				continue
@@ -169,6 +202,27 @@ func (s *Server) handleLspWS(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			_ = wsjson.Write(sessCtx, conn, lspServerMessage{Type: "documentSymbolsResult", ID: msg.ID, Symbols: symbols})
+
+		case "format":
+			// Formatting rewrites the document: editors only.
+			if !canEdit {
+				_ = wsjson.Write(sessCtx, conn, lspServerMessage{Type: "error", ID: msg.ID, Message: "read-only"})
+				continue
+			}
+			p, err := resolveInRoot(root, msg.Path)
+			if err != nil {
+				_ = wsjson.Write(sessCtx, conn, lspServerMessage{Type: "error", ID: msg.ID, Message: err.Error()})
+				continue
+			}
+			edits, err := client.Formatting(sessCtx, p, msg.Content)
+			if err != nil {
+				_ = wsjson.Write(sessCtx, conn, lspServerMessage{Type: "error", ID: msg.ID, Message: err.Error()})
+				continue
+			}
+			if edits == nil {
+				edits = []protocol.TextEdit{}
+			}
+			_ = wsjson.Write(sessCtx, conn, lspServerMessage{Type: "formatResult", ID: msg.ID, Edits: edits})
 
 		default:
 			log.Printf("lsp_ws: unknown message type %q", msg.Type)

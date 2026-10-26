@@ -1,4 +1,4 @@
-import { wsUrl } from '../api/client'
+import { projectWsUrl } from '../api/client'
 import type { ImageAttachment } from './acpTypes'
 
 // Wire format mirrors server/agent_ws.go's agentClientMessage/
@@ -33,7 +33,7 @@ export class AgentClient {
    * usual session/update messages (userMessage/agentMessage/toolCall/...). */
   constructor(loadSessionId?: string) {
     const url = loadSessionId ? `/ws/agent?sessionId=${encodeURIComponent(loadSessionId)}` : '/ws/agent'
-    this.ws = new WebSocket(wsUrl(url))
+    this.ws = new WebSocket(projectWsUrl(url))
     this.ws.addEventListener('message', (ev) => {
       let msg: AgentServerMessage
       try {

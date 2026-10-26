@@ -71,7 +71,7 @@ func (s *Server) handlePkgDownload(w http.ResponseWriter, r *http.Request) {
 // dependency resolver), so compilation/preview doesn't have to fetch them
 // on the fly.
 func (s *Server) handlePkgPullDeps(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return

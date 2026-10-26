@@ -59,16 +59,30 @@ Thư viện cờ vua `chessbook/` (`@local/chessbook:0.1.0`) là nội dung Typs
 
 ## 3. Vòng đời project
 
-`SetProjectDir` (`service/service.go`):
+**Desktop (Gio)** — một project hiện hành, `SetProjectDir` (`service/service.go`):
 1. `Workspace.SwitchWorkspace`.
-2. `lsp.GetLspClient(dir)` — singleton theo project, khởi chạy sớm; đổi workspace thì dừng client cũ.
+2. `lsp.GetLspClient(dir)` — client mặc định, khởi chạy sớm; đổi workspace thì dừng client cũ.
 3. Tạo `lsp.PreviewService` và `Start` trong goroutine (mặc định chế độ `document`).
 4. Dừng `SessionManager` ACP cũ.
+
+**Server web** — mỗi phiên đăng nhập một project (Giai đoạn 3b,
+`docs/plans/plan_phase3b_per_user_projects.md`):
+1. Project nằm trong phiên (`session.Project`, `server/auth.go`); `server/session_project.go`
+   (`projectDir`/`projectRoot`/`openProjectFor`) là chỗ duy nhất quyết định request làm việc trên
+   project nào. Request không có phiên (tắt xác thực, token API) dùng project mặc định
+   (`SetDefaultProjectDir`, cờ `-project`). Quyền theo project tính trên project của phiên.
+2. `service.Runtimes` giữ một `ProjectRuntime` cho mỗi project đang mở: tinymist (LSP), preview
+   tinymist và MCP server riêng, đều khởi động khi cần lần đầu. Đếm tham chiếu theo kết nối
+   (`/ws/lsp`, `/ws/agent`); quá giới hạn (`LspSettings.MaxOpenProjects`, mặc định 3) thì đóng
+   runtime nhàn rỗi lâu nhất hoặc trả 503; nhàn rỗi quá 10 phút thì tự đóng.
+3. Header `X-Typstify-Project` (fetch) / `?project=` (WebSocket): tab còn hiển thị project cũ nhận
+   409 `code: project_changed` và giao diện mời tải lại.
 
 ## 4. Agent và MCP
 
 - `agent.SessionManager` spawn tiến trình agent qua stdio và nói chuyện ACP (`coder/acp-go-sdk`).
 - MCP server nhúng (`service/mcp`, `agent/mcp_server.go`) mở cổng ngẫu nhiên hoặc tĩnh; được quảng bá cho agent qua `acp.McpServer{Http}`. Lỗi bind thì tắt MCP, không làm sập app.
+- Trên server web, `SessionManager.SetMcpResolver` chọn MCP server theo `cwd` của phiên ACP: mỗi project có MCP riêng (`ServiceFacade.RuntimeMcpServers`), công cụ đọc "tài liệu đang mở" của đúng project (`Server.activeDocumentFor`). Desktop vẫn dùng một MCP server gắn với project hiện hành.
 - `agent/view/*` chỉ phụ thuộc interface `ChatSession`, nên dùng chung cho phiên local (`ACPSession`) và phiên remote (`RemoteChatSession`).
 
 ## 5. Đồng bộ desktop ↔ server

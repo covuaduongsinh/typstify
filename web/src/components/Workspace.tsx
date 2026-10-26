@@ -1,13 +1,18 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { TreeEntry } from '../api/types'
+import { ROLE_LABELS, type AuthStatus, type TreeEntry, type WorkspaceRole } from '../api/types'
+import { userColor, type CollabUser } from '../lib/collab/provider'
+import { useCollab, useThreads } from '../lib/collab/useCollab'
 import { useTranslations } from '../lib/i18n'
 import { LspClient } from '../lib/lspClient'
 import { useTheme } from '../lib/theme'
 import { effectiveKey, matchesCombo, SHORTCUT_ACTIONS, useShortcuts } from '../lib/shortcuts'
 import { CHESSBOOK_IMPORT } from '../lib/typst'
+import { COMPACT_QUERY, useMediaQuery } from '../lib/useMediaQuery'
 import { BrandMark } from './BrandMark'
 import { ChessToolbar } from './ChessToolbar'
+import { CollabPresence } from './CollabPresence'
+import { CommentsPanel } from './CommentsPanel'
 import type { EditorHandle } from './Editor'
 import { ExportButton } from './ExportButton'
 import { FileTree } from './FileTree'
@@ -18,6 +23,7 @@ import { OutlinePanel } from './OutlinePanel'
 import { PreviewPane } from './PreviewPane'
 import { Resizer } from './Resizer'
 import { StatusBar, type DiagnosticCounts } from './StatusBar'
+import { TypstKeyBar } from './TypstKeyBar'
 
 // Heavy parts load on demand, so the login/project screens don't pull in
 // CodeMirror, react-markdown or the chess dialogs.
@@ -30,6 +36,9 @@ const PgnImportModal = lazy(() => import('./PgnImportModal').then((m) => ({ defa
 const DataImportModal = lazy(() => import('./DataImportModal').then((m) => ({ default: m.DataImportModal })))
 const MarkdownImportModal = lazy(() => import('./MarkdownImportModal').then((m) => ({ default: m.MarkdownImportModal })))
 const DropboxSyncModal = lazy(() => import('./DropboxSyncModal').then((m) => ({ default: m.DropboxSyncModal })))
+const ShareModal = lazy(() => import('./ShareModal').then((m) => ({ default: m.ShareModal })))
+const HistoryPanel = lazy(() => import('./HistoryPanel').then((m) => ({ default: m.HistoryPanel })))
+const SymbolPicker = lazy(() => import('./SymbolPicker').then((m) => ({ default: m.SymbolPicker })))
 
 function PanelLoading() {
   return (
@@ -41,7 +50,10 @@ function PanelLoading() {
 
 const I18N_KEYS = ['AI Assistant', 'Settings', 'Export']
 
-type SidePanel = 'agent' | 'outline' | 'packages' | 'settings' | null
+type SidePanel = 'agent' | 'comments' | 'history' | 'outline' | 'packages' | 'settings' | null
+
+/** The one pane a phone-sized screen shows at a time. */
+type MobilePane = 'files' | 'editor' | 'preview' | 'panel'
 
 const FILETREE_DEFAULT = 230
 const FILETREE_MIN = 160
@@ -125,8 +137,17 @@ const QUICK_BOARD_INSERT = `#teaching-diagram(
 )
 `
 
-export function Workspace({ projectPath, onCloseProject }: { projectPath: string; onCloseProject: () => void }) {
-  const [activePath, setActivePath] = useState<string | null>(null)
+export function Workspace({
+  projectPath,
+  initialFile,
+  onCloseProject,
+}: {
+  projectPath: string
+  /** Opened first (the main file of a project made from a template). */
+  initialFile?: string
+  onCloseProject: () => void
+}) {
+  const [activePath, setActivePath] = useState<string | null>(initialFile ?? null)
   const [content, setContent] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -140,8 +161,15 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const [cursor, setCursor] = useState<{ line: number; col: number; totalLines: number } | null>(null)
   const [liveContent, setLiveContent] = useState<string | null>(null)
   const liveDebounceRef = useRef<number | undefined>(undefined)
+  // The in-browser preview compiles on almost every keystroke, so it reads
+  // a draft with a much shorter debounce than liveContent (which the
+  // server-rendered previews use).
+  const [draftContent, setDraftContent] = useState<string | null>(null)
+  const draftDebounceRef = useRef<number | undefined>(undefined)
   const [diagnostics, setDiagnostics] = useState<DiagnosticCounts>({ errors: 0, warnings: 0 })
   const [sidePanel, setSidePanel] = useState<SidePanel>('agent')
+  const compact = useMediaQuery(COMPACT_QUERY)
+  const [mobilePane, setMobilePane] = useState<MobilePane>('editor')
   const [previewVersion, setPreviewVersion] = useState(0)
   const [isBoardOpen, setIsBoardOpen] = useState(false)
   const [isPgnOpen, setIsPgnOpen] = useState(false)
@@ -210,6 +238,53 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
   const editorRef = useRef<EditorHandle>(null)
   const t = useTranslations(I18N_KEYS)
   const [theme, toggleTheme] = useTheme()
+
+  // The caller's role on this project (server/projects_api.go). Projects
+  // that aren't in the registry behave as before: fully editable.
+  const [access, setAccess] = useState<WorkspaceRole | null>(null)
+  const [isShareOpen, setIsShareOpen] = useState(false)
+  const [isSymbolsOpen, setIsSymbolsOpen] = useState(false)
+  useEffect(() => {
+    api
+      .get<WorkspaceRole>('/api/workspace/role')
+      .then(setAccess)
+      .catch(() => setAccess(null))
+  }, [projectPath])
+  const readOnly = !!access?.registered && access.role !== 'owner' && access.role !== 'editor'
+
+  // Who this browser is to collaborators (name and cursor color).
+  const [me, setMe] = useState<CollabUser | null>(null)
+  useEffect(() => {
+    api
+      .get<AuthStatus>('/api/auth/status')
+      .then((st) => {
+        const user = st.username ?? ''
+        setMe({ user, name: st.displayName || user || 'Khách', ...userColor(user || 'khach') })
+      })
+      .catch(() => setMe(null))
+  }, [])
+
+  // .typ files are co-edited (lib/collab): every open copy shares one
+  // document, and the room's leader writes it to disk. Other files keep
+  // the plain load/edit/save flow.
+  const collabPath = activePath?.endsWith('.typ') ? activePath : null
+  const collab = useCollab(projectPath, collabPath, me)
+  const collabProvider = collab.mode === 'live' || collab.mode === 'offline' ? collab.provider : null
+  const collabBinding = useMemo(
+    () => (collabProvider ? { ytext: collabProvider.ytext, awareness: collabProvider.awareness } : null),
+    [collabProvider],
+  )
+  const threads = useThreads(collabProvider)
+  const commentRanges = useMemo(
+    () =>
+      threads
+        .filter((t) => !t.resolved && t.from !== null && t.to !== null)
+        .map((t) => ({ id: t.id, from: t.from!, to: t.to! })),
+    [threads],
+  )
+  const collabRole = collab.status.role
+  const canComment = collabRole === 'owner' || collabRole === 'editor' || collabRole === 'commenter'
+  const canShare = !!access?.registered && access.role === 'owner' && !!access.project
   const { overrides: shortcuts } = useShortcuts()
 
   // One /ws/lsp connection for the whole workspace session, shared across
@@ -243,6 +318,9 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         switch (action.id) {
           case 'save':
             void editorRef.current?.save()
+            break
+          case 'format':
+            void editorRef.current?.format()
             break
           case 'openBoard':
             openBoard()
@@ -292,6 +370,8 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     setContent(null)
     setLiveContent(null)
     window.clearTimeout(liveDebounceRef.current)
+    setDraftContent(null)
+    window.clearTimeout(draftDebounceRef.current)
     setLoadError(null)
     setSaveError(null)
     if (!activePath) return
@@ -365,14 +445,25 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     liveDebounceRef.current = window.setTimeout(() => {
       setLiveContent(newDoc)
     }, 300)
+    window.clearTimeout(draftDebounceRef.current)
+    draftDebounceRef.current = window.setTimeout(() => {
+      setDraftContent(newDoc)
+    }, 40)
   }
 
   const saveActiveFile = async (newContent: string) => {
     if (!activePath) return
-    await api.put(`/api/workspace/file?path=${encodeURIComponent(activePath)}`, newContent)
+    if (collabProvider) {
+      // The room's leader writes the shared text: only the leader's own
+      // Ctrl+S saves anything (and nothing while a conflict is open).
+      if (!collabProvider.flush()) return
+    } else {
+      await api.put(`/api/workspace/file?path=${encodeURIComponent(activePath)}`, newContent)
+    }
     setLastSaved(new Date())
     setSaveError(null)
     setLiveContent(newContent)
+    setDraftContent(newContent)
 
     if (activePath.endsWith('.typ')) {
       await api.post('/api/preview/restart', { entryFile: activePath })
@@ -389,6 +480,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
     if (doc) {
       window.clearTimeout(liveDebounceRef.current)
       setLiveContent(doc)
+      setDraftContent(doc)
     }
   }
 
@@ -414,18 +506,33 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
 
   const togglePanel = (panel: Exclude<SidePanel, null>) => setSidePanel(sidePanel === panel ? null : panel)
 
+  const showMobilePane = (pane: MobilePane) => {
+    if (pane === 'panel' && !sidePanel) setSidePanel('agent')
+    setMobilePane(pane)
+  }
+  const openFromTree = (path: string) => {
+    openFile(path)
+    if (compact) setMobilePane('editor')
+  }
+  // Phone layout: every pane stays mounted (editor state, the collab room
+  // and the preview survive switching tabs); CSS shows only one.
+  const fileTreeShown = compact || showFileTree
+  const previewShown = compact || showPreview
+
   const projectName = projectPath.split('/').filter(Boolean).pop() ?? projectPath
   const crumbs = activePath ? activePath.split('/') : []
 
   const panelToggles: Array<{ id: Exclude<SidePanel, null>; icon: IconName; label: string }> = [
     { id: 'agent', icon: 'sparkles', label: t('AI Assistant') },
+    { id: 'comments', icon: 'message', label: 'Bình luận' },
+    { id: 'history', icon: 'clock', label: 'Lịch sử' },
     { id: 'outline', icon: 'outline', label: 'Dàn ý' },
     { id: 'packages', icon: 'package', label: 'Gói Typst' },
     { id: 'settings', icon: 'sliders', label: t('Settings') },
   ]
 
   return (
-    <div className="workspace">
+    <div className={compact ? 'workspace compact' : 'workspace'}>
       {/* Transparent overlay while resizing so the PDF <embed> can't swallow pointer events */}
       {resizing && <div className="resizing-overlay" />}
 
@@ -453,21 +560,52 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 ))}
                 {dirty && <span className="dirty-dot" title="Có thay đổi chưa lưu" />}
               </nav>
-              <button
-                className={`hdr-btn save-btn${dirty ? ' btn-accent' : ' btn-ghost'}`}
-                title="Lưu (Ctrl+S)"
-                disabled={!dirty}
-                onClick={() => editorRef.current?.save()}
-              >
-                <Icon name={dirty ? 'save' : 'check'} />
-                <span className="hdr-label">{dirty ? 'Lưu' : 'Đã lưu'}</span>
-              </button>
+              {collabProvider ? (
+                <CollabPresence status={collab.status} self={me?.user ?? null} />
+              ) : readOnly ? (
+                <span className="role-badge" title="Bạn chỉ có quyền xem dự án này">
+                  <Icon name="eye" size={14} /> {ROLE_LABELS[access!.role]}
+                </span>
+              ) : (
+                <button
+                  className={`hdr-btn save-btn${dirty ? ' btn-accent' : ' btn-ghost'}`}
+                  title="Lưu (Ctrl+S)"
+                  disabled={!dirty}
+                  onClick={() => editorRef.current?.save()}
+                >
+                  <Icon name={dirty ? 'save' : 'check'} />
+                  <span className="hdr-label">{dirty ? 'Lưu' : 'Đã lưu'}</span>
+                </button>
+              )}
+              {activePath.endsWith('.typ') && !readOnly && (
+                <button
+                  className="btn-ghost hdr-btn"
+                  title="Định dạng mã Typst bằng typstyle (Ctrl+Shift+F)"
+                  onClick={() => void editorRef.current?.format()}
+                >
+                  <Icon name="type" />
+                  <span className="hdr-label">Định dạng</span>
+                </button>
+              )}
+              {activePath.endsWith('.typ') && !readOnly && (
+                <button className="btn-ghost hdr-btn" title="Chèn ký hiệu Typst (sym.*)" onClick={() => setIsSymbolsOpen(true)}>
+                  <span aria-hidden="true">Ω</span>
+                  <span className="hdr-label">Ký hiệu</span>
+                </button>
+              )}
             </>
           )}
         </div>
 
         <div className="hdr-group hdr-right">
           {activePath?.endsWith('.typ') && <ExportButton path={activePath} />}
+
+          {canShare && (
+            <button className="hdr-btn" onClick={() => setIsShareOpen(true)} title="Chia sẻ dự án" aria-label="Chia sẻ dự án">
+              <Icon name="link" />
+              <span className="hdr-label">Chia sẻ</span>
+            </button>
+          )}
 
           <button
             className="hdr-btn"
@@ -526,13 +664,15 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         </div>
       </header>
 
-      <div className="workspace-body" ref={bodyRef}>
-        {showFileTree && (
-          <aside className="workspace-filetree" style={{ width: fileTreeWidth }}>
+      <div className={compact ? `workspace-body compact pane-${mobilePane}` : 'workspace-body'} ref={bodyRef}>
+        {fileTreeShown && (
+          <aside className="workspace-filetree" style={compact ? undefined : { width: fileTreeWidth }}>
             <FileTree
               key={treeVersion}
+              readOnly={readOnly}
+              onFilesUploaded={() => setPreviewVersion((v) => v + 1)}
               activePath={activePath ?? ''}
-              onOpenFile={openFile}
+              onOpenFile={openFromTree}
               onPathRemoved={(p) => {
                 if (activePath && (activePath === p || activePath.startsWith(`${p}/`))) setActivePath(null)
                 setTreeVersion((v) => v + 1)
@@ -547,7 +687,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
           </aside>
         )}
 
-        {showFileTree && (
+        {showFileTree && !compact && (
           <Resizer
             label="Cây thư mục"
             className="resizer-filetree"
@@ -564,10 +704,14 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         <div className="workspace-middle-area" ref={middleAreaRef}>
           <main
             className="workspace-editor"
-            style={{
-              flex: showPreview ? `0 0 ${editorRatio * 100}%` : '1 1 100%',
-              maxWidth: showPreview ? `${editorRatio * 100}%` : '100%',
-            }}
+            style={
+              compact
+                ? undefined
+                : {
+                    flex: showPreview ? `0 0 ${editorRatio * 100}%` : '1 1 100%',
+                    maxWidth: showPreview ? `${editorRatio * 100}%` : '100%',
+                  }
+            }
           >
             {activePath && BINARY_EXTENSIONS[activePath.slice(activePath.lastIndexOf('.')).toLowerCase()] ? (
               <div className="binary-preview-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', overflow: 'auto', boxSizing: 'border-box' }}>
@@ -596,8 +740,24 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                   </div>
                 )}
               </div>
-            ) : activePath && content !== null && lspClient ? (
+            ) : activePath && content !== null && lspClient && !(collabPath && collab.mode === null) ? (
               <div className="editor-container-with-toolbar">
+                {collabProvider && collab.status.conflict && (
+                  <div className="collab-conflict" role="alert">
+                    <Icon name="alert" size={16} />
+                    <span>
+                      {collab.status.conflict.kind === 'external'
+                        ? 'Tệp vừa bị sửa ở nơi khác (trợ lý AI, Dropbox, bản desktop…) đúng chỗ đang được sửa ở đây.'
+                        : 'Có nội dung sửa lúc ngoại tuyến chưa gộp được vào bản chung.'}
+                    </span>
+                    <button className="btn-primary" onClick={() => collabProvider.resolveConflict(true)}>
+                      {collab.status.conflict.kind === 'external' ? 'Dùng bản trên đĩa' : 'Khôi phục bản ngoại tuyến'}
+                    </button>
+                    <button className="btn-ghost" onClick={() => collabProvider.resolveConflict(false)}>
+                      Giữ bản đang sửa
+                    </button>
+                  </div>
+                )}
                 {activePath.endsWith('.typ') && (
                   <ChessToolbar
                     onInsertText={handleInsertText}
@@ -613,7 +773,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                 )}
                 <Suspense fallback={<PanelLoading />}>
                   <Editor
-                    key={activePath}
+                    key={`${activePath}:${collabProvider ? 'collab' : 'local'}`}
                     ref={editorRef}
                     path={activePath}
                     initialContent={content}
@@ -624,8 +784,20 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                     onSaveError={setSaveError}
                     onCursorChange={setCursor}
                     onDiagnosticsChange={setDiagnostics}
+                    readOnly={readOnly || (!!collabProvider && collab.status.mode === 'unavailable')}
+                    collab={collabBinding}
+                    commentRanges={commentRanges}
+                    onFilesUploaded={() => {
+                      // New files: the tree shows them, the in-browser
+                      // compiler reloads its file list to find them.
+                      setTreeVersion((v) => v + 1)
+                      setPreviewVersion((v) => v + 1)
+                    }}
                   />
                 </Suspense>
+                {compact && activePath.endsWith('.typ') && !readOnly && (
+                  <TypstKeyBar onInsert={(text) => editorRef.current?.insertText(text)} />
+                )}
               </div>
             ) : activePath ? (
               <div className="editor-state">
@@ -641,7 +813,8 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                   </div>
                 ) : (
                   <>
-                    <span className="spinner spinner-lg" /> Đang mở {activePath}…
+                    <span className="spinner spinner-lg" />{' '}
+                    {content !== null && collabPath ? 'Đang kết nối cộng tác' : 'Đang mở'} {activePath}…
                   </>
                 )}
               </div>
@@ -685,7 +858,7 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
             )}
           </main>
 
-          {showPreview && (
+          {showPreview && !compact && (
             <Resizer
               label="Tỷ lệ soạn thảo / xem trước"
               className="resizer-editor"
@@ -699,27 +872,33 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
             />
           )}
 
-          {showPreview && (
+          {previewShown && (
             <section
               className="workspace-preview"
-              style={{
-                flex: `0 0 ${(1 - editorRatio) * 100}%`,
-                maxWidth: `${(1 - editorRatio) * 100}%`,
-              }}
+              style={
+                compact
+                  ? undefined
+                  : {
+                      flex: `0 0 ${(1 - editorRatio) * 100}%`,
+                      maxWidth: `${(1 - editorRatio) * 100}%`,
+                    }
+              }
             >
               <PreviewPane
                 path={activePath}
                 version={previewVersion}
                 content={content}
                 liveContent={liveContent}
+                draftContent={draftContent}
                 cursor={cursor}
                 onScrollToLine={(line) => editorRef.current?.scrollToLine(line)}
+                onJumpToLine={(line) => editorRef.current?.goToPosition(line - 1, 0)}
               />
             </section>
           )}
         </div>
 
-        {sidePanel && (
+        {sidePanel && !compact && (
           <Resizer
             label="Bảng bên phải"
             className="resizer-sidepanel"
@@ -734,9 +913,50 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
         )}
 
         {sidePanel && (
-          <aside className="workspace-side-panel" style={{ width: sidePanelWidth }}>
+          <aside className="workspace-side-panel" style={compact ? undefined : { width: sidePanelWidth }}>
+            {compact && (
+              <div className="mobile-panel-tabs" role="tablist" aria-label="Công cụ">
+                {panelToggles.map((p) => (
+                  <button
+                    key={p.id}
+                    role="tab"
+                    aria-selected={sidePanel === p.id}
+                    className={`mobile-panel-tab${sidePanel === p.id ? ' active' : ''}`}
+                    onClick={() => setSidePanel(p.id)}
+                  >
+                    <Icon name={p.icon} size={16} />
+                    <span>{p.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <Suspense fallback={<PanelLoading />}>
               {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
+              {sidePanel === 'history' && (
+                <HistoryPanel
+                  canEdit={!readOnly}
+                  onRestored={(paths) => {
+                    setTreeVersion((v) => v + 1)
+                    setPreviewVersion((v) => v + 1)
+                    // A co-edited file picks the restore up through its room
+                    // (an outside edit); a plain one is reloaded.
+                    // (An empty list means any file may have changed: a Git pull.)
+                    if (activePath && !collabProvider && (paths.length === 0 || paths.includes(activePath))) {
+                      setLoadAttempt((n) => n + 1)
+                    }
+                  }}
+                />
+              )}
+              {sidePanel === 'comments' && (
+                <CommentsPanel
+                  provider={collabProvider}
+                  me={me}
+                  canComment={canComment}
+                  canModerate={collabRole === 'owner' || collabRole === 'editor'}
+                  getSelection={() => editorRef.current?.getSelection() ?? null}
+                  onJump={(from, to) => editorRef.current?.selectRange(from, to)}
+                />
+              )}
               {sidePanel === 'outline' && (
                 <OutlinePanel
                   path={activePath?.endsWith('.typ') ? activePath : null}
@@ -744,12 +964,43 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
                   onSelect={(line, character) => editorRef.current?.goToPosition(line, character)}
                 />
               )}
-              {sidePanel === 'packages' && <PackageManager />}
+              {sidePanel === 'packages' && (
+                <PackageManager
+                  onInsertImport={(name, version) =>
+                    editorRef.current && activePath?.endsWith('.typ')
+                      ? editorRef.current.addPackageImport(name, version)
+                      : 'no-file'
+                  }
+                />
+              )}
               {sidePanel === 'settings' && <SettingsPanel />}
             </Suspense>
           </aside>
         )}
       </div>
+
+      {compact && (
+        <nav className="mobile-tabbar" aria-label="Chuyển khung">
+          {(
+            [
+              { id: 'files', icon: 'folder', label: 'Tệp' },
+              { id: 'editor', icon: 'file-text', label: 'Soạn thảo' },
+              { id: 'preview', icon: 'eye', label: 'Xem trước' },
+              { id: 'panel', icon: 'sparkles', label: 'Công cụ' },
+            ] as Array<{ id: MobilePane; icon: IconName; label: string }>
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              className={`mobile-tab${mobilePane === tab.id ? ' active' : ''}`}
+              aria-current={mobilePane === tab.id ? 'page' : undefined}
+              onClick={() => showMobilePane(tab.id)}
+            >
+              <Icon name={tab.icon} size={20} />
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
 
       <StatusBar
         activePath={activePath}
@@ -791,6 +1042,22 @@ export function Workspace({ projectPath, onCloseProject }: { projectPath: string
             isOpen={isDropboxOpen}
             onClose={() => setIsDropboxOpen(false)}
             onSyncCompleted={() => setTreeVersion((v) => v + 1)}
+          />
+        )}
+        {isSymbolsOpen && (
+          <SymbolPicker
+            onInsert={(text) => {
+              editorRef.current?.insertText(text)
+              setIsSymbolsOpen(false)
+            }}
+            onClose={() => setIsSymbolsOpen(false)}
+          />
+        )}
+        {isShareOpen && access?.project && (
+          <ShareModal
+            projectId={access.project.id}
+            projectName={access.project.name}
+            onClose={() => setIsShareOpen(false)}
           />
         )}
       </Suspense>

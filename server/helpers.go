@@ -19,7 +19,12 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
+	body := map[string]string{"error": msg}
+	if msg == errProjectChanged.Error() {
+		// The web UI reloads on this code (session_project.go).
+		body["code"] = "project_changed"
+	}
+	writeJSON(w, status, body)
 }
 
 // writeBodyError answers a failed request-body decode: 413 when the body

@@ -104,7 +104,7 @@ type acpSessionSummary struct {
 // running (browsing history shouldn't require a live chat to have been
 // started first), but does not create a new session.
 func (s *Server) handleAgentSessions(w http.ResponseWriter, r *http.Request) {
-	root, err := s.projectRoot()
+	root, err := s.projectRoot(r)
 	if err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return

@@ -40,17 +40,41 @@ type User struct {
 	Salt         string    `json:"salt"`
 	CreatedAt    time.Time `json:"createdAt"`
 	UpdatedAt    time.Time `json:"updatedAt"`
+	// Admin users see and manage every project (see service/projects).
+	Admin bool `json:"admin,omitempty"`
+
+	// TOTP second factor (totp.go). MFAPendingSecret holds a secret between
+	// setup and confirmation; RecoveryCodes are argon2id hashes, each
+	// usable once.
+	MFAEnabled       bool     `json:"mfaEnabled,omitempty"`
+	MFASecret        string   `json:"mfaSecret,omitempty"`
+	MFAPendingSecret string   `json:"mfaPendingSecret,omitempty"`
+	MFALastStep      int64    `json:"mfaLastStep,omitempty"`
+	RecoveryCodes    []string `json:"recoveryCodes,omitempty"`
+	// Per-account wrong-code counter and lockout (credentials.go).
+	MFAFailures    int       `json:"mfaFailures,omitempty"`
+	MFALockedUntil time.Time `json:"mfaLockedUntil,omitzero"`
 }
 
 type session struct {
 	Username string    `json:"username"`
 	Expires  time.Time `json:"expires"`
 	Created  time.Time `json:"created"`
+	// Project is the directory this session has open: each browser works
+	// on its own project (docs/plans/plan_phase3b_per_user_projects.md).
+	Project string `json:"project,omitempty"`
 }
 
 type authManager struct {
 	password   string
 	storageDir string
+	// Desktop mode (apps/tauri, launch.go): authentication is always on,
+	// nobody registers without a session, and launchToken (once, until
+	// launchExpires) signs the window in as launchUser.
+	desktopMode   bool
+	launchToken   string
+	launchUser    string
+	launchExpires time.Time
 
 	mu        sync.Mutex
 	users     map[string]User
@@ -75,7 +99,7 @@ func newAuthManager(password string, storageDir string) *authManager {
 func (a *authManager) enabled() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.password != "" || len(a.users) > 0
+	return a.password != "" || a.desktopMode || len(a.users) > 0
 }
 
 func (a *authManager) usersCount() int {
@@ -84,6 +108,9 @@ func (a *authManager) usersCount() int {
 	return len(a.users)
 }
 
+// hashPassword is the legacy salted SHA-256 scheme. It is kept only so that
+// existing auth_users.json entries still verify; new hashes use
+// newPasswordHash (argon2id) and legacy ones are upgraded on login.
 func hashPassword(password, salt string) string {
 	h := sha256.New()
 	h.Write([]byte(salt))
@@ -98,11 +125,6 @@ func generateSalt() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(buf), nil
-}
-
-func verifyPassword(password, salt, expectedHash string) bool {
-	computed := hashPassword(password, salt)
-	return subtle.ConstantTimeCompare([]byte(computed), []byte(expectedHash)) == 1
 }
 
 func (a *authManager) loadPersistentData() {
@@ -135,7 +157,51 @@ func (a *authManager) loadPersistentData() {
 		}
 	}
 
+	a.ensureAdminLocked()
 	a.loadTokensLocked()
+}
+
+// ensureAdminLocked upgrades users files written before admins existed:
+// the earliest-created account becomes the admin. Caller holds a.mu.
+func (a *authManager) ensureAdminLocked() {
+	var first string
+	var firstAt time.Time
+	for name, u := range a.users {
+		if u.Admin {
+			return
+		}
+		if first == "" || u.CreatedAt.Before(firstAt) || (u.CreatedAt.Equal(firstAt) && name < first) {
+			first, firstAt = name, u.CreatedAt
+		}
+	}
+	if first == "" {
+		return
+	}
+	u := a.users[first]
+	u.Admin = true
+	a.users[first] = u
+	_ = a.saveUsersLocked()
+}
+
+func (a *authManager) userExists(username string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	_, ok := a.users[username]
+	return ok
+}
+
+// isAdmin reports whether username may manage every project: an admin
+// account, or the legacy single-password "admin" login.
+func (a *authManager) isAdmin(username string) bool {
+	if !a.enabled() {
+		return true
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if u, ok := a.users[username]; ok {
+		return u.Admin
+	}
+	return username == "admin" && a.password != "" && len(a.users) == 0
 }
 
 func (a *authManager) saveUsersLocked() error {
@@ -208,6 +274,20 @@ func (a *authManager) validRequest(r *http.Request) bool {
 	return false
 }
 
+// displayNameOf returns the name shown to collaborators: the display name
+// when set, else the username.
+func (a *authManager) displayNameOf(user string) string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if u, ok := a.users[user]; ok && u.DisplayName != "" {
+		return u.DisplayName
+	}
+	if user == "" {
+		return "Khách"
+	}
+	return user
+}
+
 func (a *authManager) authenticatedUser(r *http.Request) (string, bool) {
 	if sess, ok := a.getSession(r); ok && sess.Username != "" {
 		return sess.Username, true
@@ -260,6 +340,40 @@ func (a *authManager) getSession(r *http.Request) (session, bool) {
 	return sess, true
 }
 
+// sessionProject returns the project directory the request's session has
+// open; ok is false when there is no valid session (auth disabled, or an
+// API token).
+func (a *authManager) sessionProject(r *http.Request) (dir string, ok bool) {
+	sess, ok := a.getSession(r)
+	if !ok {
+		return "", false
+	}
+	return sess.Project, true
+}
+
+// setSessionProject records dir as the request's session project; false
+// when the request has no valid session.
+func (a *authManager) setSessionProject(r *http.Request, dir string) bool {
+	c, err := r.Cookie(sessionCookieName)
+	if err != nil || c.Value == "" {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	now := time.Now()
+	sess, ok := a.sessions[c.Value]
+	if !ok || now.After(sess.Expires) || now.Sub(sess.Created) > sessionMaxAge {
+		return false
+	}
+	if sess.Project == dir {
+		return true
+	}
+	sess.Project = dir
+	a.sessions[c.Value] = sess
+	_ = a.saveSessionsLocked()
+	return true
+}
+
 // sweepExpired drops expired sessions. Caller holds a.mu.
 func (a *authManager) sweepExpired(now time.Time) {
 	modified := false
@@ -285,6 +399,8 @@ func newSessionToken() (string, error) {
 type loginRequest struct {
 	Username string `json:"username,omitempty"`
 	Password string `json:"password"`
+	// Code is the TOTP or recovery code, required once MFA is enabled.
+	Code string `json:"code,omitempty"`
 }
 
 type registerRequest struct {
@@ -318,7 +434,12 @@ func (a *authManager) handleRegister(w http.ResponseWriter, r *http.Request) {
 	// Registration Policy:
 	// 1. If no users exist yet (Bootstrap mode / Server Owner): allow registration.
 	// 2. If users exist: require either an authenticated session/token OR valid server password.
-	if a.usersCount() > 0 {
+	a.mu.Lock()
+	desktop := a.desktopMode
+	a.mu.Unlock()
+	// The desktop app's account exists from the start (launch.go); there is
+	// no bootstrap registration on a desktop sidecar.
+	if a.usersCount() > 0 || desktop {
 		hasAuth := a.validRequest(r)
 		hasServerPass := a.password != "" && req.ServerPassword != "" &&
 			subtle.ConstantTimeCompare([]byte(req.ServerPassword), []byte(a.password)) == 1
@@ -352,7 +473,7 @@ func (a *authManager) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	salt, err := generateSalt()
+	passwordHash, err := newPasswordHash(req.Password)
 	if err != nil {
 		a.mu.Unlock()
 		writeError(w, http.StatusInternalServerError, "Lỗi tạo mã bảo mật")
@@ -363,10 +484,10 @@ func (a *authManager) handleRegister(w http.ResponseWriter, r *http.Request) {
 	user := User{
 		Username:     username,
 		DisplayName:  displayName,
-		PasswordHash: hashPassword(req.Password, salt),
-		Salt:         salt,
+		PasswordHash: passwordHash,
 		CreatedAt:    now,
 		UpdatedAt:    now,
+		Admin:        len(a.users) == 0,
 	}
 	a.users[username] = user
 	_ = a.saveUsersLocked()
@@ -426,44 +547,19 @@ func (a *authManager) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	username := strings.ToLower(strings.TrimSpace(req.Username))
-	var loggedInUser string
-	var displayName string
-	authenticated := false
-
-	a.mu.Lock()
-	if username != "" {
-		if u, ok := a.users[username]; ok {
-			if verifyPassword(req.Password, u.Salt, u.PasswordHash) {
-				authenticated = true
-				loggedInUser = u.Username
-				displayName = u.DisplayName
-			}
-		}
-	} else {
-		// Legacy login or single password check
-		if a.password != "" && subtle.ConstantTimeCompare([]byte(req.Password), []byte(a.password)) == 1 {
-			authenticated = true
-			loggedInUser = "admin"
-			displayName = "Quản trị viên"
-		} else if len(a.users) == 1 {
-			// If only one user exists, allow logging in with just password
-			for _, u := range a.users {
-				if verifyPassword(req.Password, u.Salt, u.PasswordHash) {
-					authenticated = true
-					loggedInUser = u.Username
-					displayName = u.DisplayName
-					break
-				}
-			}
-		}
-	}
-	a.mu.Unlock()
-
+	loggedInUser, displayName, authenticated := a.authenticatePassword(req.Username, req.Password)
 	if !authenticated {
 		a.limiter.recordFailure(ip)
 		time.Sleep(failedLoginDelay)
 		writeError(w, http.StatusUnauthorized, "Tên đăng nhập hoặc mật khẩu không đúng")
+		return
+	}
+	if ok, locked := a.checkSecondFactor(loggedInUser, req.Code); !ok {
+		if req.Code != "" {
+			a.limiter.recordFailure(ip)
+			time.Sleep(failedLoginDelay)
+		}
+		writeMFARequired(w, req.Code != "", locked)
 		return
 	}
 	a.limiter.recordSuccess(ip)
@@ -531,13 +627,13 @@ func (a *authManager) handleChangePassword(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		newSalt, err := generateSalt()
+		newHash, err := newPasswordHash(req.NewPassword)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "Lỗi tạo mã bảo mật")
 			return
 		}
-		u.Salt = newSalt
-		u.PasswordHash = hashPassword(req.NewPassword, newSalt)
+		u.Salt = ""
+		u.PasswordHash = newHash
 		u.UpdatedAt = time.Now()
 		a.users[username] = u
 		_ = a.saveUsersLocked()
@@ -549,14 +645,14 @@ func (a *authManager) handleChangePassword(w http.ResponseWriter, r *http.Reques
 		}
 		a.password = req.NewPassword
 		// Also create a persistent user entry for this admin so it persists on disk
-		newSalt, err := generateSalt()
+		newHash, err := newPasswordHash(req.NewPassword)
 		if err == nil {
 			now := time.Now()
 			a.users["admin"] = User{
 				Username:     "admin",
 				DisplayName:  "Quản trị viên",
-				PasswordHash: hashPassword(req.NewPassword, newSalt),
-				Salt:         newSalt,
+				PasswordHash: newHash,
+				Admin:        true, // only reachable in bootstrap mode (no accounts yet)
 				CreatedAt:    now,
 				UpdatedAt:    now,
 			}
@@ -594,10 +690,12 @@ func (a *authManager) handleLogout(w http.ResponseWriter, r *http.Request) {
 func (a *authManager) handleStatus(w http.ResponseWriter, r *http.Request) {
 	sess, authenticated := a.getSession(r)
 	var displayName string
+	var mfaEnabled bool
 	if authenticated && sess.Username != "" {
 		a.mu.Lock()
 		if u, ok := a.users[sess.Username]; ok {
 			displayName = u.DisplayName
+			mfaEnabled = u.MFAEnabled
 		}
 		a.mu.Unlock()
 	}
@@ -608,5 +706,14 @@ func (a *authManager) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"username":      sess.Username,
 		"displayName":   displayName,
 		"hasUsers":      a.usersCount() > 0,
+		"admin":         authenticated && a.isAdmin(sess.Username),
+		"mfaEnabled":    mfaEnabled,
+		"desktop":       a.isDesktop(),
 	})
+}
+
+func (a *authManager) isDesktop() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.desktopMode
 }
