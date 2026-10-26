@@ -6,9 +6,10 @@ param(
     [switch]$SkipWeb
 )
 $ErrorActionPreference = "Stop"
+# Paths use "/" so the script also runs under pwsh on Linux (CI).
 
-$Repo = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
-$App = Join-Path $Repo "apps\tauri"
+$Repo = Resolve-Path (Join-Path $PSScriptRoot "../../..")
+$App = Join-Path $Repo "apps/tauri"
 $web = Join-Path $Repo "web"
 if (-not $SkipWeb) {
     Push-Location $web
@@ -20,9 +21,9 @@ if (-not $SkipWeb) {
     } finally { Pop-Location }
 }
 
-$out = Join-Path $App "src-tauri\resources\mobile-dist"
+$out = Join-Path $App "src-tauri/resources/mobile-dist"
 if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 New-Item -ItemType Directory -Force -Path (Split-Path $out) | Out-Null
 Copy-Item -Recurse (Join-Path $web "dist") $out
-Copy-Item (Join-Path $App "mobile\app-setup.html") $out
+Copy-Item (Join-Path $App "mobile/app-setup.html") $out
 Write-Host "Xong: $out"

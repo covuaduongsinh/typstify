@@ -53,7 +53,14 @@ WebView ──http://127.0.0.1:<cổng>──► proxy (Rust, trong app)
 
 - Thêm mục "Đổi server" (chỉ hiện khi `AuthStatus`/môi trường cho biết đang chạy trong app
   mobile) trỏ tới `/__app/server`.
-- Kiểm tra bố cục điện thoại trên máy ảo: chuyển editor/preview, thanh ký hiệu.
+- Bố cục điện thoại (**đã làm 26/10/2026**, `Workspace.tsx`, `TypstKeyBar.tsx`,
+  `lib/useMediaQuery.ts`): màn hình ≤ 720px chỉ hiện một khung (Tệp / Soạn thảo / Xem trước /
+  Công cụ) chuyển bằng thanh tab ở đáy; các khung vẫn mounted (giữ trạng thái editor, phòng cộng
+  tác, preview), CSS chỉ ẩn/hiện. Mở tệp từ cây thư mục tự chuyển sang Soạn thảo. Khung Công cụ
+  có hàng tab riêng cho Trợ lý AI, bình luận, lịch sử, dàn ý, gói, cài đặt. Thanh ký hiệu Typst
+  (`# $ [ ] { } * _ = < > @ \`…) phía trên bàn phím ảo, bấm không làm mất focus editor (giữ bàn
+  phím mở). Đã kiểm thử trong Chrome với khung rộng 412px; còn phải thử trên máy ảo (bàn phím
+  ảo thật, cảm ứng).
 
 ## Môi trường build (đã có)
 
@@ -82,4 +89,4 @@ WebView ──http://127.0.0.1:<cổng>──► proxy (Rust, trong app)
 
 ## Còn mở
 
-iOS; ký APK bản phát hành (hiện chỉ debug/APK chưa ký); CI build Android.
+iOS; ký APK bản phát hành (hiện chỉ debug/APK chưa ký). CI build Android đã viết (`.github/workflows/tauri.yml`, job `android`: APK debug aarch64 + x86_64) nhưng chưa chạy lần nào trên GitHub.

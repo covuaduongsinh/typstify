@@ -53,7 +53,7 @@ powershell -File apps/tauri/scripts/prepare-mobile.ps1 && cd apps/tauri && npx t
 cd apps/tauri/src-tauri && cargo test --lib  # test proxy của bản mobile
 ```
 
-Không có Justfile/Makefile. Bản desktop phát hành cần `gogio` và CGO. CI: `.github/workflows/ci.yml`.
+Không có Justfile/Makefile. Bản desktop phát hành cần `gogio` và CGO. CI: `.github/workflows/ci.yml` (Go, web, chessbook, Docker) và `.github/workflows/tauri.yml` (bộ cài Windows + APK debug, chỉ chạy khi `apps/tauri/` hoặc `web/` đổi).
 
 ## 4. Quy ước làm việc
 

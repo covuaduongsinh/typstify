@@ -8,6 +8,7 @@ import { LspClient } from '../lib/lspClient'
 import { useTheme } from '../lib/theme'
 import { effectiveKey, matchesCombo, SHORTCUT_ACTIONS, useShortcuts } from '../lib/shortcuts'
 import { CHESSBOOK_IMPORT } from '../lib/typst'
+import { COMPACT_QUERY, useMediaQuery } from '../lib/useMediaQuery'
 import { BrandMark } from './BrandMark'
 import { ChessToolbar } from './ChessToolbar'
 import { CollabPresence } from './CollabPresence'
@@ -22,6 +23,7 @@ import { OutlinePanel } from './OutlinePanel'
 import { PreviewPane } from './PreviewPane'
 import { Resizer } from './Resizer'
 import { StatusBar, type DiagnosticCounts } from './StatusBar'
+import { TypstKeyBar } from './TypstKeyBar'
 
 // Heavy parts load on demand, so the login/project screens don't pull in
 // CodeMirror, react-markdown or the chess dialogs.
@@ -49,6 +51,9 @@ function PanelLoading() {
 const I18N_KEYS = ['AI Assistant', 'Settings', 'Export']
 
 type SidePanel = 'agent' | 'comments' | 'history' | 'outline' | 'packages' | 'settings' | null
+
+/** The one pane a phone-sized screen shows at a time. */
+type MobilePane = 'files' | 'editor' | 'preview' | 'panel'
 
 const FILETREE_DEFAULT = 230
 const FILETREE_MIN = 160
@@ -163,6 +168,8 @@ export function Workspace({
   const draftDebounceRef = useRef<number | undefined>(undefined)
   const [diagnostics, setDiagnostics] = useState<DiagnosticCounts>({ errors: 0, warnings: 0 })
   const [sidePanel, setSidePanel] = useState<SidePanel>('agent')
+  const compact = useMediaQuery(COMPACT_QUERY)
+  const [mobilePane, setMobilePane] = useState<MobilePane>('editor')
   const [previewVersion, setPreviewVersion] = useState(0)
   const [isBoardOpen, setIsBoardOpen] = useState(false)
   const [isPgnOpen, setIsPgnOpen] = useState(false)
@@ -499,6 +506,19 @@ export function Workspace({
 
   const togglePanel = (panel: Exclude<SidePanel, null>) => setSidePanel(sidePanel === panel ? null : panel)
 
+  const showMobilePane = (pane: MobilePane) => {
+    if (pane === 'panel' && !sidePanel) setSidePanel('agent')
+    setMobilePane(pane)
+  }
+  const openFromTree = (path: string) => {
+    openFile(path)
+    if (compact) setMobilePane('editor')
+  }
+  // Phone layout: every pane stays mounted (editor state, the collab room
+  // and the preview survive switching tabs); CSS shows only one.
+  const fileTreeShown = compact || showFileTree
+  const previewShown = compact || showPreview
+
   const projectName = projectPath.split('/').filter(Boolean).pop() ?? projectPath
   const crumbs = activePath ? activePath.split('/') : []
 
@@ -512,7 +532,7 @@ export function Workspace({
   ]
 
   return (
-    <div className="workspace">
+    <div className={compact ? 'workspace compact' : 'workspace'}>
       {/* Transparent overlay while resizing so the PDF <embed> can't swallow pointer events */}
       {resizing && <div className="resizing-overlay" />}
 
@@ -644,15 +664,15 @@ export function Workspace({
         </div>
       </header>
 
-      <div className="workspace-body" ref={bodyRef}>
-        {showFileTree && (
-          <aside className="workspace-filetree" style={{ width: fileTreeWidth }}>
+      <div className={compact ? `workspace-body compact pane-${mobilePane}` : 'workspace-body'} ref={bodyRef}>
+        {fileTreeShown && (
+          <aside className="workspace-filetree" style={compact ? undefined : { width: fileTreeWidth }}>
             <FileTree
               key={treeVersion}
               readOnly={readOnly}
               onFilesUploaded={() => setPreviewVersion((v) => v + 1)}
               activePath={activePath ?? ''}
-              onOpenFile={openFile}
+              onOpenFile={openFromTree}
               onPathRemoved={(p) => {
                 if (activePath && (activePath === p || activePath.startsWith(`${p}/`))) setActivePath(null)
                 setTreeVersion((v) => v + 1)
@@ -667,7 +687,7 @@ export function Workspace({
           </aside>
         )}
 
-        {showFileTree && (
+        {showFileTree && !compact && (
           <Resizer
             label="Cây thư mục"
             className="resizer-filetree"
@@ -684,10 +704,14 @@ export function Workspace({
         <div className="workspace-middle-area" ref={middleAreaRef}>
           <main
             className="workspace-editor"
-            style={{
-              flex: showPreview ? `0 0 ${editorRatio * 100}%` : '1 1 100%',
-              maxWidth: showPreview ? `${editorRatio * 100}%` : '100%',
-            }}
+            style={
+              compact
+                ? undefined
+                : {
+                    flex: showPreview ? `0 0 ${editorRatio * 100}%` : '1 1 100%',
+                    maxWidth: showPreview ? `${editorRatio * 100}%` : '100%',
+                  }
+            }
           >
             {activePath && BINARY_EXTENSIONS[activePath.slice(activePath.lastIndexOf('.')).toLowerCase()] ? (
               <div className="binary-preview-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', overflow: 'auto', boxSizing: 'border-box' }}>
@@ -771,6 +795,9 @@ export function Workspace({
                     }}
                   />
                 </Suspense>
+                {compact && activePath.endsWith('.typ') && !readOnly && (
+                  <TypstKeyBar onInsert={(text) => editorRef.current?.insertText(text)} />
+                )}
               </div>
             ) : activePath ? (
               <div className="editor-state">
@@ -831,7 +858,7 @@ export function Workspace({
             )}
           </main>
 
-          {showPreview && (
+          {showPreview && !compact && (
             <Resizer
               label="Tỷ lệ soạn thảo / xem trước"
               className="resizer-editor"
@@ -845,13 +872,17 @@ export function Workspace({
             />
           )}
 
-          {showPreview && (
+          {previewShown && (
             <section
               className="workspace-preview"
-              style={{
-                flex: `0 0 ${(1 - editorRatio) * 100}%`,
-                maxWidth: `${(1 - editorRatio) * 100}%`,
-              }}
+              style={
+                compact
+                  ? undefined
+                  : {
+                      flex: `0 0 ${(1 - editorRatio) * 100}%`,
+                      maxWidth: `${(1 - editorRatio) * 100}%`,
+                    }
+              }
             >
               <PreviewPane
                 path={activePath}
@@ -867,7 +898,7 @@ export function Workspace({
           )}
         </div>
 
-        {sidePanel && (
+        {sidePanel && !compact && (
           <Resizer
             label="Bảng bên phải"
             className="resizer-sidepanel"
@@ -882,7 +913,23 @@ export function Workspace({
         )}
 
         {sidePanel && (
-          <aside className="workspace-side-panel" style={{ width: sidePanelWidth }}>
+          <aside className="workspace-side-panel" style={compact ? undefined : { width: sidePanelWidth }}>
+            {compact && (
+              <div className="mobile-panel-tabs" role="tablist" aria-label="Công cụ">
+                {panelToggles.map((p) => (
+                  <button
+                    key={p.id}
+                    role="tab"
+                    aria-selected={sidePanel === p.id}
+                    className={`mobile-panel-tab${sidePanel === p.id ? ' active' : ''}`}
+                    onClick={() => setSidePanel(p.id)}
+                  >
+                    <Icon name={p.icon} size={16} />
+                    <span>{p.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <Suspense fallback={<PanelLoading />}>
               {sidePanel === 'agent' && <AgentChat projectPath={projectPath} />}
               {sidePanel === 'history' && (
@@ -931,6 +978,29 @@ export function Workspace({
           </aside>
         )}
       </div>
+
+      {compact && (
+        <nav className="mobile-tabbar" aria-label="Chuyển khung">
+          {(
+            [
+              { id: 'files', icon: 'folder', label: 'Tệp' },
+              { id: 'editor', icon: 'file-text', label: 'Soạn thảo' },
+              { id: 'preview', icon: 'eye', label: 'Xem trước' },
+              { id: 'panel', icon: 'sparkles', label: 'Công cụ' },
+            ] as Array<{ id: MobilePane; icon: IconName; label: string }>
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              className={`mobile-tab${mobilePane === tab.id ? ' active' : ''}`}
+              aria-current={mobilePane === tab.id ? 'page' : undefined}
+              onClick={() => showMobilePane(tab.id)}
+            >
+              <Icon name={tab.icon} size={20} />
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
 
       <StatusBar
         activePath={activePath}

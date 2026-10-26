@@ -4196,3 +4196,138 @@ button.btn-danger {
   padding: 16px;
   text-align: center;
 }
+
+/* ---- Phone layout (Workspace `compact`, max-width 720px) ----
+   One pane at a time, switched by the bottom tab bar. Panes stay mounted
+   (editor state, collab room, preview); only display changes. */
+.workspace.compact .hdr-toggle-group {
+  display: none;
+}
+.workspace.compact .workspace-header {
+  gap: 4px;
+  padding: 4px 8px;
+}
+.workspace.compact .hdr-center {
+  min-width: 0;
+  overflow: hidden;
+}
+.workspace.compact .breadcrumb .crumb:not(.crumb-current),
+.workspace.compact .breadcrumb .crumb-sep {
+  display: none;
+}
+
+.workspace-body.compact > .workspace-filetree,
+.workspace-body.compact > .workspace-middle-area,
+.workspace-body.compact > .workspace-side-panel {
+  display: none;
+}
+.workspace-body.compact.pane-files > .workspace-filetree,
+.workspace-body.compact.pane-panel > .workspace-side-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  position: static;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  border: none;
+  box-shadow: none;
+}
+.workspace-body.compact.pane-editor > .workspace-middle-area,
+.workspace-body.compact.pane-preview > .workspace-middle-area {
+  display: flex;
+}
+.workspace-body.compact .workspace-editor,
+.workspace-body.compact .workspace-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  border: none;
+}
+.workspace-body.compact.pane-editor .workspace-preview,
+.workspace-body.compact.pane-preview .workspace-editor {
+  display: none;
+}
+.workspace-body.compact .editor-container-with-toolbar {
+  min-width: 0;
+}
+/* The chess toolbar keeps its buttons on one line and scrolls sideways. */
+.workspace-body.compact .chess-toolbar {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.mobile-panel-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.mobile-panel-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.mobile-panel-tab.active {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.mobile-tabbar {
+  display: flex;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.mobile-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+  min-height: 52px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.mobile-tab.active {
+  color: var(--accent);
+}
+
+.typst-keybar {
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  scrollbar-width: none;
+}
+.typst-key {
+  flex-shrink: 0;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono, monospace);
+  font-size: 16px;
+  touch-action: manipulation;
+}

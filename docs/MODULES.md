@@ -137,9 +137,9 @@ Không router, không thư viện state. `App.tsx` là máy trạng thái loadin
 
 - `api/`: `client.ts` (`api.get/post/put/putJson/postBinary/del`, `wsUrl`, `ApiError`, `credentials: 'include'`), `types.ts`, `dropboxTypes.ts`, `pkgTypes.ts`, `agentRegistry.ts`.
 - `components/`:
-  - Khung: `Workspace.tsx` (shell: cây file, editor, preview, panel), `FileTree`, `StatusBar`, `Resizer`, `Modal`, `PromptDialog`, `QuickActions`, `ProjectPicker`, `NewDocModal`, `TemplateGallery` (dự án mới từ mẫu cờ vua hoặc Universe).
+  - Khung: `Workspace.tsx` (shell: cây file, editor, preview, panel; màn hình ≤ 720px (`lib/useMediaQuery.ts`) hiện một khung mỗi lúc, chuyển bằng thanh tab ở đáy), `FileTree`, `StatusBar`, `Resizer`, `Modal`, `PromptDialog`, `QuickActions`, `ProjectPicker`, `NewDocModal`, `TemplateGallery` (dự án mới từ mẫu cờ vua hoặc Universe).
   - Lịch sử: `HistoryPanel.tsx` (thẻ Phiên bản / Git), `HistoryDiff.tsx` (`@codemirror/merge`), `GitPanel.tsx`.
-  - Soạn thảo/preview: `Editor.tsx` (CodeMirror), `OutlinePanel`, `PreviewPane.tsx` (4 chế độ: wasm "Tức thì" mặc định / svg / pdf / tinymist), `WasmPreview.tsx` (renderer typst.ts, vá SVG tăng dần, click-to-source, cuộn đồng bộ, trình chiếu), `ExportButton`, `SymbolPicker.tsx` (bảng `sym.*`).
+  - Soạn thảo/preview: `Editor.tsx` (CodeMirror), `OutlinePanel`, `PreviewPane.tsx` (4 chế độ: wasm "Tức thì" mặc định / svg / pdf / tinymist), `WasmPreview.tsx` (renderer typst.ts, vá SVG tăng dần, click-to-source, cuộn đồng bộ, trình chiếu), `ExportButton`, `SymbolPicker.tsx` (bảng `sym.*`), `TypstKeyBar.tsx` (hàng phím ký tự Typst trên bàn phím ảo, chỉ ở bố cục điện thoại).
   - Agent: `AgentChat`, `AgentSessionHistory`, `AgentRegistryPicker`, `AuthCard`.
   - Cờ vua / nhập liệu: `ChessToolbar`, `ChessBoardModal`, `PgnImportModal`, `DataImportModal`, `MarkdownImportModal`.
   - Dropbox: `DropboxSyncModal`, `DropboxImportModal`. Cài đặt: `SettingsPanel`, `PackageManager` (tìm qua chỉ mục Universe, chèn `#import`, `PackageDocs` hiển thị README). Đăng nhập: `LoginPage`, `BrandMark`.
