@@ -4,7 +4,7 @@ name: Tauri apps
 # only when the shell or the UI it bundles changes (plus by hand).
 on:
   push:
-    branches: [main]
+    branches: [main, "feat/**"]
     paths:
       - apps/tauri/**
       - web/**
