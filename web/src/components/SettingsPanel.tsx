@@ -5,6 +5,7 @@ import { describeCombo, effectiveKey, keyComboFromEvent, SHORTCUT_ACTIONS, useSh
 import { AgentRegistryPicker } from './AgentRegistryPicker'
 import { Icon } from './Icon'
 import { SecuritySection } from './SecuritySection'
+import { ChangeServerLink } from './ChangeServerLink'
 import { setEditorPref, useEditorPrefs } from '../lib/editorPrefs'
 
 interface Field<T> {
@@ -801,9 +802,12 @@ function AccountSettingsSection() {
               </div>
             )}
           </div>
-          <button className="btn-secondary btn-sm" onClick={handleLogout} style={{ color: 'var(--error)' }}>
-            Đăng xuất
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <ChangeServerLink />
+            <button className="btn-secondary btn-sm" onClick={handleLogout} style={{ color: 'var(--error)' }}>
+              Đăng xuất
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

@@ -44,6 +44,17 @@ Nguồn: `git log` (238 commit tại 2026-09-29) và `docs/plans/*`. Ngày theo 
 
 ## Phiên làm việc
 
+### 2026-10-26 — Giai đoạn 7c: ứng dụng Android Tauri 2 (chưa chạy thử trên máy)
+- **Yêu cầu**: Giai đoạn 7c theo `docs/plans/plan_phase7c_tauri_mobile.md`; giao diện đóng gói trong app, chạy thử trên máy ảo x86_64. iOS để sau (cần macOS).
+- **Đã làm**:
+  1. Tách `src-tauri/src/main.rs` thành `lib.rs` (`run()` chung, nhớ cổng, mở link ngoài), `desktop.rs` (sidecar như 7b, chỉ `cfg(desktop)`) và `mobile.rs` (`cfg(mobile)`).
+  2. `proxy.rs`: WebView mở `http://127.0.0.1:<cổng>`; proxy phục vụ giao diện đóng gói và chuyển `/api`, `/ws`, `/preview` tới server tự host (viết lại Host/Origin/Referer, cookie bỏ `Domain`/`Secure`, WebSocket), nên code web, cookie phiên, iframe preview giữ nguyên, server không cần CORS. Server phải `https://`, `http://` chỉ cho loopback/LAN; kiểm tra `/api/auth/status` trước khi lưu.
+  3. Màn hình chọn server (`mobile/app-setup.html`, lệnh IPC `connect`/`current_server`) là trang cục bộ của Tauri; không có đường HTTP nào đổi được server. Đổi server thì xoá dữ liệu duyệt web để cookie và bản sửa ngoại tuyến của server cũ không đi sang server mới.
+  4. Web: `ChangeServerLink` (chỉ hiện trong app mobile, `web/src/lib/platform.ts`) trỏ `/__app/server`. `network_security_config.xml` chỉ cho http tới `127.0.0.1`. `scripts/prepare-mobile.ps1` build giao diện cho APK.
+- **Kiểm chứng**: `cargo test --lib` 7/7 (upstream, cookie, Origin lạ, chuyển tiếp, WebSocket, giao diện đóng gói, chống DNS rebinding); `cargo check --all-targets` bản desktop không cảnh báo; web `vitest` 135/135, `tsc -b` sạch.
+- **Rà soát bảo mật và đã sửa**: proxy tin header `Host` để viết lại `Origin`, nên trang lạ trong trình duyệt khác trên máy (DNS rebinding về `127.0.0.1`) được đổi cả Host lẫn Origin thành của server, vượt qua lớp kiểm tra Host/Origin của server và đọc được trang không cần đăng nhập (kể cả server chỉ có trong LAN). Nay proxy chỉ nhận `Host` đúng bằng địa chỉ đang nghe, còn lại trả 421.
+- **Còn mở**: chưa build APK và chạy thử trên máy ảo (bước 3 của kế hoạch; xác nhận luôn trang của proxy không gọi được IPC); `cargo check --target x86_64-linux-android` chưa chạy xong (máy thiếu RAM) nên `mobile.rs` chưa được biên dịch thử; iOS; ký APK phát hành; CI build Android.
+
 ### 2026-10-25 — Giai đoạn 7b: ứng dụng desktop Tauri 2
 - **Yêu cầu**: làm tiếp Giai đoạn 7b; chủ dự án chọn build với cấu hình Cargo mặc định. Chi tiết ở `docs/plans/plan_phase7b_tauri_desktop.md`.
 - **Đã làm**:

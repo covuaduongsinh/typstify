@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ApiError, api } from '../api/client'
 import { BrandMark } from './BrandMark'
+import { ChangeServerLink } from './ChangeServerLink'
 
 export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -242,6 +243,9 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
               Đã có tài khoản? <strong>Đăng nhập ngay</strong>
             </button>
           )}
+        </div>
+        <div className="auth-footer-switch">
+          <ChangeServerLink />
         </div>
       </div>
     </div>

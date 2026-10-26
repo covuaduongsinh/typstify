@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { ApiError, api } from './api/client'
 import type { AuthStatus, ProjectInfo } from './api/types'
+import { ChangeServerLink } from './components/ChangeServerLink'
 import { LoginPage } from './components/LoginPage'
 import { ProjectPicker } from './components/ProjectPicker'
 import { Workspace } from './components/Workspace'
@@ -128,6 +129,7 @@ function App() {
           >
             Thử lại
           </button>
+          <ChangeServerLink />
         </div>
       )
     case 'desktopSignedOut':

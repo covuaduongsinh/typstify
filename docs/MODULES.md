@@ -43,10 +43,16 @@ Tài liệu này liệt kê từng module theo thư mục. Phần **Desktop / l�
 | `previewer.go` | `PreviewService`: `Start`, `ScrollOnSelectionChange`, chế độ `document`/`slide` |
 | `document.go`, `protocol/` | Bộ đệm tài liệu; kiểu LSP sinh tự động (`ts*.go`) |
 
-### `apps/tauri/` — ứng dụng desktop Tauri 2
+### `apps/tauri/` — ứng dụng Tauri 2 (desktop và Android)
 | Tệp | Nội dung |
 |---|---|
-| `src-tauri/src/main.rs` | Chọn cổng (nhớ qua các lần mở), tạo token khởi động, chạy `typstify-server` kèm theo (ẩn cửa sổ console, ghi nhật ký), chờ cổng mở rồi mở cửa sổ chính tới `/api/auth/launch`, một phiên bản duy nhất, Job Object dừng cả cây tiến trình khi thoát |
+| `src-tauri/src/lib.rs` | `run()` chung (`mobile_entry_point`), nhớ cổng (`bind_remembered_port`), mở link ngoài bằng trình duyệt hệ thống; `main.rs` chỉ gọi `run()` |
+| `src-tauri/src/proxy.rs` | Proxy cục bộ của bản mobile: phục vụ giao diện đóng gói, chuyển `/api`, `/ws`, `/preview` tới server (viết lại Host/Origin/Referer, cookie bỏ Domain/Secure, WebSocket), kiểm địa chỉ server (`Upstream::parse`); có unit test |
+| `src-tauri/src/mobile.rs` | Bản Android: màn hình chọn server (`app-setup.html`, lệnh `connect`/`current_server`), xoá dữ liệu duyệt web khi đổi server, chặn `/__app/server` để quay lại màn hình chọn |
+| `src-tauri/tauri.android.conf.json` | Ghi đè cho Android: `frontendDist` = `resources/mobile-dist`, không sidecar |
+| `src-tauri/gen/android/` | Dự án Gradle (sinh bằng `tauri android init`), thêm `network_security_config.xml` chỉ cho http tới `127.0.0.1` |
+| `scripts/prepare-mobile.ps1` | Build web, gộp `web/dist` với `mobile/app-setup.html` vào `src-tauri/resources/mobile-dist` |
+| `src-tauri/src/desktop.rs` | Chọn cổng (nhớ qua các lần mở), tạo token khởi động, chạy `typstify-server` kèm theo (ẩn cửa sổ console, ghi nhật ký), chờ cổng mở rồi mở cửa sổ chính tới `/api/auth/launch`, một phiên bản duy nhất, Job Object dừng cả cây tiến trình khi thoát |
 | `src-tauri/tauri.conf.json` | `externalBin` (typstify-server, typst, tinymist), `resources` (`web/`, `packages/`), bộ cài NSIS |
 | `scripts/prepare.ps1` | Build server, tải typst/tinymist (kiểm SHA-256), build web, chép gói chessbook + board-n-pieces vào `src-tauri/{binaries,resources}` |
 | `splash/index.html` | Màn hình chờ trong lúc server khởi động; báo lỗi kèm đường dẫn nhật ký |
