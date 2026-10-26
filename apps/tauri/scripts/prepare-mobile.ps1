@@ -24,6 +24,9 @@ if (-not $SkipWeb) {
 $out = Join-Path $App "src-tauri/resources/mobile-dist"
 if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 New-Item -ItemType Directory -Force -Path (Split-Path $out) | Out-Null
+# Stub folders so tauri-build does not fail on resources defined in tauri.conf.json
+New-Item -ItemType Directory -Force -Path (Join-Path $App "src-tauri/resources/packages") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $App "src-tauri/resources/web") | Out-Null
 Copy-Item -Recurse (Join-Path $web "dist") $out
 Copy-Item (Join-Path $App "mobile/app-setup.html") $out
 Write-Host "Xong: $out"
