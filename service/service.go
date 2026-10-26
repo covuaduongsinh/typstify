@@ -62,6 +62,7 @@ type ServiceFacade struct {
 	dropboxClient      *dropbox.Client
 	dropboxSyncer      *dropbox.Syncer
 	vpsSync            *vpssync.SyncEngine
+	runtimes           *Runtimes
 
 	// projMu guards currentProjectDir and previewSrv: the web server
 	// switches projects from one HTTP handler while others read them.
@@ -115,9 +116,24 @@ func NewService(ctx context.Context) *ServiceFacade {
 	lsp.SetupCmdBuilder(s.settings.General().ExternalTinymist)
 	typst.SetupCmdBuilder(s.settings.General().ExternalTypst)
 
+	s.runtimes = newRuntimes(st, s.workspaceSrv, func() io.Writer {
+		if st.Lsp().EnableLSPLogs != 0 {
+			return s.consoleState
+		}
+		return io.Discard
+	}, nil)
+	go s.runtimes.Run(ctx)
+
 	s.RegisterDevice()
 
 	return s
+}
+
+// Runtimes is the per-project tinymist/preview registry the web server
+// uses for each session's project (docs/plans/plan_phase3b_per_user_projects.md).
+// The desktop app keeps using the single current project (SetProjectDir).
+func (s *ServiceFacade) Runtimes() *Runtimes {
+	return s.runtimes
 }
 
 func (s *ServiceFacade) DropboxClient() *dropbox.Client {
@@ -202,6 +218,7 @@ func (s *ServiceFacade) Close(ctx context.Context) {
 	if previewSrv := s.PreviewService(); previewSrv != nil {
 		previewSrv.Destroy(ctx)
 	}
+	s.runtimes.Close()
 
 	s.stopAcpSessionManager(ctx)
 	if s.mcpServer != nil {

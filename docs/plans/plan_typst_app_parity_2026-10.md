@@ -29,7 +29,7 @@
   - [x] 7a PWA (2026-10-25; chi tiết: [plan_phase7_pwa.md](plan_phase7_pwa.md)): manifest, service worker tự viết, cập nhật có nút tải lại, màn hình mất kết nối
   - [x] 7b Tauri 2 desktop (2026-10-25; chi tiết: [plan_phase7b_tauri_desktop.md](plan_phase7b_tauri_desktop.md)): `apps/tauri`, sidecar `typstify-server` + typst + tinymist, đăng nhập bằng token khởi động, bộ cài NSIS
   - [ ] 7c Tauri 2 mobile — code xong 2026-10-26 (`71fd789`; chi tiết: [plan_phase7c_tauri_mobile.md](plan_phase7c_tauri_mobile.md)): vỏ Android, proxy cục bộ tới server tự host. Chưa build APK, chưa chạy trên máy ảo (chủ dự án sẽ chạy sau); iOS để sau
-- [ ] Giai đoạn 3b: mỗi người một project cùng lúc (tách `ServiceFacade` theo project)
+- [ ] Giai đoạn 3b: mỗi người một project cùng lúc (tách `ServiceFacade` theo project). Kế hoạch đã chốt 2026-10-26: [plan_phase3b_per_user_projects.md](plan_phase3b_per_user_projects.md)
 
 ### Thứ tự thực hiện (chốt 2026-10-25)
 

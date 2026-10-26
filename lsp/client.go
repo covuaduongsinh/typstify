@@ -70,6 +70,17 @@ func newClient(server *Server) *Client {
 	}
 }
 
+// Workspace is the project directory this client's tinymist serves.
+func (c *Client) Workspace() string {
+	return c.server.Workspace()
+}
+
+// Running reports whether the tinymist process is still up (it is not
+// after Stop or a crash).
+func (c *Client) Running() bool {
+	return c.server.IsRunning()
+}
+
 func (c *Client) ServerCapabilities() *protocol.ServerCapabilities {
 	return c.lspCapabilities
 }
